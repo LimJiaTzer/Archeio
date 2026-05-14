@@ -4,8 +4,6 @@
 
 Archeío is a privacy-first document and media utility platform that helps users unlock, convert, compress, and process files through a single streamlined application. The platform combines OCR, file conversion, media processing, and compression tools into one integrated system for both web and mobile.
 
-This project was proposed for NUS Orbital 2026 under the Apollo 11 level of achievement. Based on the proposal document fileciteturn0file0
-
 ---
 
 ## Features
