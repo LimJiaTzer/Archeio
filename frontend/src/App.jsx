@@ -1,6 +1,19 @@
 import React from 'react';
+
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+} from 'react-router-dom';
+
+// Other html pages 
+import About from './pages/About';
+import Features from './pages/Features';
+
+// Grouped helpers 
 import FeatureCard from './components/FeatureCard';
 import Header from './components/Header';
+import AnimatedText from './components/AnimatedText';
 
 // Icons 
 import compressIcon from './assets/compressIcon.png';
@@ -10,8 +23,8 @@ import ocrIcon from './assets/ocrIcon.png';
 // bg images
 import 华山 from './assets/华山.png';
 
-// Text
-import AnimatedText from './components/AnimatedText';
+// Fonts etc 
+import './index.css';
 
 const features = [
   { id: 'ocr', label: 'OCR & Unlock', icon: <img src={ocrIcon} alt="OCR & Unlock" className="w-10 h-10 object-contain mx-auto mix-blend-multiply" />, description: 'Unlock text from images and scanned PDFs.' },
@@ -19,7 +32,7 @@ const features = [
   { id: 'compress', label: 'Compress Files', icon: <img src={compressIcon} alt="Compress Files" className="w-10 h-10 object-contain mx-auto mix-blend-multiply" />, description: 'Reduce file sizes without losing quality.' },
 ];
 
-function App() {
+function Home() {
   const handleFeatureClick = (id) => {
     console.log(`Navigate or open feature: ${id}`);
   };
@@ -43,9 +56,9 @@ function App() {
         
         {/* Hero Section */}
         <div className="text-center max-w-2xl mb-16 mt-20">
-          <h1 className="text-5xl sm:text-7xl font-extrabold mb-6 tracking-tight bg-gradient-to-r from-orange-600 via-[#FFFF00] to-orange-600 bg-clip-text text-transparent drop-shadow-sm">
-            Manage your <br/>
-            Files Easily 
+          <h1 className="text-5xl sm:text-6xl font-extrabold mb-6 tracking-tight bg-gradient-to-r from-orange-600 via-[#FFFF00] to-orange-600 bg-clip-text text-transparent drop-shadow-sm">
+            Transform how<br/>
+            you handle files
           </h1>
           
           <p className="text-lg sm:text-xl  text-slate-200 font-light leading-relaxed">
@@ -71,6 +84,18 @@ function App() {
         &copy; {new Date().getFullYear()} Archeío. All rights reserved.
       </footer>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/features" element={<Features />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 
