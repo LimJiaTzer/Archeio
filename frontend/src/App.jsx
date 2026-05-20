@@ -9,6 +9,9 @@ import {
 // Other html pages 
 import About from './pages/About';
 import Features from './pages/Features';
+import Convert from './pages/Convert';
+import Ocr from './pages/Ocr';
+import Compress from './pages/Compress';
 
 // Grouped helpers 
 import FeatureCard from './components/FeatureCard';
@@ -27,9 +30,27 @@ import 华山 from './assets/华山.png';
 import './index.css';
 
 const features = [
-  { id: 'ocr', label: 'OCR & Unlock', icon: <img src={ocrIcon} alt="OCR & Unlock" className="w-10 h-10 object-contain mx-auto mix-blend-multiply" />, description: 'Unlock text from images and scanned PDFs.' },
-  { id: 'media', label: 'Convert Media', icon: <img src={convertIcon} alt="Convert Media" className="w-10 h-10 object-contain mx-auto mix-blend-multiply" />, description: 'Seamlessly convert between media formats.' },
-  { id: 'compress', label: 'Compress Files', icon: <img src={compressIcon} alt="Compress Files" className="w-10 h-10 object-contain mx-auto mix-blend-multiply" />, description: 'Reduce file sizes without losing quality.' },
+  { 
+    id: 'ocr', 
+    label: 'OCR & Unlock', 
+    link: '/ocr',
+    icon: <img src={ocrIcon} alt="OCR & Unlock" className="w-10 h-10 object-contain mx-auto mix-blend-multiply" />, 
+    description: 'Unlock text from images and scanned PDFs.' 
+  },
+  { 
+    id: 'media', 
+    label: 'Convert Media', 
+    link: '/convert',
+    icon: <img src={convertIcon} alt="Convert Media" className="w-10 h-10 object-contain mx-auto mix-blend-multiply" />, 
+    description: 'Seamlessly convert between media formats.' 
+  },
+  { 
+    id: 'compress', 
+    label: 'Compress Files', 
+    link: '/compress',
+    icon: <img src={compressIcon} alt="Compress Files" className="w-10 h-10 object-contain mx-auto mix-blend-multiply" />, 
+    description: 'Reduce file sizes without losing quality.' 
+  },
 ];
 
 function Home() {
@@ -72,7 +93,7 @@ function Home() {
               <FeatureCard 
                 key={feature.id}
                 {...feature}
-                onClick={() => handleFeatureClick(feature.id)}
+                // onClick={() => handleFeatureClick(feature.id)}
               />
             ))}
         </div>
@@ -94,6 +115,10 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
         <Route path="/features" element={<Features />} />
+        <Route path="/convert" element={<Convert />} />
+        <Route path="/ocr" element={<Ocr />} />
+        <Route path="/compress" element={<Compress />} />
+
       </Routes>
     </BrowserRouter>
   );
