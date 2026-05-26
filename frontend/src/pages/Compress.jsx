@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState } from 'react';    // useState helps track variables 
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Archive, Sliders, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Archive, Sliders, CheckCircle2 } from 'lucide-react'; // icons, can change them 
 
 export default function Compress() {
   const [file, setFile] = useState(null);
@@ -46,7 +46,7 @@ export default function Compress() {
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
           
           // Map slider percentage smaller directly to exporting pixel quality
-          const quality = Math.max(0.05, Math.min(0.95, (100 - ratio) / 100));
+          const quality = Math.max(0.05, Math.min(0.95, (100 - ratio) / 100));  // 0.05 to 0.95  
           
           // Export as compressed JPEG format (standard format for efficient photographic size profiles)
           const dataUrl = canvas.toDataURL('image/jpeg', quality);
@@ -191,9 +191,35 @@ export default function Compress() {
               </div>
             </div>
 
+            
+
+            <div>TODO: Add dropdown here</div>
+            <br></br>
+            <div>If img/vid, crop/resize, link to Manipulation.jsx</div> 
+
+            {/* <div>
+            <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-2">Convert to:</label>
+              <select 
+                value={format}
+                onChange={(e) => {
+                  setFormat(e.target.value);
+                  if (status === 'success') {
+                    setStatus('idle');
+                  }
+                }}
+                className="w-full bg-stone-100 border border-stone-200 rounded-lg p-3 text-stone-800 font-medium focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500"
+              >
+                <option value="PNG">PNG Image (.png)</option>
+                <option value="JPG">JPG Image (.jpg)</option>
+                <option value="WEBP">WEBP Image (.webp)</option>
+                <option value="PDF">PDF Document (.pdf)</option>
+                <option value="GIF">Animated GIF (.gif)</option>
+              </select>
+            </div> */}
+
             <button
               disabled={!file || compressing}
-              onClick={startCompression}
+              onClick={startCompression} 
               className={`w-full mt-8 p-4 rounded-xl font-bold transition-all shadow-md ${
                 file && !compressing
                   ? 'bg-orange-600 hover:bg-orange-700 text-white cursor-pointer active:scale-[0.98]'
@@ -205,6 +231,8 @@ export default function Compress() {
           </div>
         </div>
 
+
+        {/* filler while waiting to similate loading */}
         {compressing && (
           <div className="mt-8 bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl flex items-center gap-3 animate-pulse">
             <div className="w-4 h-4 rounded-full border-2 border-amber-800 border-t-transparent animate-spin"></div>
@@ -212,6 +240,8 @@ export default function Compress() {
           </div>
         )}
 
+
+        {/* Showing result of compression */}
         {result && (
           <div className="mt-8 bg-green-50 border border-green-200 text-green-800 p-6 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div className="flex-1">
@@ -245,6 +275,9 @@ export default function Compress() {
             </a>
           </div>
         )}
+
+
+
       </main>
     </div>
   );
