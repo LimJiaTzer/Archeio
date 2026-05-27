@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Upload, FileType, CheckCircle2 } from 'lucide-react';
+import { getFileInfo } from '../lib/fileTypes'; // file types
 
 export default function Convert() {
   const [file, setFile] = useState(null);

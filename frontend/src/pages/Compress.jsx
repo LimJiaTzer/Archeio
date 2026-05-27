@@ -1,24 +1,45 @@
 import React, { useState } from 'react';    // useState helps track variables 
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Archive, Sliders, CheckCircle2 } from 'lucide-react'; // icons, can change them 
+import { getFileInfo } from '../lib/fileTypes'; // file types
 
 export default function Compress() {
+  // file input state 
   const [file, setFile] = useState(null);
+  const [format, setFormat] = useState(null);
+  const [fileInfo, setFileInfo] = useState(null);   // probs not the best design cos format is in here too but can fix ltr 
+  // compression process state 
   const [ratio, setRatio] = useState(75);
   const [compressing, setCompressing] = useState(false);
+  // output state
   const [result, setResult] = useState(null);
   const [downloadUrl, setDownloadUrl] = useState('');
   const [compressedFileName, setCompressedFileName] = useState('');
 
+  // UPLOAD 
+  /* Uploaded file = {
+    name, size, type, lastModified etc
+  } */
   const handleFileUpload = (e) => {
     if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+      const uploadedFile = e.target.files[0];
+      const detFileInfo = getFileInfo(uploadedFile.type);
+      
+      setFile(uploadedFile);
+      setFileInfo(detFileInfo);
+      setFormat(detFileInfo.format);
       setResult(null);
       setDownloadUrl('');
       setCompressedFileName('');
+
+      if (detFileInfo.canCrop || detFileInfo.canResize) { // some formats only can crop OR resize 
+        // TODO: Link to manipulation.jsx 
+      }
+
     }
   };
 
+  // Compression
   const startCompression = () => {
     if (!file) return;
     setCompressing(true);
@@ -194,28 +215,41 @@ export default function Compress() {
             
 
             <div>TODO: Add dropdown here</div>
+            <div>by default [filetype] to [filetype]</div>
+            <br></br>
+
             <br></br>
             <div>If img/vid, crop/resize, link to Manipulation.jsx</div> 
 
-            {/* <div>
-            <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-2">Convert to:</label>
-              <select 
-                value={format}
-                onChange={(e) => {
-                  setFormat(e.target.value);
-                  if (status === 'success') {
-                    setStatus('idle');
-                  }
-                }}
-                className="w-full bg-stone-100 border border-stone-200 rounded-lg p-3 text-stone-800 font-medium focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500"
-              >
-                <option value="PNG">PNG Image (.png)</option>
-                <option value="JPG">JPG Image (.jpg)</option>
-                <option value="WEBP">WEBP Image (.webp)</option>
-                <option value="PDF">PDF Document (.pdf)</option>
-                <option value="GIF">Animated GIF (.gif)</option>
-              </select>
-            </div> */}
+            <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-2">
+              Convert to:
+            </label>
+
+            <div>
+              {fileInfo && fileInfo.outputFormats.length > 0 && (
+                <select
+                  value={format}
+                  onChange={(e) => setFormat(e.target.value)}
+                  className="w-full bg-stone-100 border border-stone-200 rounded-lg p-3 text-stone-800 font-medium"
+                >
+                  {fileInfo.outputFormats.map((fmt) => (
+                    <option key={fmt} value={fmt}>
+                      {fmt}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div>   {/* TODO: add link to Manipulation.jsx */}
+              {fileInfo && (fileInfo.canCrop || fileInfo.canResize) && (
+                <div>file manipulation available</div>
+
+              )}
+
+            </div>
+
+          
 
             <button
               disabled={!file || compressing}
