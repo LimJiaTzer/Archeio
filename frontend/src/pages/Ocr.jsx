@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ScanText, Clipboard, Sparkles } from 'lucide-react';
+import { getFileInfo } from '../lib/fileTypes'; // file types
 
 export default function Ocr() {
   const [image, setImage] = useState(null);
