@@ -100,10 +100,6 @@ function Home() {
 
       </main>
       
-      {/* Footer */}
-      <footer className="absolute bottom-0 w-full p-6 text-center text-xs text-stone-400 font-medium z-10">
-        &copy; {new Date().getFullYear()} Archeío. All rights reserved.
-      </footer>
     </div>
   );
 }
