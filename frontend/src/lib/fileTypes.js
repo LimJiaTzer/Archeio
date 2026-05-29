@@ -14,12 +14,12 @@ export const FILE_TYPES = {
     },
   },
 
-  images: {     
+  images: {     // Only can support PNG / JPG / JPEG / WEBP for now 
     label: 'Images',
     canCrop: true,
     canResize: true,
 
-    outputFormats: ['PNG', 'JPG', 'WEBP', 'GIF', 'SVG', 'HEIC'],
+    outputFormats: ['PNG', 'JPG', 'WEBP'], // ['GIF', 'SVG', 'HEIC'] not supported for now handle error 
     formats: {
       'image/png': 'PNG',
       'image/jpg': 'JPG',

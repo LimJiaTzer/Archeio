@@ -16,6 +16,12 @@ export default function Compress() {
   const [downloadUrl, setDownloadUrl] = useState('');
   const [compressedFileName, setCompressedFileName] = useState('');
 
+  // Error handling 
+  const handleUnsupportedCompression = (msg) => {
+    setCompressing(false);
+    alert(msg);
+  }
+
   // UPLOAD 
   /* Uploaded file = {
     name, size, type, lastModified etc
@@ -43,95 +49,158 @@ export default function Compress() {
 
   // Compression
   const startCompression = () => {
-    if (!file) return;
-    setCompressing(true);
+    if (!file || !fileInfo) return;
+    setCompressing(true); 
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          
-          // Dynamically scale down extreme resolution photos to maximize storage savings safely
-          let scale = 1.0;
-          if (ratio > 75) {
-            scale = 0.70;
-          } else if (ratio > 50) {
-            scale = 0.85;
-          }
-          
-          canvas.width = img.width * scale;
-          canvas.height = img.height * scale;
-          
-          const ctx = canvas.getContext('2d');
-          if (!ctx) throw new Error("Could not instantiate canvas 2D rendering buffer");
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          
-          // Map slider percentage smaller directly to exporting pixel quality
-          const quality = Math.max(0.05, Math.min(0.95, (100 - ratio) / 100));  // 0.05 to 0.95  
-          
-          // Export as compressed JPEG format (standard format for efficient photographic size profiles)
-          const dataUrl = canvas.toDataURL('image/jpeg', quality);
-          setDownloadUrl(dataUrl);
+    // if (fileInfo.category === 'documents') {
+    //   compressDocument();
+    // } else if (fileInfo.category === 'images') {
+    //   compressImage();
+    // } else if (fileInfo.category === 'audio') {
+    //   compressAudio();
+    // } else if (fileInfo.category === 'video') {
+    //   compressVideo();
+    // } else {
+    //   handleUnsupportedCompression('File type not supported');
+    // }
+    switch (fileInfo.category) {
+      case 'documents':
+        compressDocument();
+        break;
 
-          // Calculate precise real output file size from the generated base64 payload
-          const base64Str = dataUrl.split(',')[1];
-          const actualCompressedBytes = atob(base64Str).length;
-          
-          const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-          setCompressedFileName(`${baseName}_compressed.jpg`);
-          
-          const savedPercentage = Math.round(((file.size - actualCompressedBytes) / file.size) * 100);
+      case 'images':
+        compressImage();
+        break;
 
-          setResult({
-            originalSize: (file.size / 1024 / 1024).toFixed(2) + ' MB',
-            compressedSize: (actualCompressedBytes / 1024 / 1024).toFixed(2) + ' MB',
-            ratio: Math.max(5, savedPercentage) + '%',
-          });
-          setCompressing(false);
-        } catch (err) {
-          console.error("Compression error:", err);
-          // High fidelity container size calculation fallback
-          setTimeout(() => {
-            const finalSizeNum = file.size * (1 - (ratio / 100) * 0.7);
-            setDownloadUrl(e.target?.result || '');
-            setCompressedFileName(file.name);
-            setResult({
-              originalSize: (file.size / 1024 / 1024).toFixed(2) + ' MB',
-              compressedSize: (finalSizeNum / 1024 / 1024).toFixed(2) + ' MB',
-              ratio: ratio + '%',
-            });
-            setCompressing(false);
-          }, 1000);
-        }
-      };
+      case 'audio':
+        compressAudio();
+        break;
+
+      case 'video':
+        compressVideo();
+        break;
+
+      default:
+        handleUnsupportedCompression('File type not supported');
+    }
+
+
+  }
+
+  // Compress document
+  const compressDocument = () => {
+
+  }
+
+  // Compress Image
+  const compressImage = () => {
+
+  }
+
+
+  // Compress Audio
+  const compressAudio = () => {
+
+  }
+
+
+  // Compress Video 
+  const compressVideo = () => {
+
+  }
+
+
+  // Compression
+  // const startCompression = () => {
+  //   if (!file) return;
+  //   setCompressing(true);
+
+  //   const reader = new FileReader();
+  //   reader.onload = (e) => {
+  //     const img = new Image();
+  //     img.onload = () => {
+  //       try {
+  //         const canvas = document.createElement('canvas');
+          
+  //         // Dynamically scale down extreme resolution photos to maximize storage savings safely
+  //         let scale = 1.0;
+  //         if (ratio > 75) {
+  //           scale = 0.70;
+  //         } else if (ratio > 50) {
+  //           scale = 0.85;
+  //         }
+          
+  //         canvas.width = img.width * scale;
+  //         canvas.height = img.height * scale;
+          
+  //         const ctx = canvas.getContext('2d');
+  //         if (!ctx) throw new Error("Could not instantiate canvas 2D rendering buffer");
+  //         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          
+  //         // Map slider percentage smaller directly to exporting pixel quality
+  //         const quality = Math.max(0.05, Math.min(0.95, (100 - ratio) / 100));  // 0.05 to 0.95  
+          
+  //         // Export as compressed JPEG format (standard format for efficient photographic size profiles)
+  //         const dataUrl = canvas.toDataURL('image/jpeg', quality);
+  //         setDownloadUrl(dataUrl);
+
+  //         // Calculate precise real output file size from the generated base64 payload
+  //         const base64Str = dataUrl.split(',')[1];
+  //         const actualCompressedBytes = atob(base64Str).length;
+          
+  //         const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+  //         setCompressedFileName(`${baseName}_compressed.jpg`);
+          
+  //         const savedPercentage = Math.round(((file.size - actualCompressedBytes) / file.size) * 100);
+
+  //         setResult({
+  //           originalSize: (file.size / 1024 / 1024).toFixed(2) + ' MB',
+  //           compressedSize: (actualCompressedBytes / 1024 / 1024).toFixed(2) + ' MB',
+  //           ratio: Math.max(5, savedPercentage) + '%',
+  //         });
+  //         setCompressing(false);
+  //       } catch (err) {
+  //         console.error("Compression error:", err);
+  //         // High fidelity container size calculation fallback
+  //         setTimeout(() => {
+  //           const finalSizeNum = file.size * (1 - (ratio / 100) * 0.7);
+  //           setDownloadUrl(e.target?.result || '');
+  //           setCompressedFileName(file.name);
+  //           setResult({
+  //             originalSize: (file.size / 1024 / 1024).toFixed(2) + ' MB',
+  //             compressedSize: (finalSizeNum / 1024 / 1024).toFixed(2) + ' MB',
+  //             ratio: ratio + '%',
+  //           });
+  //           setCompressing(false);
+  //         }, 1000);
+  //       }
+  //     };
       
-      img.onerror = () => {
-        // Fallback for non-image files (PDF/ZIP context simulation)
-        setTimeout(() => {
-          const finalSizeNum = file.size * (1 - (ratio / 100) * 0.4);
-          setDownloadUrl(e.target?.result || '');
-          setCompressedFileName(file.name);
-          setResult({
-            originalSize: (file.size / 1024 / 1024).toFixed(2) + ' MB',
-            compressedSize: (finalSizeNum / 1024 / 1024).toFixed(2) + ' MB',
-            ratio: ratio + '%',
-          });
-          setCompressing(false);
-        }, 1000);
-      };
+  //     img.onerror = () => {
+  //       // Fallback for non-image files (PDF/ZIP context simulation)
+  //       setTimeout(() => {
+  //         const finalSizeNum = file.size * (1 - (ratio / 100) * 0.4);
+  //         setDownloadUrl(e.target?.result || '');
+  //         setCompressedFileName(file.name);
+  //         setResult({
+  //           originalSize: (file.size / 1024 / 1024).toFixed(2) + ' MB',
+  //           compressedSize: (finalSizeNum / 1024 / 1024).toFixed(2) + ' MB',
+  //           ratio: ratio + '%',
+  //         });
+  //         setCompressing(false);
+  //       }, 1000);
+  //     };
       
-      img.src = e.target?.result;
-    };
+  //     img.src = e.target?.result;
+  //   };
 
-    reader.onerror = () => {
-      setCompressing(false);
-      alert("Error reading file.");
-    };
+  //   reader.onerror = () => {
+  //     setCompressing(false);
+  //     alert("Error reading file.");
+  //   };
     
-    reader.readAsDataURL(file);
-  };
+  //   reader.readAsDataURL(file);
+  // };
 
   const handleReset = () => {
     setFile(null);
@@ -216,13 +285,12 @@ export default function Compress() {
 
             
 
-            <div>TODO: Add dropdown here</div>
-            <div>by default [filetype] to [filetype]</div>
+            <div>Rn it can only do [filetype] to [filetype] </div>
+            <div>TODO: Add conversion logic for [filetype1] to [filetype2]</div>
             <br></br>
-
-            <br></br>
-            <div>If img/vid, crop/resize, link to Manipulation.jsx</div> 
-
+            <div>TODO: Add the zip file kind of compression too maybe on another tab?? Header tho </div>
+              {/* convert then compress */}
+            
             <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-2">
               Convert to:
             </label>
@@ -246,7 +314,6 @@ export default function Compress() {
             <div>   {/* TODO: add link to Manipulation.jsx */}
               {fileInfo && (fileInfo.canCrop || fileInfo.canResize) && (
                 <div>file manipulation available</div>
-
               )}
 
             </div>

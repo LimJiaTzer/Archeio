@@ -4,10 +4,9 @@ import { Link } from 'react-router-dom';
 
 export const navMenus = [
   {
-    title: 'Unlock',
+    title: 'Unlock',  // name pending 
     options: [
       { label: 'Image to Text (OCR)', href: '#' },
-      { label: 'Scanned PDF to Word', href: '#' }
     ]
   },
   {
@@ -33,8 +32,15 @@ export const navMenus = [
     title: 'Compress',
     options: [
       { label: 'Compress PDF', href: '#' },
-      { label: 'Compress Image', href: '#' },
-      { label: 'Zip Archive', href: '#' }
+      { label: 'Compress Image', href: '#' }
+    ]
+  },
+  {
+    title: 'Tools',
+    options: [
+      { label: 'Scanned PDF to Word', href: '#' },
+      { label: 'Zip Archive', href: '#' },
+      { label: 'Crop vid / img', href: '#' }
     ]
   }
 ];
