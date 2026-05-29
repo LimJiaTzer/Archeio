@@ -43,7 +43,7 @@ export default function Header() {
   return (
     // <header className="absolute top-0 w-full p-6 flex justify-between items-center z-20">
     <header className="fixed top-0 left-0 w-full z-50 px-6 pt-6">
-      <div className="w-full rounded-2xl bg-black/2 backdrop-blur-md border border-white/10 shadow-lg px-8 py-4 flex justify-between items-center">
+      <div className="relative w-full rounded-2xl bg-black/2 backdrop-blur-md border border-white/10 shadow-lg px-8 py-4 flex justify-between items-center">
       <a
         href = "#"
         className="text-2xl font-black tracking-widest text-[#E08E19] font-effect-fire"
@@ -52,7 +52,7 @@ export default function Header() {
       </a>
       
       {/* Main Dropdown Nav */}
-      <nav className="hidden sm:flex items-center space-x-8 text-sm text-stone-600 px-8 rounded-full">
+      <nav className="absolute left-1/2 -translate-x-1/2 hidden sm:flex items-center space-x-8 text-sm text-stone-600 px-8 rounded-full">
         {navMenus.map((menu, i) => (
           <NavDropdown key={i} item={menu} />
         ))}

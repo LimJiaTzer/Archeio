@@ -35,7 +35,9 @@ export default function Compress() {
       if (detFileInfo.canCrop || detFileInfo.canResize) { // some formats only can crop OR resize 
         // TODO: Link to manipulation.jsx 
       }
-
+      
+      // Reset the value so the exact same file can be uploaded again after removal
+      e.target.value = null;
     }
   };
 
