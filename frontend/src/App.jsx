@@ -13,15 +13,18 @@ import Convert from './pages/Convert';
 import Ocr from './pages/Ocr';
 import Compress from './pages/Compress';
 
+
 // Grouped helpers 
 import FeatureCard from './components/FeatureCard';
 import Header from './components/Header';
 import AnimatedText from './components/AnimatedText';
+import { DottedGlowBackground } from './components/ui/dotted-glow-background';
 
 // Icons 
 import compressIcon from './assets/compressIcon.png';
 import convertIcon from './assets/convertIcon.png';
 import ocrIcon from './assets/ocrIcon.png';
+
 
 // bg images
 import 华山 from './assets/华山.png';
@@ -60,34 +63,45 @@ function Home() {
 
   return (
     <div
-      className="min-h-screen bg-cover bg-center bg-no-repeat text-stone-800 font-sans selection:bg-stone-300 selection:text-stone-900 relative overflow-hidden"
-      style={{ backgroundImage: `url(${华山})` }}
+      className="min-h-screen bg-stone-50 text-stone-800 font-sans selection:bg-stone-300 selection:text-stone-900 relative overflow-hidden"
     >
 
+      <div className="absolute inset-0 z-0 pointer-events-none">
+        <DottedGlowBackground
+          className="absolute inset-0"
+          gap={14}
+          radius={1.6}
+          opacity={0.6}
+          backgroundOpacity={0.03}
+          color="rgba(120, 113, 108, 0.35)"
+          glowColor="rgba(249, 115, 22, 0.5)"
+          speedScale={0.75}
+        />
+      </div>
+
       {/* Decorative blurry background blobs */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-100/50 rounded-full blur-[100px] -z-10 mix-blend-multiply pointer-events-none"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-amber-100/50 rounded-full blur-[100px] -z-10 mix-blend-multiply pointer-events-none"></div>
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-100/50 rounded-full blur-[100px] z-[1] mix-blend-multiply pointer-events-none"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-amber-100/50 rounded-full blur-[100px] z-[1] mix-blend-multiply pointer-events-none"></div>
 
       <Header />
 
       {/* Main Content */}
-      <main className="relative flex flex-col items-center justify-center min-h-screen p-6 sm:p-12 z-0">
+      <main className="relative z-10 flex flex-col items-center justify-center min-h-screen p-6 sm:p-12">
         
 
         
         {/* Hero Section */}
         <div className="text-center max-w-2xl mb-16 mt-20">
-          <h1 className="text-5xl sm:text-6xl font-extrabold mb-6 tracking-tight bg-gradient-to-r from-orange-600 via-[#FFFF00] to-orange-600 bg-clip-text text-transparent drop-shadow-sm">
+          <h1 className="text-5xl sm:text-6xl font-extrabold mb-6 tracking-tight bg-gradient-to-r from-orange-700 via-amber-500 to-orange-700 bg-clip-text text-transparent drop-shadow-sm">
             Transform how<br/>
             you handle files
           </h1>
           
-          <p className="text-lg sm:text-xl  text-slate-200 font-light leading-relaxed">
+          <p className="text-lg sm:text-xl text-stone-700 font-medium leading-relaxed">
             A unified, privacy-first utility platform. Convert, compress, and extract data from your files with a touch of elegance.
           </p>
         </div>
 
-        {/* Feature Grid with Glassmorphism */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 w-full max-w-4xl relative">
             {features.map(feature => (
               <FeatureCard 
