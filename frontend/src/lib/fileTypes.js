@@ -64,7 +64,6 @@ export const FILE_TYPES = {
 };
 
 
-
 export const getFileInfo = (type) => {
   for (const [category, data] of Object.entries(FILE_TYPES)) {
     if (type in data.formats) {
@@ -89,3 +88,23 @@ export const getFileInfo = (type) => {
     canResize: false,
   };
 };
+
+
+// Map for images
+export const IMAGE_OUTPUT_TYPES = {
+  JPG: { mime: 'image/jpeg', ext: 'jpg' },
+  JPEG: { mime: 'image/jpeg', ext: 'jpg' },
+  PNG: { mime: 'image/png', ext: 'png' },
+  WEBP: { mime: 'image/webp', ext: 'webp' },
+  // TODO: Support GIF / SVG / HEIC too 
+};
+
+
+// Map for Docs
+// TOOD:
+
+// Map for videos 
+// TODO:
+
+// Map for Audio
+// TODO: 
