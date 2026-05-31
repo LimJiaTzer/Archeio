@@ -1,5 +1,5 @@
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
-import {getFileInfo, getOutputInfo}from '../lib/fileTypes';
+import { getFileInfo, getOutputInfo } from '../lib/fileTypes';
 
 const ensureFfmpegLoaded = async (ffmpeg) => {
   if (ffmpeg.loaded) return ffmpeg;
@@ -16,19 +16,20 @@ export const convertAudio = async (file, format, ffmpegRef) => {
   const ffmpeg = await ensureFfmpegLoaded(ffmpegRef.current);
   await ffmpeg.writeFile(file.name, await fetchFile(file));
 
-  const out = getOutputInfo(format, 'audio');
+  // Audio conversions generally target audio
+  let out = getOutputInfo(format, 'audio');
+  
   const outputExt = out ? out.ext : format.toLowerCase();
   const outputName = `output.${outputExt}`;
 
-  const isAudioFormat = Object.keys(AUDIO_OUTPUT_TYPES).map(k => k.toLowerCase()).includes(outputExt);
   const command = ['-i', file.name];
-  // If input is video and output is audio, drop video stream
-  if (file.type.startsWith('video/') && isAudioFormat) command.push('-vn');
+  // If input is video but we requested an audio extract
+  if (file.type.startsWith('video/') && out) command.push('-vn');
   command.push(outputName);
 
   await ffmpeg.exec(command);
   const data = await ffmpeg.readFile(outputName);
-  const mimeType = isAudioFormat ? (out?.mime || `audio/${outputExt}`) : `application/octet-stream`;
+  const mimeType = out?.mime || `audio/${outputExt}`;
   const blob = new Blob([data.buffer], { type: mimeType });
 
   const downloadUrl = URL.createObjectURL(blob);
@@ -40,11 +41,18 @@ export const convertVideo = async (file, format, ffmpegRef) => {
   const ffmpeg = await ensureFfmpegLoaded(ffmpegRef.current);
   await ffmpeg.writeFile(file.name, await fetchFile(file));
 
-  const out = getOutputInfo(format, 'video');
+  // Videos can convert to video or extract to audio/images (GIF)
+  let out = getOutputInfo(format, 'video');
+  let isAudioFormat = false;
+
+  if (!out) {
+    out = getOutputInfo(format, 'audio');
+    if (out) isAudioFormat = true;
+  }
+
   const outputExt = out ? out.ext : format.toLowerCase();
   const outputName = `output.${outputExt}`;
 
-  const isAudioFormat = Object.keys(AUDIO_OUTPUT_TYPES).map(k => k.toLowerCase()).includes(outputExt);
   const command = ['-i', file.name];
   if (isAudioFormat) {
     // extract audio
@@ -54,7 +62,7 @@ export const convertVideo = async (file, format, ffmpegRef) => {
 
   await ffmpeg.exec(command);
   const data = await ffmpeg.readFile(outputName);
-  const mimeType = isAudioFormat ? (AUDIO_OUTPUT_TYPES[outputExt.toUpperCase()]?.mime || `audio/${outputExt}`) : (VIDEO_OUTPUT_TYPES[outputExt.toUpperCase()]?.mime || `video/${outputExt}`);
+  const mimeType = out?.mime || (isAudioFormat ? `audio/${outputExt}` : `video/${outputExt}`);
   const blob = new Blob([data.buffer], { type: mimeType });
 
   const downloadUrl = URL.createObjectURL(blob);
@@ -86,7 +94,19 @@ export const convertImage = async (file, format) => {
             extension = '.pdf';
           }
 
-          const dataUrl = canvas.toDataURL(mimeType, 0.92);
+          let dataUrl;
+          if (mimeType === 'image/svg+xml') {
+            const dataUrlPng = canvas.toDataURL('image/png');
+            const svgContent = `<svg width="${img.width}" height="${img.height}" xmlns="http://www.w3.org/2000/svg"><image href="${dataUrlPng}" width="${img.width}" height="${img.height}" /></svg>`;
+            const blob = new Blob([svgContent], { type: 'image/svg+xml' });
+            dataUrl = URL.createObjectURL(blob);
+          } else if (mimeType === 'image/x-icon' || mimeType === 'image/vnd.microsoft.icon') {
+            // Browsers often fall back to PNG for ICO conversions from canvas, but the extension is .ico 
+            dataUrl = canvas.toDataURL('image/png');
+          } else {
+            dataUrl = canvas.toDataURL(mimeType, 0.92);
+          }
+
           const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
           const convertedFileName = `${baseName}_converted${extension}`;
           resolve({ downloadUrl: dataUrl, convertedFileName });
