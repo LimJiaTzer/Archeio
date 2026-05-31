@@ -64,14 +64,73 @@ export const FILE_TYPES = {
 };
 
 
+// Map for images
+export const IMAGE_OUTPUT_TYPES = {
+  JPG: { mime: 'image/jpeg', ext: 'jpg' },
+  JPEG: { mime: 'image/jpeg', ext: 'jpg' },
+  PNG: { mime: 'image/png', ext: 'png' },
+  WEBP: { mime: 'image/webp', ext: 'webp' },
+};
+
+
+// Map for Documents
+export const DOC_OUTPUT_TYPES = {
+  PDF: { mime: 'application/pdf', ext: 'pdf' },
+  DOCX: { mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', ext: 'docx' },
+  TXT: { mime: 'text/plain', ext: 'txt' },
+  RTF: { mime: 'application/rtf', ext: 'rtf' },
+  EPUB: { mime: 'application/epub+zip', ext: 'epub' },
+  PPTX: { mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', ext: 'pptx' },
+  XLSX: { mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ext: 'xlsx' },
+};
+
+// Map for Videos
+export const VIDEO_OUTPUT_TYPES = {
+  MP4: { mime: 'video/mp4', ext: 'mp4' },
+  MOV: { mime: 'video/quicktime', ext: 'mov' },
+  AVI: { mime: 'video/x-msvideo', ext: 'avi' },
+  MKV: { mime: 'video/x-matroska', ext: 'mkv' },
+  WEBM: { mime: 'video/webm', ext: 'webm' },
+  GIF: { mime: 'image/gif', ext: 'gif' },
+};
+
+// Map for Audio
+export const AUDIO_OUTPUT_TYPES = {
+  MP3: { mime: 'audio/mpeg', ext: 'mp3' },
+  MIDI: { mime: 'audio/midi', ext: 'midi' },
+  WAV: { mime: 'audio/wav', ext: 'wav' },
+  AAC: { mime: 'audio/aac', ext: 'aac' },
+  FLAC: { mime: 'audio/flac', ext: 'flac' },
+  OGG: { mime: 'audio/ogg', ext: 'ogg' },
+};
+
+export const getOutputInfo = (format, category) => {
+  const key = (format || '').toUpperCase();
+  if (category === 'images') return IMAGE_OUTPUT_TYPES[key] || null;
+  if (category === 'video') return VIDEO_OUTPUT_TYPES[key] || null;
+  if (category === 'audio') return AUDIO_OUTPUT_TYPES[key] || null;
+  if (category === 'documents') return DOC_OUTPUT_TYPES[key] || null;
+  return null;
+};
+
+
+
 export const getFileInfo = (type) => {
   for (const [category, data] of Object.entries(FILE_TYPES)) {
     if (type in data.formats) {
+      const formatKey = data.formats[type];
+      const outputFormatsInfo = (data.outputFormats || []).map((f) => {
+        const info = getOutputInfo(f, category);
+        return info ? { key: f, ...info } : { key: f, mime: null, ext: f.toLowerCase() };
+      });
+
       return {
         category,
         label: data.label,
         outputFormats: data.outputFormats,
-        format: data.formats[type],
+        outputFormatsInfo,
+        format: formatKey,
+        formatInfo: getOutputInfo(formatKey, category) || null,
         canCrop: data.canCrop || false,
         canResize: data.canResize || false,
       };
@@ -83,28 +142,10 @@ export const getFileInfo = (type) => {
     category: 'unknown',
     label: 'Unknown',
     outputFormats: [],
+    outputFormatsInfo: [],
     format: null,
+    formatInfo: null,
     canCrop: false,
     canResize: false,
   };
 };
-
-
-// Map for images
-export const IMAGE_OUTPUT_TYPES = {
-  JPG: { mime: 'image/jpeg', ext: 'jpg' },
-  JPEG: { mime: 'image/jpeg', ext: 'jpg' },
-  PNG: { mime: 'image/png', ext: 'png' },
-  WEBP: { mime: 'image/webp', ext: 'webp' },
-  // TODO: Support GIF / SVG / HEIC too 
-};
-
-
-// Map for Docs
-// TOOD:
-
-// Map for videos 
-// TODO:
-
-// Map for Audio
-// TODO: 
