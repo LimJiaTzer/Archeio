@@ -14,12 +14,12 @@ export const FILE_TYPES = {
     },
   },
 
-  images: {     // Only can support PNG / JPG / JPEG / WEBP for now 
+  images: {
     label: 'Images',
     canCrop: true,
     canResize: true,
 
-    outputFormats: ['PNG', 'JPG', 'WEBP'], // ['GIF', 'SVG', 'HEIC'] not supported for now handle error 
+    outputFormats: ['PNG', 'JPG', 'JPEG', 'WEBP', 'GIF', 'SVG', 'HEIC', 'ICO'],
     formats: {
       'image/png': 'PNG',
       'image/jpg': 'JPG',
@@ -29,6 +29,8 @@ export const FILE_TYPES = {
       'image/svg+xml': 'SVG',
       'image/heic': 'HEIC',
       'image/heif': 'HEIC',
+      'image/x-icon': 'ICO',
+      'image/vnd.microsoft.icon': 'ICO',
     },
   },
 
@@ -52,7 +54,7 @@ export const FILE_TYPES = {
     canCrop: true,
     canResize: true,
 
-    outputFormats: ['MP4', 'MOV', 'AVI', 'MKV', 'WEBM'],
+    outputFormats: ['MP4', 'MOV', 'AVI', 'MKV', 'WEBM', 'GIF'],
     formats: {
       'video/mp4': 'MP4',
       'video/quicktime': 'MOV',
@@ -70,6 +72,10 @@ export const IMAGE_OUTPUT_TYPES = {
   JPEG: { mime: 'image/jpeg', ext: 'jpg' },
   PNG: { mime: 'image/png', ext: 'png' },
   WEBP: { mime: 'image/webp', ext: 'webp' },
+  GIF: { mime: 'image/gif', ext: 'gif' },
+  SVG: { mime: 'image/svg+xml', ext: 'svg' },
+  HEIC: { mime: 'image/heic', ext: 'heic' },
+  ICO: { mime: 'image/x-icon', ext: 'ico' },
 };
 
 
