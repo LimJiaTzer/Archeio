@@ -92,7 +92,12 @@ export const compressImage = ({
   reader.readAsDataURL(file);
 };
 
-export const compressDocument = () => {
+
+// for now no searchable doc --> Link OCR to this also 
+// Should we do OCR 
+export const compressDocument = ({
+
+}) => {
   alert('Document compression not supported yet.');
   // TODO:
 };

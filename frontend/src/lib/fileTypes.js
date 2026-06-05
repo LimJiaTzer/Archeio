@@ -2,7 +2,8 @@ export const FILE_TYPES = {
   documents: {  
     label: 'Documents',
 
-    outputFormats: ['PDF', 'DOCX', 'TXT', 'RTF', 'EPUB', 'PPTX', 'XLSX'],
+    outputFormats: ['PDF'], // ['DOCX', 'TXT', 'RTF', 'EPUB', 'PPTX', 'XLSX'], not worth implementing first 
+    // if its only PDF, can lock it in the dropdown 
     formats: {
       'application/pdf': 'PDF',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
@@ -92,6 +93,7 @@ export const getFileInfo = (type) => {
 
 // Map for images
 export const IMAGE_OUTPUT_TYPES = {
+  // mime: what user selected      ext: label eg something.jpg
   JPG: { mime: 'image/jpeg', ext: 'jpg' },
   JPEG: { mime: 'image/jpeg', ext: 'jpg' },
   PNG: { mime: 'image/png', ext: 'png' },
