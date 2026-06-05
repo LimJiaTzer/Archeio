@@ -53,25 +53,22 @@ export default function Compress() {
     if (!file || !fileInfo) return;
     setCompressing(true); 
 
-    // if (fileInfo.category === 'documents') {
-    //   compressDocument();
-    // } else if (fileInfo.category === 'images') {
-    //   compressImage();
-    // } else if (fileInfo.category === 'audio') {
-    //   compressAudio();
-    // } else if (fileInfo.category === 'video') {
-    //   compressVideo();
-    // } else {
-    //   handleUnsupportedCompression('File type not supported');
-    // }
     switch (fileInfo.category) {
-      case 'documents':
-        compressDocument();
+      case 'documents':     
+        compressDocument({ // can pass in ratio in future and active display on how compressed the pdf will be 
+          file,
+          format, 
+          // ratio,
+          setDownloadUrl,
+          setCompressedFileName,
+          setResult,
+          setCompressing
+        });
         break;
 
       case 'images':
         compressImage({
-          file,
+          file,  
           ratio,
           format,
           setDownloadUrl,

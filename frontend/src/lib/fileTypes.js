@@ -4,7 +4,9 @@
 // format are what the user can upload
 // output formats are what the user can convert to (based on input format)
 export const FILE_TYPES = {
+  // categroy 
   documents: {  
+    // data 
     label: 'Documents',
 
     outputFormats: ['PDF'], // ['DOCX', 'TXT', 'RTF', 'EPUB', 'PPTX', 'XLSX'], not worth implementing first 
@@ -25,7 +27,7 @@ export const FILE_TYPES = {
     canCrop: true,
     canResize: true,
 
-    outputFormats: ['PNG', 'JPG', 'JPEG', 'WEBP'], //, 'GIF', 'SVG', 'HEIC', 'ICO'
+  outputFormats: ['PNG', 'JPG', 'JPEG', 'WEBP'], // ['GIF', 'SVG', 'HEIC', 'ICO'] not supported for now, as they are not supported by canvas
     formats: {
       'image/png': 'PNG',
       'image/jpg': 'JPG',
