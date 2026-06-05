@@ -13,12 +13,12 @@ export const FILE_TYPES = {
     // if its only PDF, can lock it in the dropdown 
     formats: {
       'application/pdf': 'PDF',
-      // 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
-      // 'text/plain': 'TXT',
-      // 'application/rtf': 'RTF',
-      // 'application/epub+zip': 'EPUB',
-      // 'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PPTX',
-      // 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'XLSX',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
+      'text/plain': 'TXT',
+      'application/rtf': 'RTF',
+      'application/epub+zip': 'EPUB',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PPTX',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'XLSX',
     },
   },
 
@@ -33,12 +33,12 @@ export const FILE_TYPES = {
       'image/jpg': 'JPG',
       'image/jpeg': 'JPG',
       'image/webp': 'WEBP',
-      // 'image/gif': 'GIF',
-      // 'image/svg+xml': 'SVG',
-      // 'image/heic': 'HEIC',
-      // 'image/heif': 'HEIC',
-      // 'image/x-icon': 'ICO',
-      // 'image/vnd.microsoft.icon': 'ICO',
+      'image/gif': 'GIF',
+      'image/svg+xml': 'SVG',
+      'image/heic': 'HEIC',
+      'image/heif': 'HEIC',
+      'image/x-icon': 'ICO',
+      'image/vnd.microsoft.icon': 'ICO',
     },
   },
 
@@ -80,22 +80,22 @@ export const IMAGE_OUTPUT_TYPES = {
   JPEG: { mime: 'image/jpeg', ext: 'jpg' },
   PNG: { mime: 'image/png', ext: 'png' },
   WEBP: { mime: 'image/webp', ext: 'webp' },
-  // GIF: { mime: 'image/gif', ext: 'gif' },
-  // SVG: { mime: 'image/svg+xml', ext: 'svg' },
-  // HEIC: { mime: 'image/heic', ext: 'heic' },
-  // ICO: { mime: 'image/x-icon', ext: 'ico' },
+  GIF: { mime: 'image/gif', ext: 'gif' },
+  SVG: { mime: 'image/svg+xml', ext: 'svg' },
+  HEIC: { mime: 'image/heic', ext: 'heic' },
+  ICO: { mime: 'image/x-icon', ext: 'ico' },
 };
 
 
 // Map for Documents
 export const DOC_OUTPUT_TYPES = {
   PDF: { mime: 'application/pdf', ext: 'pdf' },
-  // DOCX: { mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', ext: 'docx' },
-  // TXT: { mime: 'text/plain', ext: 'txt' },
-  // RTF: { mime: 'application/rtf', ext: 'rtf' },
-  // EPUB: { mime: 'application/epub+zip', ext: 'epub' },
-  // PPTX: { mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', ext: 'pptx' },
-  // XLSX: { mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ext: 'xlsx' },
+  DOCX: { mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', ext: 'docx' },
+  TXT: { mime: 'text/plain', ext: 'txt' },
+  RTF: { mime: 'application/rtf', ext: 'rtf' },
+  EPUB: { mime: 'application/epub+zip', ext: 'epub' },
+  PPTX: { mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', ext: 'pptx' },
+  XLSX: { mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ext: 'xlsx' },
 };
 
 // Map for Videos
