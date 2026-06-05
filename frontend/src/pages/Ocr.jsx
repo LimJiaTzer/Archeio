@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ScanText, Clipboard, Sparkles } from 'lucide-react';
 import { getFileInfo } from '../lib/fileTypes'; // file types
-
+import Layout from '../components/Layout';
 export default function Ocr() {
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
@@ -86,18 +86,14 @@ export default function Ocr() {
   };
 
   return (
-    <div className="min-h-screen bg-stone-50 font-sans text-stone-800">
-      <nav className="p-6 border-b border-stone-200 bg-white">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
+    <Layout>
+        <main className="max-w-4xl mx-auto p-6 sm:p-12">
+        <nav className="mb-6">
           <Link to="/" className="flex items-center gap-2 text-stone-600 hover:text-stone-900 transition-colors">
             <ArrowLeft className="w-5 h-5" />
             <span>Back to Home</span>
           </Link>
-          <div className="text-xl font-bold tracking-tight text-orange-600">Archeío</div>
-        </div>
-      </nav>
-
-      <main className="max-w-4xl mx-auto p-6 sm:p-12">
+        </nav>
         <div className="mb-8">
           <h1 className="text-3xl font-extrabold text-stone-900 mb-2">OCR & Unlock</h1>
           <p className="text-stone-600">Extract high-contrast text layers from dynamic photo documents locally using the secure Gemini API backend query.</p>
@@ -195,6 +191,6 @@ export default function Ocr() {
           </div>
         </div>
       </main>
-    </div>
+    </Layout>
   );
 }

@@ -1,6 +1,7 @@
 import React from 'react';
 import NavDropdown from './NavDropdown';
 import { Link } from 'react-router-dom';
+import archeioIcon from '../assets/archeioIcon.png'
 
 export const navMenus = [
   {
@@ -49,12 +50,13 @@ export default function Header() {
   return (
     // <header className="absolute top-0 w-full p-6 flex justify-between items-center z-20">
     <header className="fixed top-0 left-0 w-full z-50 px-6 pt-6">
-      <div className="relative w-full rounded-2xl bg-black/2 backdrop-blur-md border border-white/10 shadow-lg px-8 py-4 flex justify-between items-center">
+      <div className="relative w-full rounded-2xl bg-black/2 backdrop-blur-md border border-white/10 shadow-lg px-8 py-2 flex justify-between items-center">
       <a
         href = "#"
-        className="text-2xl font-black tracking-widest text-[#E08E19] font-effect-fire"
+        className="flex items-center gap-1 text-xl font-black tracking-widest text-[#E08E19] whitespace-nowrap"
         >
-      ARCHEÍO
+      <img src={archeioIcon} alt="archeioIcon" className="w-10 h-10 object-contain shrink-0 mix-blend-multiply" />
+      <span>ARCHEÍO</span>
       </a>
       
       {/* Main Dropdown Nav */}
