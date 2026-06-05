@@ -11,12 +11,12 @@ export const FILE_TYPES = {
     // if its only PDF, can lock it in the dropdown 
     formats: {
       'application/pdf': 'PDF',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
-      'text/plain': 'TXT',
-      'application/rtf': 'RTF',
-      'application/epub+zip': 'EPUB',
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PPTX',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'XLSX',
+      // 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
+      // 'text/plain': 'TXT',
+      // 'application/rtf': 'RTF',
+      // 'application/epub+zip': 'EPUB',
+      // 'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PPTX',
+      // 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'XLSX',
     },
   },
 

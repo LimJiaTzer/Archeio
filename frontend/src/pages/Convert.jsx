@@ -8,7 +8,7 @@ import Layout from '../components/Layout';
 
 export default function Convert() {
   const [file, setFile] = useState(null);
-  const [format, setFormat] = useState('PNG');
+  const [format, setFormat] = useState(null);
   const [availableFormats, setAvailableFormats] = useState([]);
   const [converting, setConverting] = useState(false);
   const [downloadUrl, setDownloadUrl] = useState('');
@@ -37,8 +37,8 @@ export default function Convert() {
       setFormat(finalFormats[0]);
     } else {
       // Fallback
-      setAvailableFormats(['PNG', 'JPG', 'WEBP', 'PDF', 'GIF']);
-      setFormat('PNG');
+      setAvailableFormats([]);
+      setFormat(null);
     }
   };
 
