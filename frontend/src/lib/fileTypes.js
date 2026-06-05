@@ -1,3 +1,8 @@
+// Uncomment if relevant format extensions in FILE_TYPES and output types
+// after implementing in the future:
+
+// format are what the user can upload
+// output formats are what the user can convert to (based on input format)
 export const FILE_TYPES = {
   documents: {  
     label: 'Documents',
@@ -20,7 +25,7 @@ export const FILE_TYPES = {
     canCrop: true,
     canResize: true,
 
-    outputFormats: ['PNG', 'JPG', 'JPEG', 'WEBP', 'GIF', 'SVG', 'HEIC', 'ICO'],
+    outputFormats: ['PNG', 'JPG', 'JPEG', 'WEBP'], //, 'GIF', 'SVG', 'HEIC', 'ICO'
     formats: {
       'image/png': 'PNG',
       'image/jpg': 'JPG',
@@ -38,11 +43,9 @@ export const FILE_TYPES = {
   audio: {      
     label: 'Audio',
 
-    outputFormats: ['MP3', 'MIDI', 'WAV', 'AAC', 'FLAC', 'OGG'],
+    outputFormats: ['MP3', 'WAV', 'AAC', 'FLAC', 'OGG'], //'MIDI'
     formats: {
       'audio/mpeg': 'MP3',
-      'audio/midi': 'MIDI',
-      'audio/x-midi': 'MIDI',
       'audio/wav': 'WAV',
       'audio/aac': 'AAC',
       'audio/flac': 'FLAC',
@@ -54,8 +57,8 @@ export const FILE_TYPES = {
     label: 'Video',
     canCrop: true,
     canResize: true,
-
-    outputFormats: ['MP4', 'MOV', 'AVI', 'MKV', 'WEBM', 'GIF'],
+    //allow the user to convert videos to videos and audio (extract) or images (GIF)
+    outputFormats: ['MP4', 'MOV', 'AVI', 'MKV', 'WEBM', 'GIF', 'MP3', 'WAV', 'AAC', 'FLAC', 'OGG'],
     formats: {
       'video/mp4': 'MP4',
       'video/quicktime': 'MOV',
@@ -75,22 +78,22 @@ export const IMAGE_OUTPUT_TYPES = {
   JPEG: { mime: 'image/jpeg', ext: 'jpg' },
   PNG: { mime: 'image/png', ext: 'png' },
   WEBP: { mime: 'image/webp', ext: 'webp' },
-  GIF: { mime: 'image/gif', ext: 'gif' },
-  SVG: { mime: 'image/svg+xml', ext: 'svg' },
-  HEIC: { mime: 'image/heic', ext: 'heic' },
-  ICO: { mime: 'image/x-icon', ext: 'ico' },
+  // GIF: { mime: 'image/gif', ext: 'gif' },
+  // SVG: { mime: 'image/svg+xml', ext: 'svg' },
+  // HEIC: { mime: 'image/heic', ext: 'heic' },
+  // ICO: { mime: 'image/x-icon', ext: 'ico' },
 };
 
 
 // Map for Documents
 export const DOC_OUTPUT_TYPES = {
   PDF: { mime: 'application/pdf', ext: 'pdf' },
-  DOCX: { mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', ext: 'docx' },
-  TXT: { mime: 'text/plain', ext: 'txt' },
-  RTF: { mime: 'application/rtf', ext: 'rtf' },
-  EPUB: { mime: 'application/epub+zip', ext: 'epub' },
-  PPTX: { mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', ext: 'pptx' },
-  XLSX: { mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ext: 'xlsx' },
+  // DOCX: { mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', ext: 'docx' },
+  // TXT: { mime: 'text/plain', ext: 'txt' },
+  // RTF: { mime: 'application/rtf', ext: 'rtf' },
+  // EPUB: { mime: 'application/epub+zip', ext: 'epub' },
+  // PPTX: { mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', ext: 'pptx' },
+  // XLSX: { mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ext: 'xlsx' },
 };
 
 // Map for Videos
@@ -106,11 +109,11 @@ export const VIDEO_OUTPUT_TYPES = {
 // Map for Audio
 export const AUDIO_OUTPUT_TYPES = {
   MP3: { mime: 'audio/mpeg', ext: 'mp3' },
-  MIDI: { mime: 'audio/midi', ext: 'midi' },
   WAV: { mime: 'audio/wav', ext: 'wav' },
   AAC: { mime: 'audio/aac', ext: 'aac' },
   FLAC: { mime: 'audio/flac', ext: 'flac' },
   OGG: { mime: 'audio/ogg', ext: 'ogg' },
+//  MIDI: { mime: 'audio/midi', ext: 'midi' },
 };
 
 export const getOutputInfo = (format, category) => {
