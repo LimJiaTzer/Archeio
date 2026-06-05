@@ -41,7 +41,7 @@ export const convertVideo = async (file, format, ffmpegRef) => {
   const ffmpeg = await ensureFfmpegLoaded(ffmpegRef.current);
   await ffmpeg.writeFile(file.name, await fetchFile(file));
 
-  // Videos can convert to video or extract to audio/images (GIF)
+  // Videos can convert to video or extract to audio/images
   let out = getOutputInfo(format, 'video');
   let isAudioFormat = false;
 
