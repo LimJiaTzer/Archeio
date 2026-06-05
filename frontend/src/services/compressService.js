@@ -1,9 +1,5 @@
 import { getOutputInfo } from '../lib/fileTypes';
-import * as pdfjsLib from 'pdfjs-dist';
-import { jsPDF } from 'jspdf';
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
+import { PDFDocument } from 'pdf-lib';
 
 export const compressImage = ({
   file,
@@ -52,27 +48,22 @@ export const compressImage = ({
             ? canvas.toDataURL(outputType.mime)
             : canvas.toDataURL(outputType.mime, quality);
 
-        setDownloadUrl(dataUrl);
-
         const base64Str = dataUrl.split(',')[1];
         const actualCompressedBytes = atob(base64Str).length;
-
-        const baseName =
-          file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-
-        setCompressedFileName(`${baseName}_compressed.${outputType.ext}`);
+        const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
 
         const savedPercentage = Math.round(
           ((file.size - actualCompressedBytes) / file.size) * 100
         );
 
+        setDownloadUrl(dataUrl);
+        setCompressedFileName(`${baseName}_compressed.${outputType.ext}`);
         setResult({
           originalSize: (file.size / 1024 / 1024).toFixed(2) + ' MB',
           compressedSize:
             (actualCompressedBytes / 1024 / 1024).toFixed(2) + ' MB',
           ratio: Math.max(0, savedPercentage) + '%',
         });
-
         setCompressing(false);
       } catch (err) {
         console.error('Image compression error:', err);
@@ -97,26 +88,9 @@ export const compressImage = ({
   reader.readAsDataURL(file);
 };
 
-/*
-1. Read uploaded PDF
-2. Load PDF using pdfjs
-3. For pages 1 to last page:
-   - get page
-   - render page onto canvas
-   - convert canvas to compressed JPEG
-   - add JPEG into new PDF
-4. Turn new PDF into Blob
-5. Set everything else
-  - DownloadURL
-  - fileName
-  - Result sizes and stuff
-  - setCompressing(false)
-*/
-// for now no searchable doc --> Link OCR to this also 
-// OCR will be done seperately / linked with this site 
 // TODO: Extension --> allow for rendering and adjusting of quality of output pdf 
 // Fixed compression level for now 
-export const compressDocument = async ({ // needs to be async 
+export const compressDocument = async ({ 
   file,
   format,
   // ratio,
@@ -126,85 +100,42 @@ export const compressDocument = async ({ // needs to be async
   setCompressing,
 }) => {
   try {
-    const outputType = getOutputInfo(format, 'documents');
+    setCompressing(true);
 
-    if (!outputType || format !== 'PDF') {
+    if (format !== 'PDF') {
       throw new Error('Only PDF to PDF compression is supported for now.');
     }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    // similar to Java's completableFuture (await == .get())
+    const arrayBuffer = await file.arrayBuffer();       // read files into memory async
+    const pdfDoc = await PDFDocument.load(arrayBuffer); // parse PDF async 
+    const compressedPdfBytes = await pdfDoc.save({      // saves the pdf 
+      useObjectStreams: true,
+      updateMetadata: false 
+    });
 
-    // resolution and compression hardcoded for now; can make use of ratio in future 
-    const renderScale = 1.0;
-    const jpegQuality = 0.6;
-
-    let newPdf = null;
-
-    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-      const page = await pdf.getPage(pageNum);
-      const viewport = page.getViewport({ scale: renderScale });
-
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-
-      await page.render({
-        canvasContext: ctx,
-        viewport,
-      }).promise;
-
-      const imgData = canvas.toDataURL('image/jpeg', jpegQuality);
-
-      const orientation =
-        viewport.width > viewport.height ? 'landscape' : 'portrait';
-
-      if (!newPdf) {
-        newPdf = new jsPDF({
-          orientation,
-          unit: 'pt',
-          format: [viewport.width, viewport.height],
-        });
-      } else {
-        newPdf.addPage([viewport.width, viewport.height], orientation);
-      }
-
-      newPdf.addImage(
-        imgData,
-        'JPEG',
-        0,
-        0,
-        viewport.width,
-        viewport.height
-      );
-    }
-
-    const compressedBlob = newPdf.output('blob');
+    const compressedBlob = new Blob([compressedPdfBytes], { type: 'application/pdf' }); // make it a brower download object 
     const downloadUrl = URL.createObjectURL(compressedBlob);
 
-    const baseName =
-      file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-
-    setDownloadUrl(downloadUrl);
-    setCompressedFileName(`${baseName}_compressed.${outputType.ext}`);
-
+    const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+    
     const savedPercentage = Math.round(
       ((file.size - compressedBlob.size) / file.size) * 100
     );
 
+
+    setDownloadUrl(downloadUrl);
+    setCompressedFileName(`${baseName}_compressed.pdf`);
     setResult({
       originalSize: (file.size / 1024 / 1024).toFixed(2) + ' MB',
       compressedSize: (compressedBlob.size / 1024 / 1024).toFixed(2) + ' MB',
       ratio: Math.max(0, savedPercentage) + '%',
     });
-
     setCompressing(false);
   } catch (err) {
     console.error('PDF compression error:', err);
     setCompressing(false);
-    alert(err.message);
+    alert('Failed to compress PDF: ' + err.message);
   }
 };
 
