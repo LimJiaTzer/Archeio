@@ -26,19 +26,19 @@ export const FILE_TYPES = {
     label: 'Images',
     canCrop: true,
     canResize: true,
-
+    // conversion service handles the jpg to jpeg and ico naming variation
     outputFormats: ['PNG', 'JPG', 'JPEG', 'WEBP', 'GIF', 'SVG', 'ICO'], // 'HEIC' not supported for now, as they are not supported by canvas
     formats: {
       'image/png': 'PNG',
       'image/jpg': 'JPG',
       'image/jpeg': 'JPG',
       'image/webp': 'WEBP',
-      //'image/gif': 'GIF',
+      'image/gif': 'GIF',
       'image/svg+xml': 'SVG',
       'image/heic': 'HEIC',
       'image/heif': 'HEIC',
-      //'image/x-icon': 'ICO',
-      //'image/vnd.microsoft.icon': 'ICO',
+      'image/x-icon': 'ICO',
+      'image/vnd.microsoft.icon': 'ICO',
     },
   },
 

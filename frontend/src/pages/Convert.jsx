@@ -1,10 +1,11 @@
 import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Upload, FileType, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Upload, FileType, CheckCircle2, Layers } from 'lucide-react';
 import { getFileInfo } from '../lib/fileTypes'; // file types
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { convertMedia } from '../services/conversionService';
+import { convertMedia, extractFrames, zipBlobs } from '../services/conversionService';
 import Layout from '../components/Layout';
+import FrameSelector from '../components/FrameSelector';
 
 export default function Convert() {
   const [file, setFile] = useState(null);
@@ -13,6 +14,12 @@ export default function Convert() {
   const [converting, setConverting] = useState(false);
   const [downloadUrl, setDownloadUrl] = useState('');
   const [convertedFileName, setConvertedFileName] = useState('');
+
+  // Frame selection state
+  const [frames, setFrames] = useState([]);
+  const [selectedFrames, setSelectedFrames] = useState([]);
+  const [showSelector, setShowSelector] = useState(false);
+  const [extracting, setExtracting] = useState(false);
 
   // Persist FFmpeg instance so we don't recreate it every time
   const ffmpegRef = useRef(new FFmpeg());
@@ -25,6 +32,9 @@ export default function Convert() {
     setFile(newFile);
     setConverting(false);
     setDownloadUrl('');
+    setFrames([]);
+    setSelectedFrames([]);
+    setShowSelector(false);
     
     // Auto-detect file type and set available formats
     const info = getFileInfo(newFile.type);
@@ -40,6 +50,43 @@ export default function Convert() {
       setAvailableFormats([]);
       setFormat('');
     }
+  };
+
+  const handleToggleSelector = async () => {
+    if (showSelector) {
+      setShowSelector(false);
+      return;
+    }
+
+    if (frames.length === 0) {
+      setExtracting(true);
+      try {
+        const extracted = await extractFrames(file);
+        setFrames(extracted);
+        // Default to all selected for convenience? Or just show them.
+        // Let's not select any by default to let user choose.
+      } catch (err) {
+        console.error("Failed to extract frames:", err);
+        alert("Failed to read frames from file.");
+      } finally {
+        setExtracting(false);
+      }
+    }
+    setShowSelector(true);
+  };
+
+  const handleToggleFrame = (index) => {
+    setSelectedFrames(prev => 
+      prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index]
+    );
+  };
+
+  const handleSelectAll = () => {
+    setSelectedFrames(frames.map((_, i) => i));
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedFrames([]);
   };
 
   const handleDrop = (e) => {
@@ -62,7 +109,23 @@ export default function Convert() {
     setConverting(true);
 
     try {
-      const result = await convertMedia(file, format, ffmpegRef);
+      let result;
+      if (selectedFrames.length > 1) {
+        // Case 1: Multiple frames -> ZIP
+        const blobsToZip = selectedFrames.map(i => frames[i]);
+        const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+        result = await zipBlobs(blobsToZip, baseName, format);
+      } else if (selectedFrames.length === 1) {
+        // Case 2: Exactly one frame -> Convert that specific blob
+        const frameBlob = frames[selectedFrames[0]];
+        const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+        const virtualFile = new File([frameBlob], `${baseName}_frame_${selectedFrames[0] + 1}.png`, { type: 'image/png' });
+        result = await convertMedia(virtualFile, format, ffmpegRef);
+      } else {
+        // Case 3: No frames selected (standard PNG/JPG/etc) -> Convert original file
+        result = await convertMedia(file, format, ffmpegRef);
+      }
+      
       setDownloadUrl(result.downloadUrl);
       setConvertedFileName(result.convertedFileName);
     } catch (err) {
@@ -78,7 +141,12 @@ export default function Convert() {
     setConverting(false);
     setDownloadUrl('');
     setConvertedFileName('');
+    setFrames([]);
+    setSelectedFrames([]);
+    setShowSelector(false);
   };
+
+  const isMultiImage = file && (file.type === 'image/gif' || file.type === 'image/x-icon' || file.type === 'image/vnd.microsoft.icon');
 
   return (
     <Layout>
@@ -124,12 +192,24 @@ export default function Convert() {
                     </p>
                   </div>
                 </div>
-                <button 
-                  onClick={handleReset}
-                  className="shrink-0 text-stone-400 hover:text-stone-600 text-xs font-semibold"
-                >
-                  Remove
-                </button>
+                <div className="flex items-center gap-3">
+                  {isMultiImage && (
+                    <button 
+                      onClick={handleToggleSelector}
+                      disabled={extracting}
+                      className="shrink-0 flex items-center gap-2 bg-white border border-stone-200 text-stone-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:border-orange-500 hover:text-orange-600 transition-all disabled:opacity-50"
+                    >
+                      <Layers className={`w-3.5 h-3.5 ${extracting ? 'animate-pulse' : ''}`} />
+                      {extracting ? 'Reading...' : (showSelector ? 'Hide Frames' : 'Select Frames')}
+                    </button>
+                  )}
+                  <button 
+                    onClick={handleReset}
+                    className="shrink-0 text-stone-400 hover:text-stone-600 text-xs font-semibold"
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -165,17 +245,28 @@ export default function Convert() {
                     : 'bg-stone-200 text-stone-400 cursor-not-allowed'
                 }`}
               >
-                {converting ? 'Converting...' : 'Convert File'}
+                {converting ? 'Converting...' : (selectedFrames.length > 1 ? `Convert ${selectedFrames.length} Frames` : 'Convert File')}
               </button>
             </div>
           </div>
         </div>
 
+        {/* Multi-frame Selector */}
+        {showSelector && (
+          <FrameSelector 
+            frames={frames}
+            selectedFrames={selectedFrames}
+            onToggleFrame={handleToggleFrame}
+            onSelectAll={handleSelectAll}
+            onDeselectAll={handleDeselectAll}
+          />
+        )}
+
         {/* Status indicator */}
         {converting && (
           <div className="mt-8 bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl flex items-center gap-3 animate-pulse">
             <div className="w-5 h-5 rounded-full border-2 border-amber-800 border-t-transparent animate-spin"></div>
-            <span>Transforming your media file on-device...</span>
+            <span>{selectedFrames.length > 1 ? `Zipping ${selectedFrames.length} frames...` : 'Transforming your media file on-device...'}</span>
           </div>
         )}
 

@@ -1,4 +1,5 @@
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
+import JSZip from 'jszip';
 import { getFileInfo, getOutputInfo } from '../lib/fileTypes';
 import { heicToAny } from './imageConversionServices/heicToAny';
 import { svgToRaster } from './imageConversionServices/svgToRaster';
@@ -6,6 +7,7 @@ import { pngToIco } from './imageConversionServices/pngToIco';
 import { rasterToRaster } from './imageConversionServices/rasterToRaster';
 import { rasterToGif } from './imageConversionServices/rasterToGif';
 import { rasterToSvg } from './imageConversionServices/rasterToSvg.js';
+import { extractGifFrames, extractIcoFrames } from './imageConversionServices/extractFrames';
 
 const ensureFfmpegLoaded = async (ffmpeg) => {
   if (ffmpeg.loaded) return ffmpeg;
@@ -16,6 +18,41 @@ const ensureFfmpegLoaded = async (ffmpeg) => {
     wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
   });
   return ffmpeg;
+};
+
+export const extractFrames = async (file) => {
+  if (file.type === 'image/gif') {
+    return await extractGifFrames(file);
+  }
+  if (file.type === 'image/x-icon' || file.type === 'image/vnd.microsoft.icon') {
+    return await extractIcoFrames(file);
+  }
+  return [];
+};
+
+export const zipBlobs = async (blobs, baseFileName, targetFormat) => {
+  const zip = new JSZip();
+  const info = getOutputInfo(targetFormat, 'images');
+  const ext = info?.ext || targetFormat.toLowerCase();
+  
+  for (let i = 0; i < blobs.length; i++) {
+    const blob = blobs[i];
+    let finalBlob = blob;
+    // If targetFormat is not PNG (which is what extraction gives), we need to convert
+    if (info && info.mime !== 'image/png') {
+      try {
+        finalBlob = await rasterToRaster(blob, info.mime);
+      } catch (e) {
+        console.error(`Failed to convert frame ${i} to ${targetFormat}`, e);
+      }
+    }
+    
+    zip.file(`frame_${i + 1}.${ext}`, finalBlob);
+  }
+  
+  const content = await zip.generateAsync({ type: 'blob' });
+  const downloadUrl = URL.createObjectURL(content);
+  return { downloadUrl, convertedFileName: `${baseFileName}_frames.zip` };
 };
 
 export const convertAudio = async (file, format, ffmpegRef) => {
@@ -76,17 +113,10 @@ export const convertVideo = async (file, format, ffmpegRef) => {
   return { downloadUrl, convertedFileName: `${baseName}_converted.${outputExt}` };
 };
 
-// --- HELPER FUNCTIONS ---
-// (Assume these are imported or defined above based on your provided snippets)
-// convertHeic(f, targetType)
-// svgToRaster(f, targetType)
-// pngToIco(f)
-// canvasConvert(f, targetType)
-// convertToGif(f) 
-// rasterToSvg(f) 
-
 const converters = {
-  // From Raster //
+  // ==========================================
+  // Raster
+  // ==========================================
   // --- FROM PNG ---
     'image/png:image/png':     (f) => rasterToRaster(f, 'image/png'),
     'image/png:image/jpeg':    (f) => rasterToRaster(f, 'image/jpeg'),
@@ -137,7 +167,7 @@ const converters = {
   // ==========================================
   // HEIC / HEIF
   // ==========================================
-  // From HEIC to Raster and gif (Needs heic2any)
+  // From HEIC to Raster and gif 
   'image/heic:image/png':  (f) => heicToAny(f, 'image/png'),
   'image/heic:image/jpeg': (f) => heicToAny(f, 'image/jpeg'),
   'image/heic:image/webp': (f) => heicToAny(f, 'image/webp'),
@@ -145,12 +175,34 @@ const converters = {
   
   // From HEIC to ICO (heic2any + ico)
   'image/heic:image/x-icon': (f) => heicToAny(f, 'image/png').then(png => pngToIco(png)),
+
+  // ==========================================
+  // GIF (Direct conversion defaults to first frame)
+  // ==========================================
+  'image/gif:image/png':  (f) => extractGifFrames(f).then(frames => frames[0]),
+  'image/gif:image/jpeg': (f) => extractGifFrames(f).then(frames => rasterToRaster(frames[0], 'image/jpeg')),
+  'image/gif:image/webp': (f) => extractGifFrames(f).then(frames => rasterToRaster(frames[0], 'image/webp')),
+  'image/gif:image/svg+xml': (f) => extractGifFrames(f).then(frames => rasterToSvg(frames[0])),
+  'image/gif:image/x-icon': (f) => extractGifFrames(f).then(frames => pngToIco(frames[0])),
+
+  // ==========================================
+  // ICO (Direct conversion defaults to first/primary image)
+  // ==========================================
+  'image/x-icon:image/png':  (f) => extractIcoFrames(f).then(frames => frames[0]),
+  'image/x-icon:image/jpeg': (f) => extractIcoFrames(f).then(frames => rasterToRaster(frames[0], 'image/jpeg')),
+  'image/x-icon:image/webp': (f) => extractIcoFrames(f).then(frames => rasterToRaster(frames[0], 'image/webp')),
+  'image/x-icon:image/gif':  (f) => extractIcoFrames(f).then(frames => rasterToGif(frames[0])),
+  'image/x-icon:image/svg+xml': (f) => extractIcoFrames(f).then(frames => rasterToSvg(frames[0])),
 };
 
 // --- MAIN EXECUTION FUNCTION ---
 export async function convertImage(file, format) {
-  // Normalize types (e.g., handling generic jpeg/jpg aliases)
-  const fromType = file.type === 'image/jpg' ? 'image/jpeg' : file.type;
+  // Normalize input types
+  let fromType = file.type;
+  // handle jepg and ico naming variations
+  if (fromType === 'image/jpg' || fromType === 'image/jpeg') fromType = 'image/jpeg';
+  if (fromType === 'image/x-icon' || fromType === 'image/vnd.microsoft.icon') fromType = 'image/x-icon';
+
   const out = getOutputInfo(format, 'images');
   const toType = out?.mime || `image/${format.toLowerCase()}`;
   const outputExt = out?.ext || format.toLowerCase();
