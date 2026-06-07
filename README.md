@@ -17,13 +17,14 @@ Archeío is a privacy-first document and media utility platform that helps users
 ```bash
 git clone <repo-url>
 cd Archeio/frontend
-npm install```
+npm install
+```
 
 ### 2. Run the App
-npm run dev
+```npm run dev```
 
 ### 3. Open Local URL shown in terminal
-Usually http://localhost:5173/
+Usually ```http://localhost:5173/```
 
 
 ---
