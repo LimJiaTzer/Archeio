@@ -5,6 +5,28 @@
 Archeío is a privacy-first document and media utility platform that helps users unlock, convert, compress, and process files through a single streamlined application. The platform combines OCR, file conversion, media processing, and compression tools into one integrated system for both web and mobile.
 
 ---
+## Quick start
+
+### Prerequisites
+
+- Node.js >= 18
+- npm
+
+### 1. Install
+
+```bash
+git clone <repo-url>
+cd Archeio/frontend
+npm install
+
+### 2. Run the App
+npm run dev
+
+### 3. Open Local URL shown in terminal
+Usually http://localhost:5173/
+
+
+---
 
 ## Features
 
