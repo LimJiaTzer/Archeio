@@ -153,19 +153,21 @@ Compress and convert files before uploading or sharing online.
 
 ### Milestone 1 — Prototype System
 
-* PDF → searchable text conversion
+* Basic file conversion capabilities 
 * Image → Word conversion
 * File conversion pipeline
-* Basic compression functionality
+* Basic compression functionality for images and PDF
 * Frontend UI implementation
-* Batch file processing
 
 ### Milestone 2 — OCR Development
 
+* Complete compression functionality 
 * File upload interface
 * Backend upload handling
+* PDF → searchable text conversion
 * OCR extraction for image files
 * OCR text export functionality
+* Batch file processing
 
 ### Milestone 3 — Extended System
 
