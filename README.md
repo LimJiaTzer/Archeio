@@ -10,7 +10,7 @@ Archeío is a privacy-first document and media utility platform that helps users
 ### Prerequisites
 
 - Node.js >= 18
-- npm
+- npm >= 9
 
 ### 1. Install
 
