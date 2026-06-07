@@ -14,8 +14,11 @@ export function rasterToGif(file) {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0);
         
+        // Handle potential ESM default export wrapping
+        const GIFEncoder = typeof GIF === 'function' ? GIF : GIF.default;
+        
         // Initialize GIF encoder
-        const gif = new GIF({
+        const gif = new GIFEncoder({
           workers: 2,
           quality: 10,
           width: canvas.width,
@@ -31,6 +34,11 @@ export function rasterToGif(file) {
           resolve(blob);
         });
         
+        gif.on('error', (err) => {
+          URL.revokeObjectURL(url);
+          reject(err);
+        });
+        
         gif.render();
       } catch (err) {
         URL.revokeObjectURL(url);
@@ -38,7 +46,10 @@ export function rasterToGif(file) {
       }
     };
     
-    img.onerror = reject;
+    img.onerror = (err) => {
+      URL.revokeObjectURL(url);
+      reject(err);
+    };
     img.src = url;
   });
 }
