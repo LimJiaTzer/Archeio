@@ -9,7 +9,7 @@ export const FILE_TYPES = {
     // data 
     label: 'Documents',
 
-    outputFormats: ['PDF'], // ['DOCX', 'TXT', 'RTF', 'EPUB', 'PPTX', 'XLSX'], not worth implementing first 
+    outputFormats: ['PDF'], // ['DOCX', 'TXT', 'RTF', 'EPUB', 'PPTX', 'XLSX']
     // if its only PDF, can lock it in the dropdown 
     formats: {
       'application/pdf': 'PDF',
@@ -27,7 +27,7 @@ export const FILE_TYPES = {
     canCrop: true,
     canResize: true,
     // conversion service handles the jpg to jpeg and ico naming variation
-    outputFormats: ['PNG', 'JPG', 'JPEG', 'WEBP', 'GIF', 'SVG', 'ICO'], // 'HEIC' not supported for now, as they are not supported by canvas
+    outputFormats: ['PNG', 'JPG', 'JPEG', 'WEBP', 'GIF', 'SVG', 'ICO'], // 'HEIC' not supported for now
     formats: {
       'image/png': 'PNG',
       'image/jpg': 'JPG',
