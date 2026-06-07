@@ -1,5 +1,4 @@
 import { getOutputInfo } from '../lib/fileTypes';
-import { PDFDocument, PDFName, PDFNumber, PDFRawStream } from 'pdf-lib';
 
 // Image compression logic 
 export const compressImage = ({
@@ -89,239 +88,196 @@ export const compressImage = ({
   reader.readAsDataURL(file);
 };
 
-const loadImageBlob = (blob) =>
-  new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(blob);
-    const img = new Image();
-
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      resolve(img);
-    };
-
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('Could not load PDF image stream.'));
-    };
-
-    img.src = url;
-  });
-
-const compressPdfImageStream = async (node, ratio) => {
-  try {
-    const { dict } = node;
-
-    const widthVal = dict.get(PDFName.of('Width'));
-    const heightVal = dict.get(PDFName.of('Height'));
-    if (!widthVal || !heightVal) return null;
-
-    const width = widthVal.asNumber();
-    const height = heightVal.asNumber();
-
-    const filter = dict.get(PDFName.of('Filter'));
-    const colorSpace = dict.get(PDFName.of('ColorSpace'));
-
-    const isDCT =
-      filter === PDFName.of('DCTDecode') ||
-      filter?.toString?.().includes('DCTDecode');
-
-    let rawBytes;
-
-    if (isDCT) {
-      rawBytes = node.contents;
-    } else if (typeof node.getUncompressedContents === 'function') {
-      rawBytes = node.getUncompressedContents();
-    } else {
-      return null;
-    }
-
-    if (!rawBytes || !(rawBytes instanceof Uint8Array)) return null;
-
-    let imgSource = null;
-
-    if (isDCT) {
-      const blob = new Blob([rawBytes], { type: 'image/jpeg' });
-      imgSource = await loadImageBlob(blob);
-    } else {
-      const isRGB =
-        colorSpace === PDFName.of('DeviceRGB') ||
-        colorSpace?.toString?.().includes('DeviceRGB');
-
-      const isGray =
-        colorSpace === PDFName.of('DeviceGray') ||
-        colorSpace?.toString?.().includes('DeviceGray');
-
-      if (!isRGB && !isGray) return null;
-
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return null;
-
-      const imageData = ctx.createImageData(width, height);
-      const totalPixels = width * height;
-
-      let srcIdx = 0;
-      let dstIdx = 0;
-
-      if (isRGB && rawBytes.length >= totalPixels * 3) {
-        for (let i = 0; i < totalPixels; i++) {
-          imageData.data[dstIdx] = rawBytes[srcIdx];
-          imageData.data[dstIdx + 1] = rawBytes[srcIdx + 1];
-          imageData.data[dstIdx + 2] = rawBytes[srcIdx + 2];
-          imageData.data[dstIdx + 3] = 255;
-
-          srcIdx += 3;
-          dstIdx += 4;
-        }
-      } else if (isGray && rawBytes.length >= totalPixels) {
-        for (let i = 0; i < totalPixels; i++) {
-          const g = rawBytes[srcIdx];
-
-          imageData.data[dstIdx] = g;
-          imageData.data[dstIdx + 1] = g;
-          imageData.data[dstIdx + 2] = g;
-          imageData.data[dstIdx + 3] = 255;
-
-          srcIdx += 1;
-          dstIdx += 4;
-        }
-      } else {
-        return null;
-      }
-
-      ctx.putImageData(imageData, 0, 0);
-      imgSource = canvas;
-    }
-
-    const quality = Math.max(0.1, Math.min(0.9, (100 - ratio) / 100));
-
-    let scale = 1.0;
-    if (ratio > 75) scale = 0.5;
-    else if (ratio > 50) scale = 0.75;
-    else scale = 0.9;
-
-    const outWidth = Math.max(8, Math.round(width * scale));
-    const outHeight = Math.max(8, Math.round(height * scale));
-
-    const outCanvas = document.createElement('canvas');
-    outCanvas.width = outWidth;
-    outCanvas.height = outHeight;
-
-    const outCtx = outCanvas.getContext('2d');
-    if (!outCtx) return null;
-
-    outCtx.drawImage(imgSource, 0, 0, outWidth, outHeight);
-
-    const compressedBytes = await new Promise((resolve) => {
-      outCanvas.toBlob(async (blob) => {
-        if (!blob) return resolve(null);
-        resolve(new Uint8Array(await blob.arrayBuffer()));
-      }, 'image/jpeg', quality);
-    });
-
-    if (!compressedBytes) return null;
-
-    if (compressedBytes.length >= node.contents.length) {
-      return null;
-    }
-
-    return {
-      bytes: compressedBytes,
-      width: outWidth,
-      height: outHeight,
-    };
-  } catch (err) {
-    console.warn('Could not compress PDF image stream:', err);
-    return null;
-  }
-};
 
 // TODO: Introduce batch processing next time 
 // TODO: Extension --> allow for rendering and adjusting of quality of output pdf 
-// PDF compression logic 
+// PDF compression logic
+
+const PDFJS_VERSION = '3.11.174';
+const PDFJS_CDN     = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.min.js`;
+const PDFJS_WORKER  = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.worker.min.js`;
+const PDFLIB_CDN    = 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js';
+
+const loadScript = (src) =>
+  new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) return resolve();
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload  = resolve;
+    s.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+    document.head.appendChild(s);
+  });
+
+const getPdfjsLib = async () => {
+  await loadScript(PDFJS_CDN);
+  const lib = window.pdfjsLib;
+  if (!lib) throw new Error('pdfjsLib not found on window after script load');
+  lib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+  return lib;
+};
+
+const getPdfLib = async () => {
+  if (window.PDFLib) return window.PDFLib;
+  await loadScript(PDFLIB_CDN);
+  if (!window.PDFLib) throw new Error('PDFLib not found on window after script load');
+  return window.PDFLib;
+};
+ 
+/**
+ * Map the 0-100 "compression ratio" slider to concrete render/quality settings.
+ *
+ * ratio = 0   → lossless-ish  (keep original DPI, high JPEG quality)
+ * ratio = 100 → maximum crush (low DPI, low JPEG quality)
+ *
+ * The DPI used for rendering controls how many pixels PDF.js puts on the canvas;
+ * lower DPI = smaller canvas = smaller JPEG regardless of quality setting.
+ */
+const ratioToSettings = (ratio) => {
+  if (ratio <= 10) return { dpi: 150, jpegQuality: 0.92 }; // very light touch
+  if (ratio <= 25) return { dpi: 144, jpegQuality: 0.85 };
+  if (ratio <= 50) return { dpi: 120, jpegQuality: 0.75 }; // balanced (default)
+  if (ratio <= 75) return { dpi: 96,  jpegQuality: 0.60 }; // strong
+  return              { dpi: 72,  jpegQuality: 0.45 };      // maximum
+};
+ 
+/**
+ * Render one PDF page to a canvas and return it as a JPEG Uint8Array.
+ *
+ * @param {PDFPageProxy} page      - PDF.js page object
+ * @param {number}       dpi       - target render resolution
+ * @param {number}       quality   - JPEG quality in [0, 1]
+ * @returns {Promise<Uint8Array>}
+ */
+const pageToJpegBytes = (page, dpi, quality) =>
+  new Promise((resolve, reject) => {
+    const BASE_DPI = 72; // PDF user-space is 72 pt/inch
+    const scale    = dpi / BASE_DPI;
+    const viewport = page.getViewport({ scale });
+ 
+    const canvas = document.createElement('canvas');
+    canvas.width  = Math.round(viewport.width);
+    canvas.height = Math.round(viewport.height);
+ 
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return reject(new Error('Could not create canvas context'));
+ 
+    // White background so transparent PDFs compress well as JPEG
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+ 
+    page
+      .render({ canvasContext: ctx, viewport })
+      .promise.then(() => {
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) return reject(new Error('Canvas toBlob failed'));
+            blob.arrayBuffer().then((buf) => resolve(new Uint8Array(buf)));
+          },
+          'image/jpeg',
+          quality
+        );
+      })
+      .catch(reject);
+  });
+ 
+/**
+ * Compress a PDF file by rasterising every page to a JPEG at the given
+ * compression ratio and reassembling into a new PDF with pdf-lib.
+ *
+ * @param {object} params
+ * @param {File}     params.file
+ * @param {number}   params.ratio               - 0 (light) … 100 (maximum)
+ * @param {Function} params.setDownloadUrl
+ * @param {Function} params.setCompressedFileName
+ * @param {Function} params.setResult
+ * @param {Function} params.setCompressing
+ * @param {Function} [params.onProgress]        - optional (currentPage, totalPages)
+ */
 export const compressDocument = async ({
   file,
-  ratio,
-  format,
+  ratio = 50,
   setDownloadUrl,
   setCompressedFileName,
   setResult,
   setCompressing,
+  onProgress,
 }) => {
   try {
-    setCompressing(true);
-
-    if (format !== 'PDF') {
-      throw new Error('Only PDF to PDF compression is supported for now.');
-    }
-
+    // ── 1. Read the file as an ArrayBuffer ─────────────────────────────────
     const arrayBuffer = await file.arrayBuffer();
-    const pdfDoc = await PDFDocument.load(arrayBuffer);
-
-    // const indirectObjects = pdfDoc.context.enumerateKeysAndValues();
-    const indirectObjects = pdfDoc.context.indirectObjects;
-
-    for (const [ref, node] of indirectObjects) {
-      if (!(node instanceof PDFRawStream)) continue;
-
-      const subtype = node.dict.get(PDFName.of('Subtype'));
-
-      if (subtype !== PDFName.of('Image')) continue;
-
-      const result = await compressPdfImageStream(node, ratio);
-
-      if (!result) continue;
-
-      const newRawStream = PDFRawStream.of(node.dict, result.bytes);
-
-      newRawStream.dict.set(PDFName.of('Width'), PDFNumber.of(result.width));
-      newRawStream.dict.set(PDFName.of('Height'), PDFNumber.of(result.height));
-      newRawStream.dict.set(PDFName.of('Filter'), PDFName.of('DCTDecode'));
-      newRawStream.dict.delete(PDFName.of('DecodeParms'));
-
-      // pdfDoc.context.set(ref, newRawStream);
-      pdfDoc.context.indirectObjects.set(ref, newRawStream);
+ 
+    // ── 2. Load PDF.js and open the document ───────────────────────────────
+    const pdfjsLib = await getPdfjsLib();
+    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
+    const pdfDoc = await loadingTask.promise;
+    const totalPages = pdfDoc.numPages;
+ 
+    if (totalPages === 0) throw new Error('PDF has no pages.');
+ 
+    // ── 3. Derive render settings from the compression ratio ───────────────
+    const { dpi, jpegQuality } = ratioToSettings(ratio);
+ 
+    // ── 4. Render every page → JPEG bytes ──────────────────────────────────
+    const pageJpegs = []; // Array<{ bytes: Uint8Array, width: number, height: number }>
+ 
+    for (let i = 1; i <= totalPages; i++) {
+      const page     = await pdfDoc.getPage(i);
+      const viewport = page.getViewport({ scale: dpi / 72 });
+      const bytes    = await pageToJpegBytes(page, dpi, jpegQuality);
+ 
+      pageJpegs.push({
+        bytes,
+        width:  Math.round(viewport.width),
+        height: Math.round(viewport.height),
+      });
+ 
+      onProgress?.(i, totalPages);
     }
-
-    const compressedPdfBytes = await pdfDoc.save({
-      useObjectStreams: true,
-      updateMetadata: false,
-    });
-
-    const compressedBlob = new Blob([compressedPdfBytes], {
-      type: 'application/pdf',
-    });
-
-    const downloadUrl = URL.createObjectURL(compressedBlob);
-
-    const baseName =
-      file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-
+ 
+    // ── 5. Assemble the output PDF with pdf-lib ────────────────────────────
+    const { PDFDocument } = await getPdfLib();
+    const outPdf = await PDFDocument.create();
+ 
+    // PDF points: 1 pt = 1/72 inch. At `dpi` DPI, each canvas pixel = 72/dpi pt.
+    const pixelsToPt = (px) => (px * 72) / dpi;
+ 
+    for (const { bytes, width, height } of pageJpegs) {
+      const jpgImage = await outPdf.embedJpg(bytes);
+      const ptWidth  = pixelsToPt(width);
+      const ptHeight = pixelsToPt(height);
+ 
+      const page = outPdf.addPage([ptWidth, ptHeight]);
+ 
+      // Draw the JPEG flush to fill the whole page
+      page.drawImage(jpgImage, { x: 0, y: 0, width: ptWidth, height: ptHeight });
+    }
+ 
+    // ── 6. Serialise and report results ────────────────────────────────────
+    const compressedBytes = await outPdf.save();
+    const blob            = new Blob([compressedBytes], { type: 'application/pdf' });
+    const downloadUrl     = URL.createObjectURL(blob);
+ 
+    const baseName = file.name.replace(/\.pdf$/i, '');
+    const savedPct = Math.round(
+      ((file.size - compressedBytes.byteLength) / file.size) * 100
+    );
+ 
     setDownloadUrl(downloadUrl);
     setCompressedFileName(`${baseName}_compressed.pdf`);
-
-    const savedPercentage = Math.round(
-      ((file.size - compressedBlob.size) / file.size) * 100
-    );
-
     setResult({
-      originalSize: (file.size / 1024 / 1024).toFixed(2) + ' MB',
-      compressedSize: (compressedBlob.size / 1024 / 1024).toFixed(2) + ' MB',
-      ratio: Math.max(0, savedPercentage) + '%',
+      originalSize:   (file.size / 1024 / 1024).toFixed(2) + ' MB',
+      compressedSize: (compressedBytes.byteLength / 1024 / 1024).toFixed(2) + ' MB',
+      ratio:          Math.max(0, savedPct) + '%',
     });
+    setCompressing(false);
   } catch (err) {
     console.error('PDF compression error:', err);
-    alert('Failed to compress PDF: ' + err.message);
-  } finally {
     setCompressing(false);
+    alert('PDF compression failed: ' + err.message);
   }
 };
 
 
-// Audio compression logic 
 export const compressAudio = () => {
   alert('Audio compression not supported yet.');
   // TODO:
