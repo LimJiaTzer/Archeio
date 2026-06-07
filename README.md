@@ -17,7 +17,7 @@ Archeío is a privacy-first document and media utility platform that helps users
 ```bash
 git clone <repo-url>
 cd Archeio/frontend
-npm install
+npm install```
 
 ### 2. Run the App
 npm run dev
