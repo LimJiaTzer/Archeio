@@ -1,5 +1,11 @@
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import { getFileInfo, getOutputInfo } from '../lib/fileTypes';
+import { heicToAny } from './imageConversionServices/heicToAny';
+import { svgToRaster } from './imageConversionServices/svgToRaster';
+import { pngToIco } from './imageConversionServices/pngToIco';
+import { rasterToRaster } from './imageConversionServices/rasterToRaster';
+import { rasterToGif } from './imageConversionServices/rasterToGif';
+import { rasterToSvg } from './imageConversionServices/rasterToSvg.js';
 
 const ensureFfmpegLoaded = async (ffmpeg) => {
   if (ffmpeg.loaded) return ffmpeg;
@@ -70,65 +76,97 @@ export const convertVideo = async (file, format, ffmpegRef) => {
   return { downloadUrl, convertedFileName: `${baseName}_converted.${outputExt}` };
 };
 
-export const convertImage = async (file, format) => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width;
-          canvas.height = img.height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) throw new Error('Could not get 2D rendering context.');
-          ctx.drawImage(img, 0, 0);
+// --- HELPER FUNCTIONS ---
+// (Assume these are imported or defined above based on your provided snippets)
+// convertHeic(f, targetType)
+// svgToRaster(f, targetType)
+// pngToIco(f)
+// canvasConvert(f, targetType)
+// convertToGif(f) 
+// rasterToSvg(f) 
 
-          const info = getOutputInfo(format, 'images');
-          let mimeType = info?.mime || 'image/png';
-          let extension = info ? `.${info.ext}` : '.png';
+const converters = {
+  // From Raster //
+  // --- FROM PNG ---
+    'image/png:image/png':     (f) => rasterToRaster(f, 'image/png'),
+    'image/png:image/jpeg':    (f) => rasterToRaster(f, 'image/jpeg'),
+    'image/png:image/webp':    (f) => rasterToRaster(f, 'image/webp'),
+    'image/png:image/gif':     (f) => rasterToGif(f),
+    'image/png:image/svg+xml': (f) => rasterToSvg(f),
+    'image/png:image/x-icon':  (f) => rasterToRaster(f, 'image/png').then(pngBlob => pngToIco(pngBlob)),
 
-          // Special-case PDF: use JPEG base (keeps previous behavior)
-          if ((format || '').toUpperCase() === 'PDF') {
-            mimeType = 'image/jpeg';
-            extension = '.pdf';
-          }
+    // --- FROM JPEG ---
+    'image/jpeg:image/png':     (f) => rasterToRaster(f, 'image/png'),
+    'image/jpeg:image/jpeg':    (f) => rasterToRaster(f, 'image/jpeg'),
+    'image/jpeg:image/webp':    (f) => rasterToRaster(f, 'image/webp'),
+    'image/jpeg:image/gif':     (f) => rasterToGif(f),
+    'image/jpeg:image/svg+xml': (f) => rasterToSvg(f),
+    'image/jpeg:image/x-icon':  (f) => rasterToRaster(f, 'image/png').then(pngBlob => pngToIco(pngBlob)),
 
-          let dataUrl;
-          if (mimeType === 'image/svg+xml') {
-            const dataUrlPng = canvas.toDataURL('image/png');
-            const svgContent = `<svg width="${img.width}" height="${img.height}" xmlns="http://www.w3.org/2000/svg"><image href="${dataUrlPng}" width="${img.width}" height="${img.height}" /></svg>`;
-            const blob = new Blob([svgContent], { type: 'image/svg+xml' });
-            dataUrl = URL.createObjectURL(blob);
-          } else if (mimeType === 'image/x-icon' || mimeType === 'image/vnd.microsoft.icon') {
-            // Browsers often fall back to PNG for ICO conversions from canvas, but the extension is .ico 
-            dataUrl = canvas.toDataURL('image/png');
-          } else {
-            dataUrl = canvas.toDataURL(mimeType, 0.92);
-          }
+    // --- FROM WEBP ---
+    'image/webp:image/png':     (f) => rasterToRaster(f, 'image/png'),
+    'image/webp:image/jpeg':    (f) => rasterToRaster(f, 'image/jpeg'),
+    'image/webp:image/webp':    (f) => rasterToRaster(f, 'image/webp'),
+    'image/webp:image/gif':     (f) => rasterToGif(f),
+    'image/webp:image/svg+xml': (f) => rasterToSvg(f),
+    'image/webp:image/x-icon':  (f) => rasterToRaster(f, 'image/png').then(pngBlob => pngToIco(pngBlob)),
 
-          const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-          const convertedFileName = `${baseName}_converted${extension}`;
-          resolve({ downloadUrl: dataUrl, convertedFileName });
-        } catch (err) {
-          console.error('Canvas conversion failed:', err);
-          const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-          resolve({ downloadUrl: e.target?.result || '', convertedFileName: `${baseName}_converted.${(format||'png').toLowerCase()}` });
-        }
-      };
-      img.onerror = () => {
-        // Fallback for non-image files
-        setTimeout(() => {
-          const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-          resolve({ downloadUrl: e.target?.result || '', convertedFileName: `${baseName}_converted.${(format||'png').toLowerCase()}` });
-        }, 1200);
-      };
-      img.src = e.target?.result;
-    };
-    reader.onerror = () => reject(new Error('Error reading file.'));
-    reader.readAsDataURL(file);
-  });
+    // --- FROM BMP ---
+    'image/bmp:image/png':     (f) => rasterToRaster(f, 'image/png'),
+    'image/bmp:image/jpeg':    (f) => rasterToRaster(f, 'image/jpeg'),
+    'image/bmp:image/webp':    (f) => rasterToRaster(f, 'image/webp'),
+    'image/bmp:image/gif':     (f) => rasterToGif(f),
+    'image/bmp:image/svg+xml': (f) => rasterToSvg(f),
+    'image/bmp:image/x-icon':  (f) => rasterToRaster(f, 'image/png').then(pngBlob => pngToIco(pngBlob)),
+
+  // ==========================================
+  // SVG
+  // ==========================================
+  // From SVG to Raster (Canvas)
+  'image/svg+xml:image/png':  (f) => svgToRaster(f, 'image/png'),
+  'image/svg+xml:image/jpeg': (f) => svgToRaster(f, 'image/jpeg'),
+  'image/svg+xml:image/webp': (f) => svgToRaster(f, 'image/webp'),
+  
+  // To GIF
+  'image/svg+xml:image/gif':  (f) => svgToRaster(f, 'image/png').then(pngBlob => rasterToGif(pngBlob)),
+  
+  // To ICO
+  'image/svg+xml:image/x-icon': (f) => svgToRaster(f, 'image/png').then(pngBlob => pngToIco(pngBlob)),
+
+
+  // ==========================================
+  // HEIC / HEIF
+  // ==========================================
+  // From HEIC to Raster and gif (Needs heic2any)
+  'image/heic:image/png':  (f) => heicToAny(f, 'image/png'),
+  'image/heic:image/jpeg': (f) => heicToAny(f, 'image/jpeg'),
+  'image/heic:image/webp': (f) => heicToAny(f, 'image/webp'),
+  'image/heic:image/gif':  (f) => heicToAny(f, 'image/gif'),
+  
+  // From HEIC to ICO (heic2any + ico)
+  'image/heic:image/x-icon': (f) => heicToAny(f, 'image/png').then(png => pngToIco(png)),
 };
+
+// --- MAIN EXECUTION FUNCTION ---
+export async function convertImage(file, format) {
+  // Normalize types (e.g., handling generic jpeg/jpg aliases)
+  const fromType = file.type === 'image/jpg' ? 'image/jpeg' : file.type;
+  const out = getOutputInfo(format, 'images');
+  const toType = out?.mime || `image/${format.toLowerCase()}`;
+  const outputExt = out?.ext || format.toLowerCase();
+
+  const key = `${fromType}:${toType}`;
+  const handler = converters[key];
+  
+  if (!handler) {
+    throw new Error(`Conversion from ${fromType} to ${toType} is not supported or not feasible client-side.`);
+  }
+  
+  const blob = await handler(file);
+  const downloadUrl = URL.createObjectURL(blob);
+  const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+  return { downloadUrl, convertedFileName: `${baseName}_converted.${outputExt}` };
+}
 
 export const convertDocument = async (file, format) => {
   // For simple document conversions we attempt an image-based approach (where applicable)

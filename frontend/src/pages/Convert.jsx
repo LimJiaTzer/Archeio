@@ -8,7 +8,7 @@ import Layout from '../components/Layout';
 
 export default function Convert() {
   const [file, setFile] = useState(null);
-  const [format, setFormat] = useState(null);
+  const [format, setFormat] = useState('');
   const [availableFormats, setAvailableFormats] = useState([]);
   const [converting, setConverting] = useState(false);
   const [downloadUrl, setDownloadUrl] = useState('');
@@ -38,7 +38,7 @@ export default function Convert() {
     } else {
       // Fallback
       setAvailableFormats([]);
-      setFormat(null);
+      setFormat('');
     }
   };
 

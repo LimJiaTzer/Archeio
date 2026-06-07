@@ -27,18 +27,18 @@ export const FILE_TYPES = {
     canCrop: true,
     canResize: true,
 
-  outputFormats: ['PNG', 'JPG', 'JPEG', 'WEBP'], // ['GIF', 'SVG', 'HEIC', 'ICO'] not supported for now, as they are not supported by canvas
+    outputFormats: ['PNG', 'JPG', 'JPEG', 'WEBP', 'GIF', 'SVG', 'ICO'], // 'HEIC' not supported for now, as they are not supported by canvas
     formats: {
       'image/png': 'PNG',
       'image/jpg': 'JPG',
       'image/jpeg': 'JPG',
       'image/webp': 'WEBP',
-      // 'image/gif': 'GIF',
-      // 'image/svg+xml': 'SVG',
-      // 'image/heic': 'HEIC',
-      // 'image/heif': 'HEIC',
-      // 'image/x-icon': 'ICO',
-      // 'image/vnd.microsoft.icon': 'ICO',
+      //'image/gif': 'GIF',
+      'image/svg+xml': 'SVG',
+      'image/heic': 'HEIC',
+      'image/heif': 'HEIC',
+      //'image/x-icon': 'ICO',
+      //'image/vnd.microsoft.icon': 'ICO',
     },
   },
 
@@ -80,10 +80,10 @@ export const IMAGE_OUTPUT_TYPES = {
   JPEG: { mime: 'image/jpeg', ext: 'jpg' },
   PNG: { mime: 'image/png', ext: 'png' },
   WEBP: { mime: 'image/webp', ext: 'webp' },
-  // GIF: { mime: 'image/gif', ext: 'gif' },
-  // SVG: { mime: 'image/svg+xml', ext: 'svg' },
+  GIF: { mime: 'image/gif', ext: 'gif' },
+  SVG: { mime: 'image/svg+xml', ext: 'svg' },
   // HEIC: { mime: 'image/heic', ext: 'heic' },
-  // ICO: { mime: 'image/x-icon', ext: 'ico' },
+  ICO: { mime: 'image/x-icon', ext: 'ico' },
 };
 
 
