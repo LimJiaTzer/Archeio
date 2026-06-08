@@ -1,4 +1,15 @@
 import { getOutputInfo } from '../lib/fileTypes';
+import { FFmpeg } from '@ffmpeg/ffmpeg';
+import { fetchFile } from '@ffmpeg/util';
+
+// Helps with Audio and Video compression 
+const ffmpeg = new FFmpeg();
+
+const loadFFmpeg = async () => {
+  if (!ffmpeg.loaded) {
+    await ffmpeg.load();
+  }
+};
 
 // Image compression logic 
 export const compressImage = ({
@@ -90,7 +101,7 @@ export const compressImage = ({
 
 
 // TODO: Introduce batch processing next time 
-// TODO: Extension --> allow for rendering and adjusting of quality of output pdf 
+// TODO: Extension --> allow for rendering and adjusting of quality of output pdf !!  (Go do audio first )
 // Backend required for GhostScript to work 
 // PDF compression logic
 export const compressDocument = async ({
@@ -140,9 +151,72 @@ export const compressDocument = async ({
   }
 };
 
-export const compressAudio = () => {
-  alert('Audio compression not supported yet.');
-  // TODO:
+export const compressAudio = async ({ // don ned format cos ffmpeg extracts it from file directly
+  file,
+  ratio,
+  setDownloadUrl,
+  setCompressedFileName,
+  setResult,
+  setCompressing,
+}) => {
+  try {
+    await loadFFmpeg();
+
+    const inputName = file.name;
+    const outputName = 'compressed_audio.mp3';
+
+    const audio = new Audio();
+    const audioUrl = URL.createObjectURL(file);
+    audio.src = audioUrl;
+
+    await new Promise((resolve, reject) => {
+      audio.onloadedmetadata = resolve;
+      audio.onerror = reject;
+    });
+
+    const duration = audio.duration;
+    URL.revokeObjectURL(audioUrl);
+
+    const estimatedBitrate = Math.round((file.size * 8) / duration / 1000);
+
+    const getAudioBitrate = (ratio, originalBitrate) => {     // can change to use ratio in future 
+      let finalBitrate = 320;
+      if (ratio >= 25) finalBitrate = 192;
+      if (ratio >= 50) finalBitrate = 128;
+      if (ratio >= 60) finalBitrate = 96;
+      if (ratio >= 75) finalBitrate = 64;
+      if (ratio >= 90) finalBitrate = 48;
+      return `${Math.min(originalBitrate, finalBitrate)}k`;
+    }
+
+    await ffmpeg.writeFile(inputName, await fetchFile(file));
+
+    await ffmpeg.exec([
+      '-i', inputName,
+      '-b:a', getAudioBitrate(ratio, estimatedBitrate),
+      outputName,
+    ]);
+
+    const data = await ffmpeg.readFile(outputName);
+    const blob = new Blob([data.buffer], { type: 'audio/mpeg' });
+    const downloadUrl = URL.createObjectURL(blob);
+
+    const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+    const savedPercentage = Math.round(((file.size - blob.size) / file.size) * 100);
+
+    setDownloadUrl(downloadUrl);
+    setCompressedFileName(`${baseName}_compressed.mp3`);
+    setResult({
+      originalSize: (file.size / 1024 / 1024).toFixed(2) + ' MB',
+      compressedSize: (blob.size / 1024 / 1024).toFixed(2) + ' MB',
+      ratio: Math.max(0, savedPercentage) + '%',
+    });
+  } catch (err) {
+    console.error('Audio compression error:', err);
+    alert(err.message || 'Audio compression failed.');
+  } finally {
+    setCompressing(false);
+  }
 };
 
 // Video compression logic 
