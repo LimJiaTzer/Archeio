@@ -79,7 +79,14 @@ export default function Compress() {
         break;
 
       case 'audio':
-        compressAudio();
+        compressAudio({
+          file,
+          ratio,
+          setDownloadUrl,
+          setCompressedFileName,
+          setResult,
+          setCompressing
+        });
         break;
 
       case 'video':
