@@ -165,21 +165,21 @@ export const compressAudio = async ({ // don ned format cos ffmpeg extracts it f
     const inputName = file.name;
     const outputName = 'compressed_audio.mp3';
 
+
+    // estimating bitrate to make slider useful 
     const audio = new Audio();
     const audioUrl = URL.createObjectURL(file);
     audio.src = audioUrl;
-
     await new Promise((resolve, reject) => {
       audio.onloadedmetadata = resolve;
-      audio.onerror = reject;
+      audio.onerror = reject;     // jump to catch block 
     });
-
     const duration = audio.duration;
     URL.revokeObjectURL(audioUrl);
-
     const estimatedBitrate = Math.round((file.size * 8) / duration / 1000);
 
-    const getAudioBitrate = (ratio, originalBitrate) => {     // can change to use ratio in future 
+
+    const getAudioBitrate = (ratio, originalBitrate) => {     // can change to use slider more dynamically in future 
       let finalBitrate = 320;
       if (ratio >= 25) finalBitrate = 192;
       if (ratio >= 50) finalBitrate = 128;
@@ -220,9 +220,68 @@ export const compressAudio = async ({ // don ned format cos ffmpeg extracts it f
 };
 
 // Video compression logic 
-export const compressVideo = () => {
-  alert('Video compression not supported yet.');
-  // TODO: 
+export const compressVideo = async ({
+  file,
+  ratio,
+  setDownloadUrl,
+  setCompressedFileName,
+  setResult,
+  setCompressing,
+}) => {
+  try {
+    await loadFFmpeg();
+
+    const inputName = file.name;
+    const outputName = 'compressed_video.mp4';
+
+    // CRF = Constant Rate Factor --> Maintains a roughly const visual quality by using wtvr bitrate necessary.
+    // diff from bitrate in audio (static pages in a vid use much less bits than high fps games)
+    const getCrf = (ratio) => { // can make more use of slider in future
+      if (ratio >= 95) return '40';
+      if (ratio >= 90) return '35';
+      if (ratio >= 75) return '32';
+      if (ratio >= 60) return '28';
+      if (ratio >= 50) return '25';
+      if (ratio >= 25) return '23';
+      return '20';
+    }
+
+    await ffmpeg.writeFile(inputName, await fetchFile(file));
+
+    await ffmpeg.exec([
+      '-i', inputName,
+      '-vcodec', 'libx264',
+      '-crf', getCrf(ratio),
+      '-preset', 'ultrafast',
+      '-acodec', 'aac',
+      '-b:a', '128k',
+      outputName,
+    ]);
+
+    const data = await ffmpeg.readFile(outputName);
+    const blob = new Blob([data.buffer], { type: 'video/mp4' });
+    if (blob.size >= file.size) {
+      throw new Error('This video is already highly compressed');
+    }
+
+    const downloadUrl = URL.createObjectURL(blob);
+
+    const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+    const savedPercentage = Math.round(((file.size - blob.size) / file.size) * 100);
+
+    setDownloadUrl(downloadUrl);
+    setCompressedFileName(`${baseName}_compressed.mp4`);
+    setResult({
+      originalSize: (file.size / 1024 / 1024).toFixed(2) + ' MB',
+      compressedSize: (blob.size / 1024 / 1024).toFixed(2) + ' MB',
+      ratio: Math.max(0, savedPercentage) + '%',
+    });
+  } catch (err) {
+    console.error('Video compression error:', err);
+    alert(err.message || 'Video compression failed.');
+  } finally {
+    setCompressing(false);
+  }
 };
 
 

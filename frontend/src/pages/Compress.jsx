@@ -85,12 +85,19 @@ export default function Compress() {
           setDownloadUrl,
           setCompressedFileName,
           setResult,
-          setCompressing
+          setCompressing,
         });
         break;
 
       case 'video':
-        compressVideo();
+        compressVideo({
+          file,
+          ratio,
+          setDownloadUrl,
+          setCompressedFileName,
+          setResult,
+          setCompressing,
+        });
         break;
 
       default:
