@@ -48,7 +48,7 @@ export default function Compress() {
     }
   };
 
-  // Compression
+  // Compression (Ive got a feeling this doesnt follow Tell Don't Ask Principle)
   const startCompression = () => {
     if (!file || !fileInfo) return;
     setCompressing(true); 
@@ -82,6 +82,7 @@ export default function Compress() {
         compressAudio({
           file,
           ratio,
+          format,
           setDownloadUrl,
           setCompressedFileName,
           setResult,
@@ -93,6 +94,7 @@ export default function Compress() {
         compressVideo({
           file,
           ratio,
+          format,
           setDownloadUrl,
           setCompressedFileName,
           setResult,
@@ -188,7 +190,7 @@ export default function Compress() {
             
 
             <div>Rn it can only do [filetype] to [filetype] </div>
-            <div>TODO: Add conversion logic for [filetype1] to [filetype2]</div>
+            <div>TODO: Add conversion logic for [filetype1] to [filetype2]</div> 
             <br></br>
             <div>TODO: Add the zip file kind of compression too maybe on another tab?? Header tho </div>
               {/* convert then compress */}

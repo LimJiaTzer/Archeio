@@ -1,4 +1,5 @@
-import { getOutputInfo } from '../lib/fileTypes';
+import { getFileInfo, getOutputInfo } from '../lib/fileTypes';
+import { convertMedia } from './conversionService';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile } from '@ffmpeg/util';
 
@@ -12,6 +13,7 @@ const loadFFmpeg = async () => {
 };
 
 // Image compression logic 
+// TODO: Compression for svg gif and heic 
 export const compressImage = ({
   file,
   ratio,
@@ -154,6 +156,7 @@ export const compressDocument = async ({
 export const compressAudio = async ({ // don ned format cos ffmpeg extracts it from file directly
   file,
   ratio,
+  format,
   setDownloadUrl,
   setCompressedFileName,
   setResult,
@@ -163,8 +166,9 @@ export const compressAudio = async ({ // don ned format cos ffmpeg extracts it f
     await loadFFmpeg();
 
     const inputName = file.name;
-    const outputName = 'compressed_audio.mp3';
-
+    const outputType = getOutputInfo(format, 'audio'); 
+    if (!outputType) throw new Error(`${format} output is not supported yet.`);
+    const outputName = `compressed_audio.${outputType.ext}`;
 
     // estimating bitrate to make slider useful 
     const audio = new Audio();
@@ -192,20 +196,24 @@ export const compressAudio = async ({ // don ned format cos ffmpeg extracts it f
     await ffmpeg.writeFile(inputName, await fetchFile(file));
 
     await ffmpeg.exec([
-      '-i', inputName,
-      '-b:a', getAudioBitrate(ratio, estimatedBitrate),
+      '-i', 
+      inputName,
+      '-b:a', 
+      getAudioBitrate(ratio, estimatedBitrate),
       outputName,
     ]);
 
     const data = await ffmpeg.readFile(outputName);
-    const blob = new Blob([data.buffer], { type: 'audio/mpeg' });
+    const blob = new Blob([data.buffer], { type: outputType.mime });
+    // if (blob.size >= file.size) throw new Error('This audio file is alreay highly compressed');
+    // Might not need this error cos some file formats are naturally larger than others even after conversion 
     const downloadUrl = URL.createObjectURL(blob);
 
     const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
     const savedPercentage = Math.round(((file.size - blob.size) / file.size) * 100);
 
     setDownloadUrl(downloadUrl);
-    setCompressedFileName(`${baseName}_compressed.mp3`);
+    setCompressedFileName(`${baseName}_compressed.${outputType.ext}`);
     setResult({
       originalSize: (file.size / 1024 / 1024).toFixed(2) + ' MB',
       compressedSize: (blob.size / 1024 / 1024).toFixed(2) + ' MB',
