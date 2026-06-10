@@ -6,8 +6,18 @@ import { svgToRaster } from './imageConversionServices/svgToRaster';
 import { pngToIco } from './imageConversionServices/pngToIco';
 import { rasterToRaster } from './imageConversionServices/rasterToRaster';
 import { rasterToGif } from './imageConversionServices/rasterToGif';
-import { rasterToSvg } from './imageConversionServices/rasterToSvg.js';
+import { rasterToSvg } from './imageConversionServices/rasterToSvg';
 import { extractGifFrames, extractIcoFrames } from './imageConversionServices/extractFrames';
+import { anyToHeic } from './imageConversionServices/anyToHeic';
+
+// Document conversion services
+import { htmlToPdf } from './documentConversionServices/htmlToPdf';
+import { txtToPdf } from './documentConversionServices/txtToPdf';
+import { docxToPdf } from './documentConversionServices/docxToPdf';
+import { xlsxToPdf } from './documentConversionServices/xlsxToPdf';
+import { rtfToPdf } from './documentConversionServices/rtfToPdf';
+import { epubToPdf } from './documentConversionServices/epubToPdf';
+import { pptxToPdf } from './documentConversionServices/pptxToPdf';
 
 const ensureFfmpegLoaded = async (ffmpeg) => {
   if (ffmpeg.loaded) return ffmpeg;
@@ -124,6 +134,7 @@ const converters = {
     'image/png:image/gif':     (f) => rasterToGif(f),
     'image/png:image/svg+xml': (f) => rasterToSvg(f),
     'image/png:image/x-icon':  (f) => rasterToRaster(f, 'image/png').then(pngBlob => pngToIco(pngBlob)),
+    'image/png:image/heic':    (f) => anyToHeic(f),
 
     // --- FROM JPEG ---
     'image/jpeg:image/png':     (f) => rasterToRaster(f, 'image/png'),
@@ -132,6 +143,7 @@ const converters = {
     'image/jpeg:image/gif':     (f) => rasterToGif(f),
     'image/jpeg:image/svg+xml': (f) => rasterToSvg(f),
     'image/jpeg:image/x-icon':  (f) => rasterToRaster(f, 'image/png').then(pngBlob => pngToIco(pngBlob)),
+    'image/jpeg:image/heic':    (f) => anyToHeic(f),
 
     // --- FROM WEBP ---
     'image/webp:image/png':     (f) => rasterToRaster(f, 'image/png'),
@@ -140,6 +152,7 @@ const converters = {
     'image/webp:image/gif':     (f) => rasterToGif(f),
     'image/webp:image/svg+xml': (f) => rasterToSvg(f),
     'image/webp:image/x-icon':  (f) => rasterToRaster(f, 'image/png').then(pngBlob => pngToIco(pngBlob)),
+    'image/webp:image/heic':    (f) => anyToHeic(f),
 
     // --- FROM BMP ---
     'image/bmp:image/png':     (f) => rasterToRaster(f, 'image/png'),
@@ -148,6 +161,7 @@ const converters = {
     'image/bmp:image/gif':     (f) => rasterToGif(f),
     'image/bmp:image/svg+xml': (f) => rasterToSvg(f),
     'image/bmp:image/x-icon':  (f) => rasterToRaster(f, 'image/png').then(pngBlob => pngToIco(pngBlob)),
+    'image/bmp:image/heic':    (f) => anyToHeic(f),
 
   // ==========================================
   // SVG
@@ -195,6 +209,17 @@ const converters = {
   'image/x-icon:image/svg+xml': (f) => extractIcoFrames(f).then(frames => rasterToSvg(frames[0])),
 };
 
+const documentConverters = {
+  'application/pdf:application/pdf': (f) => f, // No-op
+  'text/html:application/pdf': (f) => htmlToPdf(f),
+  'text/plain:application/pdf': (f) => txtToPdf(f),
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document:application/pdf': (f) => docxToPdf(f),
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:application/pdf': (f) => xlsxToPdf(f),
+  'application/rtf:application/pdf': (f) => rtfToPdf(f),
+  'application/epub+zip:application/pdf': (f) => epubToPdf(f),
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation:application/pdf': (f) => pptxToPdf(f),
+};
+
 // --- MAIN EXECUTION FUNCTION ---
 export async function convertImage(file, format) {
   // Normalize input types
@@ -221,16 +246,28 @@ export async function convertImage(file, format) {
 }
 
 export const convertDocument = async (file, format) => {
-  // For simple document conversions we attempt an image-based approach (where applicable)
-  // Otherwise return the raw file as a fallback with new extension
   const info = getOutputInfo(format, 'documents');
-  const ext = info?.ext || (format || '').toLowerCase();
+  const toType = info?.mime || 'application/pdf';
+  const fromType = file.type;
+
+  const key = `${fromType}:${toType}`;
+  const handler = documentConverters[key];
+
+  if (handler) {
+    const blob = await handler(file);
+    const downloadUrl = URL.createObjectURL(blob);
+    const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+    const ext = info?.ext || 'pdf';
+    return { downloadUrl, convertedFileName: `${baseName}_converted.${ext}` };
+  }
+
   // If source is image-like, reuse image conversion
   if (file.type.startsWith('image/')) {
     return convertImage(file, format);
   }
 
   // Fallback: return original file data URL with new extension
+  const ext = info?.ext || (format || '').toLowerCase();
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
