@@ -157,18 +157,24 @@ export const compressAudio = async ({ // don ned format cos ffmpeg extracts it f
   file,
   ratio,
   format,
+  fileInfo,
   setDownloadUrl,
   setCompressedFileName,
   setResult,
   setCompressing,
+  setWarning,
 }) => {
   try {
     await loadFFmpeg();
 
     const inputName = file.name;
+    const inputFormat = fileInfo.format.toLowerCase();
+    console.log(inputFormat);
     const outputType = getOutputInfo(format, 'audio'); 
-    if (!outputType) throw new Error(`${format} output is not supported yet.`);
-    const outputName = `compressed_audio.${outputType.ext}`;
+    if (!outputType) throw new Error(`${format} is not supported yet.`);
+    const outputFormat = outputType.ext.toLowerCase();
+    const outputName = `compressed_audio.${outputFormat}`;
+    console.log(outputFormat);
 
     // estimating bitrate to make slider useful 
     const audio = new Audio();
@@ -176,7 +182,7 @@ export const compressAudio = async ({ // don ned format cos ffmpeg extracts it f
     audio.src = audioUrl;
     await new Promise((resolve, reject) => {
       audio.onloadedmetadata = resolve;
-      audio.onerror = reject;     // jump to catch block 
+      audio.onerror = reject;//(new Error('failed to read audio metadata'));     // jump to catch block 
     });
     const duration = audio.duration;
     URL.revokeObjectURL(audioUrl);
@@ -209,13 +215,24 @@ export const compressAudio = async ({ // don ned format cos ffmpeg extracts it f
     const blob = new Blob([data.buffer], { type: outputType.mime });
     // if (blob.size >= file.size) throw new Error('This audio file is alreay highly compressed');
     // Might not need this error cos some file formats are naturally larger than others even after conversion 
+    // ---CHECKS---
+    if (blob.size >= file.size) {
+      if (inputFormat === outputFormat) {
+        setWarning('');  // is this even needed 
+        throw new Error('This audio file is alreay highly compressed');
+      } else {
+        // show disclaimer
+        setWarning('File size may have increased due to format type');
+      }
+    }
+
     const downloadUrl = URL.createObjectURL(blob);
 
     const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
     const savedPercentage = Math.round(((file.size - blob.size) / file.size) * 100);
 
     setDownloadUrl(downloadUrl);
-    setCompressedFileName(`${baseName}_compressed.${outputType.ext}`);
+    setCompressedFileName(`${baseName}_compressed.${outputFormat}`);
     setResult({
       originalSize: (file.size / 1024 / 1024).toFixed(2) + ' MB',
       compressedSize: (blob.size / 1024 / 1024).toFixed(2) + ' MB',
@@ -234,17 +251,24 @@ export const compressAudio = async ({ // don ned format cos ffmpeg extracts it f
 export const compressVideo = async ({
   file,
   ratio,
+  format,
+  fileInfo,
   setDownloadUrl,
   setCompressedFileName,
   setResult,
   setCompressing,
+  setWarning
 }) => {
   try {
     await loadFFmpeg();
     // console.log(ratio + "我想学");
 
     const inputName = file.name;
-    const outputName = 'compressed_video.mp4';
+    const inputFormat = fileInfo.format.toLowerCase();
+    const outputType = getOutputInfo(format, 'video'); 
+    if (!outputType) throw new Error(`${format} is not supported yet`);
+    const outputFormat = outputType.ext.toLowerCase();
+    const outputName = `compressed_video.${outputFormat}`; 
 
     // CRF = Constant Rate Factor --> Maintains a roughly const visual quality by using wtvr bitrate necessary.
     // diff from bitrate in audio (static pages in a vid use much less bits than high fps games)
@@ -253,7 +277,7 @@ export const compressVideo = async ({
       const maxCrf = 35;
 
       return String(Math.round(
-        minCrf + (((ratio - 20) / (90 - 20)) * (maxCrf - minCrf)) // ratio from 20 - 90, assumed to be fixed 
+        minCrf + (((ratio - 20) / (90 - 20)) * (maxCrf - minCrf)) // ratio from 20 - 90 
       ))
       // if (ratio >= 95) return '40';
       // if (ratio >= 90) return '35';
@@ -266,20 +290,44 @@ export const compressVideo = async ({
 
     await ffmpeg.writeFile(inputName, await fetchFile(file));
 
+    const getVideoCodec = (fmt) => {
+      switch (fmt) {
+        case 'webm': return 'libvpx-vp9';
+        case 'mov':  return 'libx264';    // mov container uses h264
+        case 'avi':  return 'libxvid';
+        default:     return 'libx264';    // mp4, mkv etc
+      }
+    };
+
+    const getAudioCodec = (fmt) => {
+      switch (fmt) {
+        case 'webm': return 'libvorbis';
+        default:     return 'aac';
+      }
+    };
+
     await ffmpeg.exec([
       '-i', inputName,
-      '-vcodec', 'libx264',
+      '-vcodec', getVideoCodec(outputFormat),
       '-crf', getCrf(ratio),
-      '-preset', 'ultrafast',
-      '-acodec', 'aac',
+      ...(outputFormat !== 'webm' ? ['-preset', 'ultrafast'] : []),
+      '-acodec', getAudioCodec(outputFormat),
       '-b:a', '128k',
       outputName,
     ]);
 
+
     const data = await ffmpeg.readFile(outputName);
-    const blob = new Blob([data.buffer], { type: 'video/mp4' });
+    const blob = new Blob([data.buffer], { type: outputType.mime });
+
     if (blob.size >= file.size) {
-      throw new Error('This video is already highly compressed');
+      if (inputFormat === outputFormat) {
+        setWarning('');
+        throw new Error('This video is alreay highly compressed');
+      } else {
+        // show disclaimer
+        setWarning('File size may have increased due to format type');
+      }
     }
 
     const downloadUrl = URL.createObjectURL(blob);
@@ -288,7 +336,7 @@ export const compressVideo = async ({
     const savedPercentage = Math.round(((file.size - blob.size) / file.size) * 100);
 
     setDownloadUrl(downloadUrl);
-    setCompressedFileName(`${baseName}_compressed.mp4`);
+    setCompressedFileName(`${baseName}_compressed.${outputFormat}`);
     setResult({
       originalSize: (file.size / 1024 / 1024).toFixed(2) + ' MB',
       compressedSize: (blob.size / 1024 / 1024).toFixed(2) + ' MB',
