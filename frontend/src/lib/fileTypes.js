@@ -13,21 +13,22 @@ export const FILE_TYPES = {
     // if its only PDF, can lock it in the dropdown 
     formats: {
       'application/pdf': 'PDF',
-      // 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
-      // 'text/plain': 'TXT',
-      // 'application/rtf': 'RTF',
-      // 'application/epub+zip': 'EPUB',
-      // 'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PPTX',
-      // 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'XLSX',
+      'text/html': 'HTML',
+      'text/plain': 'TXT',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'XLSX',
+      'application/rtf': 'RTF',
+      'application/epub+zip': 'EPUB',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PPTX',
     },
   },
-
+  
   images: {
     label: 'Images',
     canCrop: true,
     canResize: true,
     // conversion service handles the jpg to jpeg and ico naming variation
-    outputFormats: ['PNG', 'JPG', 'JPEG', 'WEBP', 'GIF', 'SVG', 'ICO'], // 'HEIC' not supported for now
+    outputFormats: ['PNG', 'JPG', 'JPEG', 'WEBP', 'GIF', 'SVG', 'ICO', 'HEIC'],
     formats: {
       'image/png': 'PNG',
       'image/jpg': 'JPG',
@@ -82,7 +83,7 @@ export const IMAGE_OUTPUT_TYPES = {
   WEBP: { mime: 'image/webp', ext: 'webp' },
   GIF: { mime: 'image/gif', ext: 'gif' },
   SVG: { mime: 'image/svg+xml', ext: 'svg' },
-  // HEIC: { mime: 'image/heic', ext: 'heic' },
+  HEIC: { mime: 'image/heic', ext: 'heic' },
   ICO: { mime: 'image/x-icon', ext: 'ico' },
 };
 

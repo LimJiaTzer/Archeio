@@ -266,7 +266,14 @@ export default function Convert() {
         {converting && (
           <div className="mt-8 bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl flex items-center gap-3 animate-pulse">
             <div className="w-5 h-5 rounded-full border-2 border-amber-800 border-t-transparent animate-spin"></div>
-            <span>{selectedFrames.length > 1 ? `Zipping ${selectedFrames.length} frames...` : 'Transforming your media file on-device...'}</span>
+            <span>{selectedFrames.length > 1 ? `Zipping ${selectedFrames.length} frames...` : (format === 'HEIC' ? 'Performing server-side conversion...' : 'Transforming your media file on-device...')}</span>
+          </div>
+        )}
+
+        {(!converting && format === 'HEIC' && file) && (
+          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl text-xs flex items-center gap-2">
+            <Layers className="w-4 h-4 shrink-0" />
+            <p>Note: HEIC conversion is performed on our server. Your file is processed and deleted immediately after conversion.</p>
           </div>
         )}
 
