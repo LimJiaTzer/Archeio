@@ -183,13 +183,15 @@ export const compressAudio = async ({ // don ned format cos ffmpeg extracts it f
     const estimatedBitrate = Math.round((file.size * 8) / duration / 1000);
 
 
-    const getAudioBitrate = (ratio, originalBitrate) => {     // can change to use slider more dynamically in future 
-      let finalBitrate = 320;
-      if (ratio >= 25) finalBitrate = 192;
-      if (ratio >= 50) finalBitrate = 128;
-      if (ratio >= 60) finalBitrate = 96;
-      if (ratio >= 75) finalBitrate = 64;
-      if (ratio >= 90) finalBitrate = 48;
+    const getAudioBitrate = (ratio, originalBitrate) => {     // better to use this than slider to avoid weird kbps 
+      const finalBitrate = 
+        ratio >= 90 ? 48 :
+        ratio >= 75 ? 64 :
+        ratio >= 60 ? 96 :
+        ratio >= 50 ? 128 :
+        ratio >= 25 ? 192 :
+        320;
+        
       return `${Math.min(originalBitrate, finalBitrate)}k`;
     }
 
@@ -228,6 +230,7 @@ export const compressAudio = async ({ // don ned format cos ffmpeg extracts it f
 };
 
 // Video compression logic 
+// TODO: Can compression be made faster? Or issit just cos vids are huge 
 export const compressVideo = async ({
   file,
   ratio,
@@ -238,20 +241,27 @@ export const compressVideo = async ({
 }) => {
   try {
     await loadFFmpeg();
+    // console.log(ratio + "我想学");
 
     const inputName = file.name;
     const outputName = 'compressed_video.mp4';
 
     // CRF = Constant Rate Factor --> Maintains a roughly const visual quality by using wtvr bitrate necessary.
     // diff from bitrate in audio (static pages in a vid use much less bits than high fps games)
-    const getCrf = (ratio) => { // can make more use of slider in future
-      if (ratio >= 95) return '40';
-      if (ratio >= 90) return '35';
-      if (ratio >= 75) return '32';
-      if (ratio >= 60) return '28';
-      if (ratio >= 50) return '25';
-      if (ratio >= 25) return '23';
-      return '20';
+    const getCrf = (ratio) => { 
+      const minCrf = 18;
+      const maxCrf = 35;
+
+      return String(Math.round(
+        minCrf + (((ratio - 20) / (90 - 20)) * (maxCrf - minCrf)) // ratio from 20 - 90, assumed to be fixed 
+      ))
+      // if (ratio >= 95) return '40';
+      // if (ratio >= 90) return '35';
+      // if (ratio >= 75) return '32';
+      // if (ratio >= 60) return '28';
+      // if (ratio >= 50) return '25';
+      // if (ratio >= 25) return '23';
+      // return '20';
     }
 
     await ffmpeg.writeFile(inputName, await fetchFile(file));
