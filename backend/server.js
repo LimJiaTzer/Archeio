@@ -4,6 +4,10 @@ import cors from 'cors';
 import { execFile } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const upload = multer({ dest: 'uploads/' });
@@ -45,6 +49,29 @@ app.post('/compress-pdf', upload.single('file'), (req, res) => {
       }
 
       res.download(outputPath, 'compressed.pdf', () => {
+        fs.unlinkSync(inputPath);
+        fs.unlinkSync(outputPath);
+      });
+    }
+  );
+});
+
+app.post('/convert-to-heic', upload.single('file'), (req, res) => {
+  const inputPath = req.file.path;
+  const outputPath = path.join('uploads', `${req.file.filename}.heic`);
+  const pythonPath = path.join(__dirname, '../venv/bin/python3');
+  const scriptPath = path.join(__dirname, 'anyToHEIC.py');
+
+  execFile(
+    pythonPath,
+    [scriptPath, inputPath, outputPath],
+    (error, stdout, stderr) => {
+      if (error) {
+        console.error('Conversion error:', stderr);
+        return res.status(500).send('HEIC conversion failed.');
+      }
+
+      res.download(outputPath, 'converted.heic', () => {
         fs.unlinkSync(inputPath);
         fs.unlinkSync(outputPath);
       });
