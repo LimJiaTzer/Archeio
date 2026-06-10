@@ -13,6 +13,7 @@ export default function Compress() {
   // compression process state 
   const [ratio, setRatio] = useState(75);
   const [compressing, setCompressing] = useState(false);
+  const [warning, setWarning] = useState('');
   // output state
   const [result, setResult] = useState(null);
   const [downloadUrl, setDownloadUrl] = useState('');
@@ -83,10 +84,12 @@ export default function Compress() {
           file,
           ratio,
           format,
+          fileInfo,
           setDownloadUrl,
           setCompressedFileName,
           setResult,
           setCompressing,
+          setWarning,
         });
         break;
 
@@ -95,10 +98,12 @@ export default function Compress() {
           file,
           ratio,
           format,
+          fileInfo,
           setDownloadUrl,
           setCompressedFileName,
           setResult,
           setCompressing,
+          setWarning,
         });
         break;
 
@@ -273,13 +278,20 @@ export default function Compress() {
               </div>
             </div>
             
-            <a 
-              href={downloadUrl}
-              download={compressedFileName}
-              className="bg-green-800 hover:bg-green-900 text-white px-6 py-4 rounded-xl font-bold font-sans tracking-wide shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all self-stretch md:self-auto text-center"
-            >
-              Download Compressed File
-            </a>
+            <div>
+              {warning && (
+                <div className="mt-3 mb-3 bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-lg text-sm">
+                  ⚠️ {warning}
+                </div>
+              )}
+              <a 
+                href={downloadUrl}
+                download={compressedFileName}
+                className="bg-green-800 hover:bg-green-900 text-white px-6 py-4 rounded-xl font-bold font-sans tracking-wide shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all self-stretch md:self-auto text-center"
+              >
+                Download Compressed File
+              </a>
+            </div>
           </div>
         )}
 

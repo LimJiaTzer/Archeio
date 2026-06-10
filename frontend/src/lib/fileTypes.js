@@ -60,7 +60,7 @@ export const FILE_TYPES = {
     canCrop: true,
     canResize: true,
     //allow the user to convert videos to videos and audio (extract) or images (GIF)
-    outputFormats: ['MP4', 'MOV', 'AVI', 'MKV', 'WEBM', 'GIF', 'MP3', 'WAV', 'AAC', 'FLAC', 'OGG'],
+    outputFormats: ['MP4', 'MOV', 'AVI', 'MKV', 'WEBM', 'GIF'], // ['MP3', 'WAV', 'AAC', 'FLAC', 'OGG'] in futuer if wanna extract audio 
     formats: {
       'video/mp4': 'MP4',
       'video/quicktime': 'MOV',
