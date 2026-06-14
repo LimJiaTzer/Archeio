@@ -1,152 +1,279 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Upload, FileType, CheckCircle2, Layers } from 'lucide-react';
-import { getFileInfo } from '../lib/fileTypes'; // file types
+import { 
+  ArrowLeft, 
+  Upload, 
+  CheckCircle2, 
+  Layers, 
+  X, 
+  Settings,  
+  ChevronDown,
+  Download,
+  AlertCircle,
+  Loader2,
+  RefreshCcw,
+  Archive,
+  Images
+} from 'lucide-react';
+import { getFileInfo } from '../lib/fileTypes';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { convertMedia, extractFrames, zipBlobs } from '../services/conversionService';
 import Layout from '../components/Layout';
 import FrameSelector from '../components/FrameSelector';
+import FilePreview from '../components/FilePreview';
+import JSZip from 'jszip';
 
 export default function Convert() {
-  const [file, setFile] = useState(null);
-  const [format, setFormat] = useState('');
-  const [availableFormats, setAvailableFormats] = useState([]);
-  const [converting, setConverting] = useState(false);
-  const [downloadUrl, setDownloadUrl] = useState('');
-  const [convertedFileName, setConvertedFileName] = useState('');
-
-  // Frame selection state
-  const [frames, setFrames] = useState([]);
-  const [selectedFrames, setSelectedFrames] = useState([]);
-  const [showSelector, setShowSelector] = useState(false);
-  const [extracting, setExtracting] = useState(false);
-
-  // Persist FFmpeg instance so we don't recreate it every time
+  const [items, setItems] = useState([]);
+  const [globalFormat, setGlobalFormat] = useState('');
+  const [isConvertingAll, setIsConvertingAll] = useState(false);
+  const [isDownloadingAll, setIsDownloadingAll] = useState(false);
+  
+  // Persist FFmpeg instance
   const ffmpegRef = useRef(new FFmpeg());
+
+  // Cleanup object URLs on unmount
+  useEffect(() => {
+    return () => {
+      items.forEach(item => {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      });
+    };
+  }, [items]);
 
   const handleDragOver = (e) => {
     e.preventDefault();
   };
 
-  const processFile = (newFile) => {
-    setFile(newFile);
-    setConverting(false);
-    setDownloadUrl('');
-    setFrames([]);
-    setSelectedFrames([]);
-    setShowSelector(false);
-    
-    // Auto-detect file type and set available formats
-    const info = getFileInfo(newFile.type);
+  const createItem = (file) => {
+    const info = getFileInfo(file.type);
+    let availableFormats = [];
+    let targetFormat = '';
+
     if (info && info.outputFormats && info.outputFormats.length > 0) {
-      // Filter out the exact same format as the input if possible
-      const formats = info.outputFormats.filter(f => f !== info.format);
-      const finalFormats = formats.length > 0 ? formats : info.outputFormats;
-      
-      setAvailableFormats(finalFormats);
-      setFormat(finalFormats[0]);
-    } else {
-      // Fallback
-      setAvailableFormats([]);
-      setFormat('');
-    }
-  };
-
-  const handleToggleSelector = async () => {
-    if (showSelector) {
-      setShowSelector(false);
-      return;
+      availableFormats = info.outputFormats.filter(f => f !== info.format);
+      if (availableFormats.length === 0) availableFormats = info.outputFormats;
+      targetFormat = availableFormats[0];
     }
 
-    if (frames.length === 0) {
-      setExtracting(true);
-      try {
-        const extracted = await extractFrames(file);
-        setFrames(extracted);
-        // Default to all selected for convenience? Or just show them.
-        // Let's not select any by default to let user choose.
-      } catch (err) {
-        console.error("Failed to extract frames:", err);
-        alert("Failed to read frames from file.");
-      } finally {
-        setExtracting(false);
-      }
-    }
-    setShowSelector(true);
+    const previewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
+
+    return {
+      id: Math.random().toString(36).substring(2, 11),
+      file,
+      targetFormat,
+      availableFormats,
+      status: 'idle',
+      result: null,
+      error: null,
+      previewUrl,
+      // For GIF/ICO extraction
+      frames: [],
+      selectedFrames: [],
+      showSelector: false,
+      extracting: false
+    };
   };
 
-  const handleToggleFrame = (index) => {
-    setSelectedFrames(prev => 
-      prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index]
-    );
-  };
-
-  const handleSelectAll = () => {
-    setSelectedFrames(frames.map((_, i) => i));
-  };
-
-  const handleDeselectAll = () => {
-    setSelectedFrames([]);
+  const processFiles = (files) => {
+    const newItems = Array.from(files).map(createItem);
+    setItems(prev => [...prev, ...newItems]);
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      processFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processFiles(e.dataTransfer.files);
     }
   };
 
   const handleFileChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      processFile(e.target.files[0]);
-      // Reset the value so the exact same file can be uploaded again after removal
+    if (e.target.files && e.target.files.length > 0) {
+      processFiles(e.target.files);
       e.target.value = null;
     }
   };
 
-  const startConversion = async () => {
-    if (!file) return;
-    setConverting(true);
+  const removeItem = (id) => {
+    setItems(prev => prev.filter(item => {
+      if (item.id === id) {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+        return false;
+      }
+      return true;
+    }));
+  };
+
+  const updateItem = (id, updates) => {
+    setItems(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item));
+  };
+
+  const handleFormatChange = (id, format) => {
+    updateItem(id, { targetFormat: format, result: null, status: 'idle' });
+  };
+
+  const handleGlobalFormatChange = (format) => {
+    setGlobalFormat(format);
+    setItems(prev => prev.map(item => {
+      if (item.availableFormats.includes(format)) {
+        return { ...item, targetFormat: format, result: null, status: 'idle' };
+      }
+      return item;
+    }));
+  };
+
+  const handleToggleSelector = async (id) => {
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+
+    if (item.showSelector) {
+      updateItem(id, { showSelector: false });
+      return;
+    }
+
+    if (item.frames.length === 0) {
+      updateItem(id, { extracting: true });
+      try {
+        const extracted = await extractFrames(item.file);
+        updateItem(id, { frames: extracted, showSelector: true, extracting: false });
+      } catch (err) {
+        console.error("Failed to extract frames:", err);
+        updateItem(id, { extracting: false });
+        alert("Failed to read frames from file.");
+      }
+    } else {
+      updateItem(id, { showSelector: true });
+    }
+  };
+
+  const handleToggleFrame = (id, frameIndex) => {
+    setItems(prev => prev.map(item => {
+      if (item.id === id) {
+        const selectedFrames = item.selectedFrames.includes(frameIndex)
+          ? item.selectedFrames.filter(i => i !== frameIndex)
+          : [...item.selectedFrames, frameIndex];
+        return { ...item, selectedFrames, result: null, status: 'idle' };
+      }
+      return item;
+    }));
+  };
+
+  const handleSelectAllFrames = (id) => {
+    setItems(prev => prev.map(item => {
+      if (item.id === id) {
+        return { ...item, selectedFrames: item.frames.map((_, i) => i), result: null, status: 'idle' };
+      }
+      return item;
+    }));
+  };
+
+  const handleDeselectAllFrames = (id) => {
+    setItems(prev => prev.map(item => {
+      if (item.id === id) {
+        return { ...item, selectedFrames: [], result: null, status: 'idle' };
+      }
+      return item;
+    }));
+  };
+
+  const convertItem = async (id) => {
+    const item = items.find(i => i.id === id);
+    if (!item || item.status === 'converting') return;
+
+    updateItem(id, { status: 'converting', error: null });
 
     try {
       let result;
-      if (selectedFrames.length > 1) {
-        // Case 1: Multiple frames -> ZIP
-        const blobsToZip = selectedFrames.map(i => frames[i]);
-        const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-        result = await zipBlobs(blobsToZip, baseName, format);
-      } else if (selectedFrames.length === 1) {
-        // Case 2: Exactly one frame -> Convert that specific blob
-        const frameBlob = frames[selectedFrames[0]];
-        const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-        const virtualFile = new File([frameBlob], `${baseName}_frame_${selectedFrames[0] + 1}.png`, { type: 'image/png' });
-        result = await convertMedia(virtualFile, format, ffmpegRef);
+      if (item.selectedFrames.length > 1) {
+        const blobsToZip = item.selectedFrames.map(i => item.frames[i]);
+        const baseName = item.file.name.substring(0, item.file.name.lastIndexOf('.')) || item.file.name;
+        result = await zipBlobs(blobsToZip, baseName, item.targetFormat);
+      } else if (item.selectedFrames.length === 1) {
+        const frameBlob = item.frames[item.selectedFrames[0]];
+        const baseName = item.file.name.substring(0, item.file.name.lastIndexOf('.')) || item.file.name;
+        const virtualFile = new File([frameBlob], `${baseName}_frame_${item.selectedFrames[0] + 1}.png`, { type: 'image/png' });
+        result = await convertMedia(virtualFile, item.targetFormat, ffmpegRef);
       } else {
-        // Case 3: No frames selected (standard PNG/JPG/etc) -> Convert original file
-        result = await convertMedia(file, format, ffmpegRef);
+        result = await convertMedia(item.file, item.targetFormat, ffmpegRef);
       }
       
-      setDownloadUrl(result.downloadUrl);
-      setConvertedFileName(result.convertedFileName);
+      updateItem(id, { status: 'completed', result });
     } catch (err) {
-      console.error("Conversion failed:", err);
-      alert("Failed to convert media file. Check console for details.");
+      console.error(`Conversion failed for ${item.file.name}:`, err);
+      updateItem(id, { status: 'error', error: err.message || 'Conversion failed' });
+    }
+  };
+
+  const startConversionAll = async () => {
+    const idleItems = items.filter(i => i.status !== 'completed');
+    if (idleItems.length === 0) return;
+
+    setIsConvertingAll(true);
+    
+    // We can run these sequentially to avoid overloading the browser/FFmpeg
+    for (const item of idleItems) {
+      await convertItem(item.id);
+    }
+
+    setIsConvertingAll(false);
+  };
+
+  const handleDownloadAll = async () => {
+    const completedItems = items.filter(i => i.status === 'completed' && i.result);
+    if (completedItems.length === 0) return;
+
+    setIsDownloadingAll(true);
+    try {
+      const zip = new JSZip();
+      
+      for (const item of completedItems) {
+        const response = await fetch(item.result.downloadUrl);
+        const blob = await response.blob();
+        zip.file(item.result.convertedFileName, blob);
+      }
+      
+      const content = await zip.generateAsync({ type: 'blob' });
+      const downloadUrl = URL.createObjectURL(content);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `archeio_converted_${Date.now()}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error("Failed to generate ZIP:", err);
+      alert("Failed to bundle files. You can still download them individually.");
     } finally {
-      setConverting(false);
+      setIsDownloadingAll(false);
     }
   };
 
   const handleReset = () => {
-    setFile(null);
-    setConverting(false);
-    setDownloadUrl('');
-    setConvertedFileName('');
-    setFrames([]);
-    setSelectedFrames([]);
-    setShowSelector(false);
+    items.forEach(item => {
+      if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+    });
+    setItems([]);
+    setGlobalFormat('');
   };
 
-  const isMultiImage = file && (file.type === 'image/gif' || file.type === 'image/x-icon' || file.type === 'image/vnd.microsoft.icon');
+  // Get common formats for the "Convert All" dropdown
+  const allAvailableFormats = useMemo(() => {
+    if (items.length === 0) return [];
+    // Start with formats of the first item
+    let common = [...items[0].availableFormats];
+    // Intersect with others
+    for (let i = 1; i < items.length; i++) {
+      common = common.filter(f => items[i].availableFormats.includes(f));
+    }
+    
+    // If no common formats, just show all unique formats from all items?
+    // Or just show nothing. Let's show unique union but maybe marked as "Partial"
+    const union = Array.from(new Set(items.flatMap(i => i.availableFormats)));
+    return union;
+  }, [items]);
+
+  const allFinished = items.length > 0 && items.every(i => i.status === 'completed' || i.status === 'error');
+  const hasCompleted = items.some(i => i.status === 'completed');
 
   return (
     <Layout>
@@ -157,145 +284,240 @@ export default function Convert() {
             <span>Back to Home</span>
           </Link>
         </nav>
-        <div className="mb-8">
-          <h1 className="text-3xl font-extrabold text-stone-900 mb-2">Convert Media</h1>
-          <p className="text-stone-600">Upload your file and convert it effortlessly. We auto-detect available formats.</p>
+        
+        <div className="text-center mb-12">
+          <h1 className="text-5xl font-black text-stone-900 mb-4 tracking-tight">File Converter</h1>
+          <p className="text-xl text-stone-600">Easily convert files from one format to another, online.</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {/* Upload card */}
-          <div className="md:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-stone-200">
-            <div 
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-              className="border-2 border-dashed border-stone-300 rounded-xl p-12 text-center hover:border-orange-500 transition-colors cursor-pointer relative"
-            >
-              <input 
-                type="file" 
-                id="file-upload" 
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
-                onChange={handleFileChange} 
-              />
-              <Upload className="w-12 h-12 text-stone-400 mx-auto mb-4" />
-              <p className="font-medium text-stone-700">Drag and drop file here, or click to browse</p>
-              <p className="text-xs text-stone-500 mt-1">Supports PNG, JPG, WEBP, PDF, MP4, GIF (Max 50MB)</p>
+        <div className="bg-white rounded-3xl shadow-sm border border-stone-200 overflow-hidden">
+          {/* Header Action Bar */}
+          {items.length > 0 && (
+            <div className="p-4 border-b border-stone-100 flex items-center justify-end gap-3 bg-stone-50/50">
+              <button 
+                onClick={handleReset}
+                className="flex items-center gap-2 bg-stone-100 text-stone-600 px-4 py-2 rounded-xl font-bold text-sm hover:bg-red-500 hover:text-white transition-colors"
+                title="Convert More (Reset)"
+              >
+                <RefreshCcw className="w-4 h-4" />
+                Reset
+              </button>
             </div>
+          )}
 
-            {file && (
-              <div className="mt-6 p-4 bg-stone-100 rounded-xl flex items-center justify-between overflow-hidden gap-4">
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <FileType className="w-8 h-8 text-orange-600 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-stone-800 text-sm truncate">{file.name}</p>
-                    <p className="text-xs text-stone-500 truncate">
-                      {(file.size / 1024 / 1024).toFixed(2)} MB • {file.type || 'Unknown'}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  {isMultiImage && (
-                    <button 
-                      onClick={handleToggleSelector}
-                      disabled={extracting}
-                      className="shrink-0 flex items-center gap-2 bg-white border border-stone-200 text-stone-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:border-orange-500 hover:text-orange-600 transition-all disabled:opacity-50"
-                    >
-                      <Layers className={`w-3.5 h-3.5 ${extracting ? 'animate-pulse' : ''}`} />
-                      {extracting ? 'Reading...' : (showSelector ? 'Hide Frames' : 'Select Frames')}
-                    </button>
-                  )}
-                  <button 
-                    onClick={handleReset}
-                    className="shrink-0 text-stone-400 hover:text-stone-600 text-xs font-semibold"
-                  >
-                    Remove
-                  </button>
-                </div>
+          {/* Dropzone Area */}
+          <div 
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+            className={`text-center cursor-pointer hover:bg-stone-50 transition-all group relative border-b border-stone-100 ${
+              items.length === 0 ? 'p-20' : 'p-8'
+            }`}
+          >
+            <input 
+              type="file" 
+              multiple
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
+              onChange={handleFileChange} 
+            />
+            
+            <div className={`bg-indigo-50 rounded-3xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform ${
+              items.length === 0 ? 'w-20 h-20' : 'w-12 h-12'
+            }`}>
+              <Upload className={`${items.length === 0 ? 'w-10 h-10' : 'w-6 h-6'} text-indigo-600`} />
+            </div>
+            
+            {items.length === 0 ? (
+              <>
+                <h3 className="text-xl font-bold text-stone-800 mb-2">Select files to convert</h3>
+                <p className="text-stone-500 max-w-sm mx-auto leading-relaxed">
+                  Drag and drop files here, or click to browse. <br />
+                  Supports Images, Documents, Audio, and Video.
+                </p>
+              </>
+            ) : (
+              <div className="space-y-1">
+                <h3 className="text-lg font-bold text-stone-800">Add more files</h3>
+                <p className="text-xs text-stone-400 font-medium uppercase tracking-wider">Drag & Drop or Click</p>
               </div>
             )}
           </div>
 
-          {/* Options card */}
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200 flex flex-col justify-between">
-            <div>
-              <h3 className="font-bold text-stone-900 mb-4">Conversion Settings</h3>
-              <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-2">Convert to:</label>
-              <select 
-                value={format}
-                onChange={(e) => {
-                  setFormat(e.target.value);
-                  if (downloadUrl) {
-                    setDownloadUrl('');
-                  }
-                }}
-                className="w-full bg-stone-100 border border-stone-200 rounded-lg p-3 text-stone-800 font-medium focus:outline-none focus:ring-2 focus:ring-orange-500/10 focus:border-orange-500"
-              >
-                {availableFormats.map((fmt) => (
-                  <option key={fmt} value={fmt}>{fmt} Format</option>
-                ))}
-              </select>
+          {/* File List */}
+          {items.length > 0 && (
+            <div className="divide-y divide-stone-100">
+              {items.map((item) => (
+                <div key={item.id} className="p-1">
+                  <div className="p-4 flex flex-wrap sm:flex-nowrap items-center gap-4 hover:bg-stone-50/50 transition-colors rounded-2xl">
+                    <FilePreview file={item.file} previewUrl={item.previewUrl} />
+
+                    <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-stone-400 uppercase tracking-tight">Output:</span>
+                        <div className="relative">
+                          <select 
+                            value={item.targetFormat}
+                            onChange={(e) => handleFormatChange(item.id, e.target.value)}
+                            disabled={item.status === 'converting'}
+                            className="appearance-none bg-white border border-indigo-200 rounded-lg pl-3 pr-8 py-1.5 text-indigo-600 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 disabled:opacity-50 cursor-pointer min-w-[80px]"
+                          >
+                            {item.availableFormats.length > 0 ? (
+                              item.availableFormats.map((fmt) => (
+                                <option key={fmt} value={fmt}>{fmt}</option>
+                              ))
+                            ) : (
+                              <option value="">N/A</option>
+                            )}
+                          </select>
+                          <ChevronDown className="w-4 h-4 text-indigo-600 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-60" />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        {/* Settings Button (for GIF/ICO) */}
+                        {(item.file.type === 'image/gif' || item.file.type === 'image/x-icon' || item.file.type === 'image/vnd.microsoft.icon') && (
+                          <button 
+                            onClick={() => handleToggleSelector(item.id)}
+                            className={`p-2 rounded-lg transition-colors ${item.showSelector ? 'bg-indigo-100 text-indigo-600' : 'text-stone-400 hover:bg-stone-100'}`}
+                            title="Frame Selection"
+                          >
+                            <Images className={`w-5 h-5 ${item.extracting ? 'animate-spin' : ''}`} />
+                          </button>
+                        )}
+                        
+                        {item.status === 'completed' && item.result && (
+                          <a 
+                            href={item.result.downloadUrl}
+                            download={item.result.convertedFileName}
+                            className="flex items-center gap-2 px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors font-bold text-xs"
+                          >
+                            <Download className="w-4 h-4" />
+                            <span>Download</span>
+                          </a>
+                        )}
+
+                        <button 
+                          onClick={() => removeItem(item.id)}
+                          className="p-2 text-stone-400 hover:text-red-500 transition-colors ml-1"
+                          title="Remove"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Per-item Status & Progress */}
+                  {item.status === 'converting' && (
+                    <div className="px-4 pb-4">
+                      <div className="h-1 w-full bg-stone-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-indigo-500 animate-progress"></div>
+                      </div>
+                    </div>
+                  )}
+
+                  {item.status === 'error' && (
+                    <div className="px-4 pb-4 flex items-center gap-2 text-xs font-bold text-red-500">
+                      <AlertCircle className="w-4 h-4" />
+                      <span>{item.error}</span>
+                    </div>
+                  )}
+
+                  {/* Per-item Frame Selector */}
+                  {item.showSelector && (
+                    <div className="px-4 pb-6">
+                      <FrameSelector 
+                        frames={item.frames}
+                        selectedFrames={item.selectedFrames}
+                        onToggleFrame={(index) => handleToggleFrame(item.id, index)}
+                        onSelectAll={() => handleSelectAllFrames(item.id)}
+                        onDeselectAll={() => handleDeselectAllFrames(item.id)}
+                      />
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
+          )}
 
-            <div className="mt-8">
-              <button
-                disabled={!file || converting}
-                onClick={startConversion}
-                className={`w-full p-4 rounded-xl font-bold transition-all shadow-md ${
-                  file && !converting
-                    ? 'bg-orange-600 hover:bg-orange-700 text-white cursor-pointer active:scale-[0.98]' 
-                    : 'bg-stone-200 text-stone-400 cursor-not-allowed'
-                }`}
-              >
-                {converting ? 'Converting...' : (selectedFrames.length > 1 ? `Convert ${selectedFrames.length} Frames` : 'Convert File')}
-              </button>
-            </div>
-          </div>
-        </div>
+          {/* Batch Action Bar (Bottom) */}
+          {items.length > 0 && (
+            <div className="bg-stone-50 p-4 border-t border-stone-100 flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-4">
+                <span className="text-sm font-bold text-stone-600">
+                  Convert All({items.length}) to:
+                </span>
+                <div className="relative">
+                  <select 
+                    value={globalFormat}
+                    onChange={(e) => handleGlobalFormatChange(e.target.value)}
+                    className="appearance-none bg-white border border-stone-200 rounded-xl pl-4 pr-10 py-2 text-red-400 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer shadow-sm"
+                  >
+                    <option value="" disabled>Select</option>
+                    {allAvailableFormats.map((fmt) => (
+                      <option key={fmt} value={fmt}>{fmt}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-4 h-4 text-stone-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              </div>
 
-        {/* Multi-frame Selector */}
-        {showSelector && (
-          <FrameSelector 
-            frames={frames}
-            selectedFrames={selectedFrames}
-            onToggleFrame={handleToggleFrame}
-            onSelectAll={handleSelectAll}
-            onDeselectAll={handleDeselectAll}
-          />
-        )}
-
-        {/* Status indicator */}
-        {converting && (
-          <div className="mt-8 bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-xl flex items-center gap-3 animate-pulse">
-            <div className="w-5 h-5 rounded-full border-2 border-amber-800 border-t-transparent animate-spin"></div>
-            <span>{selectedFrames.length > 1 ? `Zipping ${selectedFrames.length} frames...` : (format === 'HEIC' ? 'Performing server-side conversion...' : 'Transforming your media file on-device...')}</span>
-          </div>
-        )}
-
-        {(!converting && format === 'HEIC' && file) && (
-          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 text-blue-800 rounded-xl text-xs flex items-center gap-2">
-            <Layers className="w-4 h-4 shrink-0" />
-            <p>Note: HEIC conversion is performed on our server. Your file is processed and deleted immediately after conversion.</p>
-          </div>
-        )}
-
-        {(!converting && downloadUrl) && (
-          <div className="mt-8 bg-green-50 border border-green-200 text-green-800 p-4 rounded-xl flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <CheckCircle2 className="w-5 h-5 text-green-600" />
-              <div>
-                <p className="font-semibold text-green-950 text-sm">Conversion successful!</p>
-                <p className="text-xs text-green-700/80">Ready to download: {convertedFileName}</p>
+              <div className="flex items-center gap-3">
+                {allFinished && hasCompleted ? (
+                  <button 
+                    onClick={handleDownloadAll}
+                    disabled={isDownloadingAll}
+                    className="px-8 py-3 bg-stone-900 text-white rounded-xl font-bold text-sm hover:bg-stone-800 transition-all active:scale-95 shadow-md flex items-center gap-2"
+                  >
+                    {isDownloadingAll ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Archive className="w-4 h-4" />
+                    )}
+                    Download All (ZIP)
+                  </button>
+                ) : (
+                  <button 
+                    onClick={startConversionAll}
+                    disabled={isConvertingAll}
+                    className="px-8 py-3 bg-indigo-300 text-grey rounded-xl font-bold text-sm hover:bg-indigo-700 hover:text-white transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-md flex items-center gap-2"
+                  >
+                    {isConvertingAll ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Converting...
+                      </>
+                    ) : (
+                      <>
+                        Convert
+                        <ArrowLeft className="w-4 h-4 rotate-180" />
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
-            <a 
-              href={downloadUrl}
-              download={convertedFileName}
-              className="bg-green-800 hover:bg-green-900 text-white px-4 py-2 rounded-lg font-bold text-xs"
-            >
-              Download
-            </a>
+          )}
+        </div>
+
+        {/* Global Progress Indicator */}
+        {isConvertingAll && (
+          <div className="mt-8 bg-indigo-50 border border-indigo-100 text-indigo-700 p-4 rounded-2xl flex items-center gap-3 animate-pulse">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span className="font-bold">Processing your files batch... This may take a moment depending on file sizes.</span>
           </div>
         )}
       </main>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes progress {
+          0% { width: 0%; }
+          50% { width: 70%; }
+          100% { width: 100%; }
+        }
+        .animate-progress {
+          animation: progress 2s ease-in-out infinite;
+        }
+      ` }} />
     </Layout>
   );
 }

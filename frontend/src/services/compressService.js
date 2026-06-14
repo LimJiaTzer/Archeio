@@ -119,7 +119,8 @@ export const compressDocument = async ({
     formData.append('file', file);
     formData.append('ratio', ratio);
 
-    const response = await fetch('http://localhost:3001/compress-pdf', {
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const response = await fetch(`${API_URL}/compress-pdf`, {
       method: 'POST',
       body: formData,
     });
@@ -349,5 +350,3 @@ export const compressVideo = async ({
     setCompressing(false);
   }
 };
-
-
