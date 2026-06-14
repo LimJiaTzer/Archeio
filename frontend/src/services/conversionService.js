@@ -18,6 +18,7 @@ import { xlsxToPdf } from './documentConversionServices/xlsxToPdf';
 import { rtfToPdf } from './documentConversionServices/rtfToPdf';
 import { epubToPdf } from './documentConversionServices/epubToPdf';
 import { pptxToPdf } from './documentConversionServices/pptxToPdf';
+import { backendToPdf } from './documentConversionServices/backendToPdf';
 
 const ensureFfmpegLoaded = async (ffmpeg) => {
   if (ffmpeg.loaded) return ffmpeg;
@@ -211,13 +212,13 @@ const converters = {
 
 const documentConverters = {
   'application/pdf:application/pdf': (f) => f, // No-op
-  'text/html:application/pdf': (f) => htmlToPdf(f),
-  'text/plain:application/pdf': (f) => txtToPdf(f),
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document:application/pdf': (f) => docxToPdf(f),
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:application/pdf': (f) => xlsxToPdf(f),
-  'application/rtf:application/pdf': (f) => rtfToPdf(f),
-  'application/epub+zip:application/pdf': (f) => epubToPdf(f),
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation:application/pdf': (f) => pptxToPdf(f),
+  'text/html:application/pdf': (f) => backendToPdf(f),
+  'text/plain:application/pdf': (f) => backendToPdf(f),
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document:application/pdf': (f) => backendToPdf(f),
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:application/pdf': (f) => backendToPdf(f),
+  'application/rtf:application/pdf': (f) => backendToPdf(f),
+  'application/epub+zip:application/pdf': (f) => backendToPdf(f),
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation:application/pdf': (f) => backendToPdf(f),
 };
 
 // --- MAIN EXECUTION FUNCTION ---

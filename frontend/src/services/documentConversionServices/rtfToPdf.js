@@ -1,32 +1,41 @@
-import { txtToPdf } from './txtToPdf';
+import { convertRtfToHtml } from 'rtf-to-html-converter';
+import { jsPDF } from 'jspdf';
 
-/**
- * Strips basic RTF tags to get plain text.
- * @param {string} rtf 
- * @returns {string}
- */
-function stripRTF(rtf) {
-  // Simple regex-based RTF stripping. Not perfect but handles basic cases.
-  if (!rtf) return '';
-  return rtf
-    .replace(/\\rtf1|\\ansi|\\ansicpg\d+|\\deff\d+|\\deflang\d+/g, '')
-    .replace(/\{\\fonttbl[\s\S]*?\}/g, '')
-    .replace(/\{\\colortbl[\s\S]*?\}/g, '')
-    .replace(/\{\\stylesheet[\s\S]*?\}/g, '')
-    .replace(/\\viewkind\d+|\\uc\d+|\\pard|\\plain|\\f\d+|\\fs\d+|\\lang\d+|\\b|\\i|\\u\d+|\\'[\da-f]{2}/g, '')
-    .replace(/[\{\}]/g, '')
-    .replace(/\r\n/g, '\n')
-    .replace(/\n\n+/g, '\n')
-    .trim();
-}
-
-/**
- * Converts RTF to PDF.
- * @param {File} file 
- * @returns {Promise<Blob>}
- */
 export const rtfToPdf = async (file) => {
-  const textContent = await file.text();
-  const plainText = stripRTF(textContent);
-  return await txtToPdf(plainText);
+  return new Promise(async (resolve, reject) => {
+    let sandbox = null;
+    try {
+      const textRaw = await file.text();
+      const HTMLParsedString = convertRtfToHtml(textRaw);
+
+      sandbox = document.createElement('div');
+      sandbox.style.position = 'fixed';
+      sandbox.style.top = '0';
+      sandbox.style.left = '0';
+      sandbox.style.width = '800px';
+      sandbox.style.zIndex = '-9999';
+      sandbox.style.background = '#ffffff';
+      sandbox.style.fontFamily = 'Times New Roman, serif'; // RTF default fallback
+      sandbox.style.lineHeight = '1.5';
+      sandbox.innerHTML = HTMLParsedString;
+
+      document.body.appendChild(sandbox);
+      await new Promise((res) => setTimeout(res, 300));
+
+      const doc = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
+      await doc.html(sandbox, {
+        callback: (pdfDoc) => {
+          document.body.removeChild(sandbox);
+          resolve(pdfDoc.output('blob'));
+        },
+        margin: [40, 40, 40, 40],
+        autoPaging: 'text',
+        width: 515,
+        windowWidth: 800
+      });
+    } catch (err) {
+      if (sandbox?.parentNode) document.body.removeChild(sandbox);
+      reject(err);
+    }
+  });
 };

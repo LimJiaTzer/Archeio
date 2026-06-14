@@ -1,36 +1,58 @@
 import JSZip from 'jszip';
-import { htmlToPdf } from './htmlToPdf';
+import { jsPDF } from 'jspdf';
 
-/**
- * Basic EPUB to PDF conversion by extracting XHTML/HTML content.
- * @param {File} file 
- * @returns {Promise<Blob>}
- */
 export const epubToPdf = async (file) => {
-  const zip = await JSZip.loadAsync(file);
-  let fullHtml = '';
+  return new Promise(async (resolve, reject) => {
+    let sandbox = null;
+    try {
+      const zip = await JSZip.loadAsync(file);
+      let cumulativeHtml = '';
 
-  // EPUB usually has content in OEBPS or similar, with .xhtml or .html files
-  // We'll look for all html/xhtml files and concatenate them
-  const files = Object.keys(zip.files).filter(name => name.endsWith('.xhtml') || name.endsWith('.html'));
-  
-  // Sort them if possible? Usually they are named in order
-  files.sort();
+      // Extract all readable markup resources
+      for (const [filename, fileData] of Object.entries(zip.files)) {
+        if (filename.endsWith('.xhtml') || filename.endsWith('.html')) {
+          let textChunk = await fileData.async('text');
+          // Clean out restrictive <head> parameters that lock sizing rules
+          textChunk = textChunk.replace(/<head>[\s\S]*?<\/head>/gi, '');
+          cumulativeHtml += `<div class="epub-chapter">${textChunk}</div>`;
+        }
+      }
 
-  for (const name of files) {
-    const content = await zip.file(name).async('string');
-    // Remove headers/head to avoid multiple html/body tags if concatenating
-    const bodyMatch = content.match(/<body[^>]*>([\s\S]*)<\/body>/i);
-    if (bodyMatch) {
-      fullHtml += `<div>${bodyMatch[1]}</div><div style="page-break-after: always;"></div>`;
-    } else {
-      fullHtml += `<div>${content}</div><div style="page-break-after: always;"></div>`;
+      sandbox = document.createElement('div');
+      sandbox.style.position = 'fixed';
+      sandbox.style.top = '0';
+      sandbox.style.left = '0';
+      sandbox.style.width = '800px';
+      sandbox.style.zIndex = '-9999';
+      sandbox.style.background = '#ffffff';
+      sandbox.innerHTML = cumulativeHtml;
+
+      // Stylize to mimic a clean physical book layout
+      const style = document.createElement('style');
+      style.innerHTML = `
+        .epub-chapter { page-break-after: always; padding: 20px; }
+        p { font-family: Georgia, serif; font-size: 14px; line-height: 1.6; text-align: justify; text-indent: 2em; margin: 0 0 10px 0; }
+        h1, h2, h3 { font-family: sans-serif; text-align: center; margin-top: 30px; }
+      `;
+      sandbox.appendChild(style);
+
+      document.body.appendChild(sandbox);
+      await new Promise((res) => setTimeout(res, 500));
+
+      const doc = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
+      await doc.html(sandbox, {
+        callback: (pdfDoc) => {
+          document.body.removeChild(sandbox);
+          resolve(pdfDoc.output('blob'));
+        },
+        margin: [50, 50, 50, 50],
+        autoPaging: 'text',
+        width: 495,
+        windowWidth: 800
+      });
+    } catch (err) {
+      if (sandbox?.parentNode) document.body.removeChild(sandbox);
+      reject(err);
     }
-  }
-
-  if (!fullHtml) {
-    throw new Error('Could not extract any content from EPUB.');
-  }
-
-  return await htmlToPdf(fullHtml, file.name.replace('.epub', '.pdf'));
+  });
 };
