@@ -6,18 +6,27 @@ import { compressDocument, compressImage, compressAudio, compressVideo } from '.
 import Layout from '../components/Layout';
 
 export default function Compress() {
-  // file input state 
-  const [file, setFile] = useState(null);
-  const [format, setFormat] = useState(null);
-  const [fileInfo, setFileInfo] = useState(null);   // probs not the best design cos format is in here too but can fix ltr 
+  // input & output file(s) state
+  const [fileItems, setFileItems] = useState([]); 
+
+//   fileItems = [
+//   {
+//     id,
+//     file,
+//     fileInfo,
+//     format,
+//     result,
+//     downloadUrl,
+//     compressedFileName,
+//     warning,
+//     status,
+//   }
+//  ]
   // compression process state 
   const [ratio, setRatio] = useState(75);
   const [compressing, setCompressing] = useState(false);
   const [warning, setWarning] = useState('');
-  // output state
-  const [result, setResult] = useState(null);
-  const [downloadUrl, setDownloadUrl] = useState('');
-  const [compressedFileName, setCompressedFileName] = useState('');
+
 
   const handleUnsupportedCompression = (msg) => {
     setCompressing(false);
@@ -29,98 +38,205 @@ export default function Compress() {
     name, size, type, lastModified etc
   } */
   const handleFileUpload = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      const uploadedFile = e.target.files[0];
-      const detFileInfo = getFileInfo(uploadedFile.type);
-      
-      setFile(uploadedFile);
-      setFileInfo(detFileInfo);
-      setFormat(detFileInfo.format);
-      setResult(null);
-      setDownloadUrl('');
-      setCompressedFileName('');
+    if (e.target.files && e.target.files.length > 0) {
+      const uploadedFiles = Array.from(e.target.files);
 
-      if (detFileInfo.canCrop || detFileInfo.canResize) { // some formats only can crop OR resize 
-        // TODO: Link to manipulation.jsx 
-      }
-      
+      const newFileItems = uploadedFiles
+        .map((uploadedFile) => { // same map fn we always use 
+          const detFileInfo = getFileInfo(uploadedFile.type);
+
+          if (!detFileInfo) {
+            alert(`${uploadedFile.name} is not supported`);
+            return null;
+          }
+
+          if (detFileInfo.canCrop || detFileInfo.canResize) {
+            // TODO: Link to manipulation.jsx
+          }
+
+          return {
+            id: crypto.randomUUID(),
+            file: uploadedFile,
+            fileInfo: detFileInfo,
+            format: detFileInfo.format,
+            result: null,
+            downloadUrl: '',
+            compressedFileName: '',
+            status: 'idle',
+          };
+        })
+        .filter(Boolean); // removes invalid items 
+
+      setFileItems((prev) => [...prev, ...newFileItems]);
+
       // Reset the value so the exact same file can be uploaded again after removal
       e.target.value = null;
     }
   };
 
-  // Compression (Ive got a feeling this doesnt follow Tell Don't Ask Principle)
-  const startCompression = () => {
-    if (!file || !fileInfo) return;
-    setCompressing(true); 
+// Helper fns 
+  const updateFileItem = (id, patch) => {
+    setFileItems((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, ...patch } : item
+      )
+    );
+  };
 
-    switch (fileInfo.category) {
-      case 'documents':     
-        compressDocument({ // can pass in ratio in future and active display on how compressed the pdf will be 
-          file,
-          format, 
-          // ratio,
-          setDownloadUrl,
-          setCompressedFileName,
-          setResult,
-          setCompressing
-        });
-        break;
-
-      case 'images':
-        compressImage({
-          file,  
-          ratio,
-          format,
-          setDownloadUrl,
-          setCompressedFileName,
-          setResult,
-          setCompressing,
-        });
-        break;
-
-      case 'audio':
-        compressAudio({
-          file,
-          ratio,
-          format,
-          fileInfo,
-          setDownloadUrl,
-          setCompressedFileName,
-          setResult,
-          setCompressing,
-          setWarning,
-        });
-        break;
-
-      case 'video':
-        compressVideo({
-          file,
-          ratio,
-          format,
-          fileInfo,
-          setDownloadUrl,
-          setCompressedFileName,
-          setResult,
-          setCompressing,
-          setWarning,
-        });
-        break;
-
-      default:
-        handleUnsupportedCompression('File type not supported');
-    }
-  }
-
-
-
+  const removeFileItem = (id) => {
+    setFileItems((prev) => prev.filter((item) => item.id !== id));
+  };
 
   const handleReset = () => {
-    setFile(null);
-    setResult(null);
-    setDownloadUrl('');
-    setCompressedFileName('');
+    setFileItems([]);
   };
+
+  // Compression (Ive got a feeling this doesnt follow Tell Don't Ask Principle)
+  // const startCompression = () => {
+  //   if (!file || !fileInfo) return;
+  //   setCompressing(true); 
+  //   setWarning('');
+
+  //   switch (fileInfo.category) {
+  //     case 'documents':     
+  //       compressDocument({ // can pass in ratio in future and active display on how compressed the pdf will be 
+  //         file,
+  //         format, 
+  //         // ratio,
+  //         setDownloadUrl,
+  //         setCompressedFileName,
+  //         setResult,
+  //         setCompressing
+  //       });
+  //       break;
+
+  //     case 'images':
+  //       compressImage({
+  //         file,  
+  //         ratio,
+  //         format,
+  //         setDownloadUrl,
+  //         setCompressedFileName,
+  //         setResult,
+  //         setCompressing,c 
+  //       });
+  //       break;
+
+  //     case 'audio':
+  //       compressAudio({
+  //         file,
+  //         ratio,
+  //         format,
+  //         fileInfo,
+  //         setDownloadUrl,
+  //         setCompressedFileName,
+  //         setResult,
+  //         setCompressing,
+  //         setWarning,
+  //       });
+  //       break;
+
+  //     case 'video':
+  //       compressVideo({
+  //         file,
+  //         ratio,
+  //         format,
+  //         fileInfo,
+  //         setDownloadUrl,
+  //         setCompressedFileName,
+  //         setResult,
+  //         setCompressing,
+  //         setWarning,
+  //       });
+  //       break;
+
+  //     default:
+  //       handleUnsupportedCompression('File type not supported');
+  //   }
+  // }
+
+  const startCompression = async () => {
+    if (fileItems.length === 0) return;
+
+    setCompressing(true);
+    setWarning('');
+
+    for (const item of fileItems) {
+      updateFileItem(item.id, {
+        status: 'compressing',
+        result: null,
+        downloadUrl: '',
+        compressedFileName: '',
+      });
+
+      const sharedArgs = {
+        file: item.file,
+        ratio,
+        format: item.format,
+        fileInfo: item.fileInfo,
+
+        setDownloadUrl: (url) => {
+          updateFileItem(item.id, { downloadUrl: url });
+        },
+
+        setCompressedFileName: (name) => {
+          updateFileItem(item.id, { compressedFileName: name });
+        },
+
+        setResult: (result) => {
+          updateFileItem(item.id, { result });
+        },
+
+        setWarning: (warningMsg) => {
+          if (warningMsg) {
+            setWarning(
+              'One or more files may have increased in size due to format conversion.'
+            );
+          }
+        },
+
+        // Important: prevent each individual file from turning off the global loading state
+        setCompressing: () => {},
+      };
+
+      switch (item.fileInfo.category) {
+        case 'documents':
+          await compressDocument(sharedArgs);
+          break;
+
+        case 'images':
+          await new Promise((resolve) => {
+            compressImage({
+              ...sharedArgs,
+
+              // compressImage is not truly async, so we manually resolve when it finishes
+              setCompressing: () => {
+                resolve();
+              },
+            });
+          });
+          break;
+
+        case 'audio':
+          await compressAudio(sharedArgs);
+          break;
+
+        case 'video':
+          await compressVideo(sharedArgs);
+          break;
+
+        default:
+          alert(`${item.file.name} is not supported`);
+          updateFileItem(item.id, { status: 'error' });
+          continue;
+      }
+
+      updateFileItem(item.id, { status: 'done' });
+    }
+
+    setCompressing(false);
+  };
+
 
   return (
     <Layout>
@@ -141,6 +257,7 @@ export default function Compress() {
             <div className="border-2 border-dashed border-stone-300 rounded-xl p-12 text-center hover:border-orange-500 transition-colors cursor-pointer relative">
               <input 
                 type="file" 
+                multiple
                 onChange={handleFileUpload}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
               />
@@ -149,7 +266,7 @@ export default function Compress() {
               <p className="text-xs text-stone-500 mt-1">Supports PDF, JPG, PNG, DOCX, ZIP (Max 100MB)</p>
             </div>
 
-            {file && (
+            {/* {file && (
               <div className="mt-6 p-4 bg-stone-100 rounded-xl flex items-center justify-between">
                 <div>
                   <p className="font-semibold text-stone-800 text-sm truncate max-w-xs">{file.name}</p>
@@ -161,6 +278,33 @@ export default function Compress() {
                 >
                   Remove
                 </button>
+              </div>
+            )} */}
+            {fileItems.length > 0 && (
+              <div className="mt-6 space-y-3">
+                {fileItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="p-4 bg-stone-100 rounded-xl flex items-center justify-between"
+                  >
+                    <div>
+                      <p className="font-semibold text-stone-800 text-sm truncate max-w-xs">
+                        {item.file.name}
+                      </p>
+
+                      <p className="text-xs text-stone-500">
+                        Original Size: {(item.file.size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => removeFileItem(item.id)}
+                      className="text-stone-400 hover:text-stone-600 text-xs font-semibold"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -185,7 +329,6 @@ export default function Compress() {
                   value={ratio} 
                   onChange={(e) => {
                     setRatio(Number(e.target.value));
-                    if (result) setResult(null); // clear results when inputs shift
                   }}
                   className="w-full accent-orange-600 cursor-pointer bg-stone-200 rounded-lg appearance-none h-2"
                 />
@@ -200,7 +343,7 @@ export default function Compress() {
             <div>TODO: Add the zip file kind of compression too maybe on another tab?? Header tho </div>
               {/* convert then compress */}
             
-            <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-2">
+            {/* <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-2">
               Convert to:
             </label>
 
@@ -218,27 +361,28 @@ export default function Compress() {
                   ))}
                 </select>
               )}
-            </div>
+            </div> */}
 
             <div>   {/* TODO: add link to Manipulation.jsx */}
-              {fileInfo && (fileInfo.canCrop || fileInfo.canResize) && (
+              place holder
+              {/* {fileInfo && (fileInfo.canCrop || fileInfo.canResize) && (
                 <div>file manipulation available</div>
-              )}
+              )} */}
 
             </div>
 
           
 
             <button
-              disabled={!file || compressing}
+              disabled={fileItems.length === 0 || compressing}
               onClick={startCompression} 
               className={`w-full mt-8 p-4 rounded-xl font-bold transition-all shadow-md ${
-                file && !compressing
+                fileItems.length > 0 && !compressing
                   ? 'bg-orange-600 hover:bg-orange-700 text-white cursor-pointer active:scale-[0.98]'
                   : 'bg-stone-100 text-stone-400 cursor-not-allowed'
               }`}
             >
-              {compressing ? 'Shrinking...' : 'Compress File'}
+              {compressing ? 'Shrinking...' : 'Compress Files'}
             </button>
           </div>
         </div>
@@ -254,7 +398,7 @@ export default function Compress() {
 
 
         {/* Showing result of compression */}
-        {result && (
+        {/* {result && (
           <div className="mt-8 bg-green-50 border border-green-200 text-green-800 p-6 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-4">
@@ -293,7 +437,7 @@ export default function Compress() {
               </a>
             </div>
           </div>
-        )}
+        )} */}
 
 
 
