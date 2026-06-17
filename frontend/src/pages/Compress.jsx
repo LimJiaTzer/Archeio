@@ -8,21 +8,8 @@ import Layout from '../components/Layout';
 
 export default function Compress() {
   // input & output file(s) state
-  const [fileItems, setFileItems] = useState([]); 
+  const [fileItems, setFileItems] = useState([]); // id, file, fileInfo, format, result, downloadURL, compressedFileName, warning, status
 
-//   fileItems = [
-//   {
-//     id,
-//     file,
-//     fileInfo,
-//     format,
-//     result,
-//     downloadUrl,
-//     compressedFileName,
-//     warning,
-//     status,
-//   }
-//  ]
   // compression process state 
   const [ratio, setRatio] = useState(75);
   const [compressing, setCompressing] = useState(false);
@@ -93,69 +80,6 @@ export default function Compress() {
   };
 
   // Compression (Ive got a feeling this doesnt follow Tell Don't Ask Principle)
-  // const startCompression = () => {
-  //   if (!file || !fileInfo) return;
-  //   setCompressing(true); 
-  //   setWarning('');
-
-  //   switch (fileInfo.category) {
-  //     case 'documents':     
-  //       compressDocument({ // can pass in ratio in future and active display on how compressed the pdf will be 
-  //         file,
-  //         format, 
-  //         // ratio,
-  //         setDownloadUrl,
-  //         setCompressedFileName,
-  //         setResult,
-  //         setCompressing
-  //       });
-  //       break;
-
-  //     case 'images':
-  //       compressImage({
-  //         file,  
-  //         ratio,
-  //         format,
-  //         setDownloadUrl,
-  //         setCompressedFileName,
-  //         setResult,
-  //         setCompressing,c 
-  //       });
-  //       break;
-
-  //     case 'audio':
-  //       compressAudio({
-  //         file,
-  //         ratio,
-  //         format,
-  //         fileInfo,
-  //         setDownloadUrl,
-  //         setCompressedFileName,
-  //         setResult,
-  //         setCompressing,
-  //         setWarning,
-  //       });
-  //       break;
-
-  //     case 'video':
-  //       compressVideo({
-  //         file,
-  //         ratio,
-  //         format,
-  //         fileInfo,
-  //         setDownloadUrl,
-  //         setCompressedFileName,
-  //         setResult,
-  //         setCompressing,
-  //         setWarning,
-  //       });
-  //       break;
-
-  //     default:
-  //       handleUnsupportedCompression('File type not supported');
-  //   }
-  // }
-
   const startCompression = async () => {
     if (fileItems.length === 0) return;
 
@@ -194,7 +118,7 @@ export default function Compress() {
           }
         },
 
-        // Important: prevent each individual file from turning off the global loading state
+        // prevent each individual file from turning off the global loading state
         setCompressing: () => {},
       };
 
@@ -208,7 +132,7 @@ export default function Compress() {
             compressImage({
               ...sharedArgs,
 
-              // compressImage is not truly async, so we manually resolve when it finishes
+              // compressImage is not truly async, so manually resolve when it finishes
               setCompressing: () => {
                 resolve();
               },
@@ -241,10 +165,12 @@ export default function Compress() {
     (item) => item.result && item.downloadUrl
   );
 
-  const hasResults = completedItems.length > 0;
-  const isSingleResult = completedItems.length === 1;
+  const multipleUploads = fileItems.length > 1;
+  const singleUpload = fileItems.length === 1;
+  const multipleResults = completedItems.length > 1;
+  const singleResult = completedItems.length === 1;
 
-  const handleDownloadAll = async () => {
+  const handleDownloadAll = async () => { // Just for zipping 
     if (completedItems.length === 0) return;
 
     const zip = new JSZip();
@@ -266,6 +192,11 @@ export default function Compress() {
 
     URL.revokeObjectURL(zipUrl);
   };
+
+
+  const hasManipulatableFile = fileItems.some(
+    (item) => item.fileInfo?.canCrop || item.fileInfo?.canResize
+  );  
 
   return (
     <Layout>
@@ -405,39 +336,23 @@ export default function Compress() {
 
             
 
-            <div>Rn it can only do [filetype] to [filetype] </div>
-            <div>TODO: Add conversion logic for [filetype1] to [filetype2]</div> 
-            <br></br>
-            <div>TODO: Add the zip file kind of compression too maybe on another tab?? Header tho </div>
-              {/* convert then compress */}
-            
-            {/* <label className="block text-xs font-bold text-stone-500 uppercase tracking-wider mb-2">
-              Convert to:
-            </label>
-
-            <div>
-              {fileInfo && fileInfo.outputFormats.length > 0 && (
-                <select
-                  value={format}
-                  onChange={(e) => setFormat(e.target.value)}
-                  className="w-full bg-stone-100 border border-stone-200 rounded-lg p-3 text-stone-800 font-medium"
+            {multipleUploads && (
+              <Link
+                to="/zip-compression"
+                className="block mt-4 text-sm font-semibold text-orange-600 hover:text-orange-700"
+              >
+                Zip compression
+              </Link>
+            )}
+            {/* TODO: add link to Manipulation.jsx */}
+            {hasManipulatableFile && (
+                <Link
+                  to="/manipulation"
+                  className="block mt-4 text-sm font-semibold text-orange-600 hover:text-orange-700"
                 >
-                  {fileInfo.outputFormats.map((fmt) => (
-                    <option key={fmt} value={fmt}>
-                      {fmt}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div> */}
-
-            <div>   {/* TODO: add link to Manipulation.jsx */}
-              place holder
-              {/* {fileInfo && (fileInfo.canCrop || fileInfo.canResize) && (
-                <div>file manipulation available</div>
-              )} */}
-
-            </div>
+                  file manipulation available
+                </Link>
+            )}
 
           
 
@@ -464,53 +379,10 @@ export default function Compress() {
           </div>
         )}
 
-
         {/* Showing result of compression */}
-        {/* {result && (
-          <div className="mt-8 bg-green-50 border border-green-200 text-green-800 p-6 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-4">
-                <CheckCircle2 className="w-6 h-6 text-green-600 animate-bounce" />
-                <h4 className="font-bold text-lg text-green-950">Compression Complete! Saved {result.ratio}</h4>
-              </div>
-              
-              <div className="flex gap-12 text-sm border-t border-green-200/50 pt-4">
-                <div>
-                  <span className="block text-xs text-green-700/70 font-bold uppercase tracking-wide">Before</span>
-                  <span className="text-lg font-black text-green-950">{result.originalSize}</span>
-                </div>
-                <div>
-                  <span className="block text-xs text-green-700/70 font-bold uppercase tracking-wide">After</span>
-                  <span className="text-lg font-black text-green-950">{result.compressedSize}</span>
-                </div>
-                <div>
-                  <span className="block text-xs text-green-700/70 font-bold uppercase tracking-wide">Storage Saved</span>
-                  <span className="text-lg font-black text-green-950">{result.ratio}</span>
-                </div>
-              </div>
-            </div>
-            
-            <div>
-              {warning && (
-                <div className="mt-3 mb-3 bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-lg text-sm">
-                  ⚠️ {warning}
-                </div>
-              )}
-              <a 
-                href={downloadUrl}
-                download={compressedFileName}
-                className="bg-green-800 hover:bg-green-900 text-white px-6 py-4 rounded-xl font-bold font-sans tracking-wide shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all self-stretch md:self-auto text-center"
-              >
-                Download Compressed File
-              </a>
-            </div>
-          </div>
-        )} */}
-
-        {/* Showing result of compression */}
-        {hasResults && (
+        {multipleResults && (
           <div className="mt-8 bg-green-50 border border-green-200 text-green-800 p-6 rounded-2xl">
-            {isSingleResult ? (
+            {singleResult ? (
               (() => {
                 const item = completedItems[0];
 
