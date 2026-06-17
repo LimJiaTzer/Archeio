@@ -219,7 +219,6 @@ export const compressAudio = async ({ // don ned format cos ffmpeg extracts it f
     // ---CHECKS---
     if (blob.size >= file.size) {
       if (inputFormat === outputFormat) {
-        setWarning('');  // is this even needed 
         throw new Error('This audio file is alreay highly compressed');
       } else {
         // show disclaimer
@@ -323,7 +322,6 @@ export const compressVideo = async ({
 
     if (blob.size >= file.size) {
       if (inputFormat === outputFormat) {
-        setWarning('');
         throw new Error('This video is alreay highly compressed');
       } else {
         // show disclaimer
