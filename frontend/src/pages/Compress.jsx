@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, Archive, Sliders, CheckCircle2 } from 'lucide-react'; // icons, can change them 
 import { getFileInfo } from '../lib/fileTypes'; // file types
 import { compressDocument, compressImage, compressAudio, compressVideo } from '../services/compressService';
+import JSZip from 'jszip';
 import Layout from '../components/Layout';
 
 export default function Compress() {
@@ -189,9 +190,7 @@ export default function Compress() {
 
         setWarning: (warningMsg) => {
           if (warningMsg) {
-            setWarning(
-              'One or more files may have increased in size due to format conversion.'
-            );
+            setWarning(warningMsg);
           }
         },
 
@@ -237,6 +236,36 @@ export default function Compress() {
     setCompressing(false);
   };
 
+
+  const completedItems = fileItems.filter(
+    (item) => item.result && item.downloadUrl
+  );
+
+  const hasResults = completedItems.length > 0;
+  const isSingleResult = completedItems.length === 1;
+
+  const handleDownloadAll = async () => {
+    if (completedItems.length === 0) return;
+
+    const zip = new JSZip();
+
+    for (const item of completedItems) {
+      const response = await fetch(item.downloadUrl);
+      const blob = await response.blob();
+
+      zip.file(item.compressedFileName || item.file.name, blob);
+    }
+
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    const zipUrl = URL.createObjectURL(zipBlob);
+
+    const link = document.createElement('a');
+    link.href = zipUrl;
+    link.download = 'compressed_files.zip';
+    link.click();
+
+    URL.revokeObjectURL(zipUrl);
+  };
 
   return (
     <Layout>
@@ -287,7 +316,7 @@ export default function Compress() {
                     key={item.id}
                     className="p-4 bg-stone-100 rounded-xl flex items-center justify-between"
                   >
-                    <div>
+                    {/* <div>
                       <p className="font-semibold text-stone-800 text-sm truncate max-w-xs">
                         {item.file.name}
                       </p>
@@ -302,7 +331,46 @@ export default function Compress() {
                       className="text-stone-400 hover:text-stone-600 text-xs font-semibold"
                     >
                       Remove
-                    </button>
+                    </button> */}
+                    <div>
+                      <p className="font-semibold text-stone-800 text-sm truncate max-w-xs">
+                        {item.file.name}
+                      </p>
+
+                      <p className="text-xs text-stone-500">
+                        Original Size: {(item.file.size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      {item.fileInfo.outputFormats.length > 0 && (
+                        <select
+                          value={item.format}
+                          onChange={(e) =>
+                            updateFileItem(item.id, {
+                              format: e.target.value,
+                              result: null,
+                              downloadUrl: '',
+                              compressedFileName: '',
+                            })
+                          }
+                          className="bg-white border border-stone-200 rounded-lg p-2 text-stone-800 font-medium"
+                        >
+                          {item.fileInfo.outputFormats.map((fmt) => (
+                            <option key={fmt} value={fmt}>
+                              {fmt}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+
+                      <button
+                        onClick={() => removeFileItem(item.id)}
+                        className="text-stone-400 hover:text-stone-600 text-xs font-semibold"
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -439,6 +507,150 @@ export default function Compress() {
           </div>
         )} */}
 
+        {/* Showing result of compression */}
+        {hasResults && (
+          <div className="mt-8 bg-green-50 border border-green-200 text-green-800 p-6 rounded-2xl">
+            {isSingleResult ? (
+              (() => {
+                const item = completedItems[0];
+
+                return (
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-4">
+                        <CheckCircle2 className="w-6 h-6 text-green-600" />
+                        <h4 className="font-bold text-lg text-green-950">
+                          Compression Complete! Saved {item.result.ratio}
+                        </h4>
+                      </div>
+
+                      <div className="flex gap-12 text-sm border-t border-green-200/50 pt-4">
+                        <div>
+                          <span className="block text-xs text-green-700/70 font-bold uppercase tracking-wide">
+                            Before
+                          </span>
+                          <span className="text-lg font-black text-green-950">
+                            {item.result.originalSize}
+                          </span>
+                        </div>
+
+                        <div>
+                          <span className="block text-xs text-green-700/70 font-bold uppercase tracking-wide">
+                            After
+                          </span>
+                          <span className="text-lg font-black text-green-950">
+                            {item.result.compressedSize}
+                          </span>
+                        </div>
+
+                        <div>
+                          <span className="block text-xs text-green-700/70 font-bold uppercase tracking-wide">
+                            Storage Saved
+                          </span>
+                          <span className="text-lg font-black text-green-950">
+                            {item.result.ratio}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="w-full md:w-auto">
+                      <a
+                        href={item.downloadUrl}
+                        download={item.compressedFileName}
+                        className="block bg-green-800 hover:bg-green-900 text-white px-6 py-4 rounded-xl font-bold text-center shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all"
+                      >
+                        Download Compressed File
+                      </a>
+
+                      {warning && (
+                        <div className="mt-3 bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-lg text-sm">
+                          ⚠️ {warning}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()
+            ) : (
+              <div>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2 className="w-6 h-6 text-green-600" />
+                    <h4 className="font-bold text-lg text-green-950">
+                      Compression Complete! {completedItems.length} files ready
+                    </h4>
+                  </div>
+
+                  <button
+                    onClick={handleDownloadAll}
+                    className="bg-green-800 hover:bg-green-900 text-white px-6 py-4 rounded-xl font-bold text-center shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all"
+                  >
+                    Download All
+                  </button>
+                </div>
+
+                {warning && (
+                  <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-lg text-sm">
+                    ⚠️ {warning}
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  {completedItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="bg-white border border-green-200 rounded-xl p-4 flex flex-col md:flex-row justify-between gap-4"
+                    >
+                      <div>
+                        <p className="font-bold text-green-950 text-sm truncate max-w-xs">
+                          {item.file.name}
+                        </p>
+
+                        <div className="flex gap-8 text-sm mt-3">
+                          <div>
+                            <span className="block text-xs text-green-700/70 font-bold uppercase">
+                              Before
+                            </span>
+                            <span className="font-black text-green-950">
+                              {item.result.originalSize}
+                            </span>
+                          </div>
+
+                          <div>
+                            <span className="block text-xs text-green-700/70 font-bold uppercase">
+                              After
+                            </span>
+                            <span className="font-black text-green-950">
+                              {item.result.compressedSize}
+                            </span>
+                          </div>
+
+                          <div>
+                            <span className="block text-xs text-green-700/70 font-bold uppercase">
+                              Saved
+                            </span>
+                            <span className="font-black text-green-950">
+                              {item.result.ratio}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <a
+                        href={item.downloadUrl}
+                        download={item.compressedFileName}
+                        className="bg-green-800 hover:bg-green-900 text-white px-5 py-3 rounded-xl font-bold text-center self-start md:self-center"
+                      >
+                        Download
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
 
       </main>
