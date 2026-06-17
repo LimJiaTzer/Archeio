@@ -12,6 +12,8 @@ import Features from './pages/Features';
 import Convert from './pages/Convert';
 import Ocr from './pages/Ocr';
 import Compress from './pages/Compress';
+import ZipCompression from './pages/ZipCompression';
+import Manipulation from './pages/Manipulation';
 
 
 // Grouped helpers 
@@ -128,6 +130,8 @@ function App() {
         <Route path="/convert" element={<Convert />} />
         <Route path="/ocr" element={<Ocr />} />
         <Route path="/compress" element={<Compress />} />
+        <Route path="/manipulation" element={<Manipulation />} />
+        <Route path="/zip-compression" element={<ZipCompression />} />
 
       </Routes>
     </BrowserRouter>
