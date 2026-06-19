@@ -2,6 +2,7 @@ import { getFileInfo, getOutputInfo } from '../lib/fileTypes';
 import { convertMedia } from './conversionService';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile } from '@ffmpeg/util';
+import { convertImage } from './conversionService';
 
 // Helps with Audio and Video compression 
 const ffmpeg = new FFmpeg();
@@ -18,11 +19,13 @@ export const compressImage = ({
   file,
   ratio,
   format,
+  fileInfo,
   setDownloadUrl,
   setCompressedFileName,
   setResult,
   setCompressing,
-}) => {
+  setWarning,
+}) => {  
   const reader = new FileReader();
 
   reader.onload = (e) => {
@@ -30,6 +33,14 @@ export const compressImage = ({
 
     img.onload = () => {
       try {
+        // Output type form dictionary in compressService.js 
+        const outputType = getOutputInfo(format, 'images');
+        if (!outputType) {
+          throw new Error(`${format} output is not supported yet`);
+        }
+        const inputFormat = fileInfo.format.toLowerCase();
+        const outputFormat = outputType.ext.toLowerCase();
+
         const canvas = document.createElement('canvas');
 
         let scale = 1.0;
@@ -50,11 +61,7 @@ export const compressImage = ({
         // quality range = [0.05, 0.95] 
         const quality = Math.max(0.05, Math.min(0.95, (100 - ratio) / 100));
 
-        // Output type form dictionary in compressService.js 
-        const outputType = getOutputInfo(format, 'images');
-        if (!outputType) {
-          throw new Error(`${format} output is not supported yet`);
-        }
+
 
         const dataUrl =
           outputType.mime === 'image/png'
@@ -63,6 +70,16 @@ export const compressImage = ({
 
         const base64Str = dataUrl.split(',')[1];
         const actualCompressedBytes = atob(base64Str).length;
+        if (actualCompressedBytes >= file.size) {
+          if (inputFormat === outputFormat) {
+            throw new Error('This image file is already highly compressed');
+          } else {
+            // show disclaimer
+            setWarning('File size may have increased due to format type');
+          }
+        }
+
+
         const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
 
         const savedPercentage = Math.round(
@@ -134,6 +151,16 @@ export const compressDocument = async ({
 
     const baseName = file.name.replace(/\.pdf$/i, '');
     const compressedSize = blob.size;
+
+    if (compressedSize >= file.size) {
+      throw new Error('This document file is already highly compressed');
+      // if (inputFormat === outputFormat) {
+      //   throw new Error('This document file is alreay highly compressed');
+      // } else {
+      //   // show disclaimer
+      //   setWarning('File size may have increased due to format type');
+      // }
+    }
 
     const savedPercentage = Math.round(
       ((file.size - compressedSize) / file.size) * 100
@@ -219,7 +246,7 @@ export const compressAudio = async ({ // don ned format cos ffmpeg extracts it f
     // ---CHECKS---
     if (blob.size >= file.size) {
       if (inputFormat === outputFormat) {
-        throw new Error('This audio file is alreay highly compressed');
+        throw new Error('This audio file is already highly compressed');
       } else {
         // show disclaimer
         setWarning('File size may have increased due to format type');
@@ -279,13 +306,6 @@ export const compressVideo = async ({
       return String(Math.round(
         minCrf + (((ratio - 20) / (90 - 20)) * (maxCrf - minCrf)) // ratio from 20 - 90 
       ))
-      // if (ratio >= 95) return '40';
-      // if (ratio >= 90) return '35';
-      // if (ratio >= 75) return '32';
-      // if (ratio >= 60) return '28';
-      // if (ratio >= 50) return '25';
-      // if (ratio >= 25) return '23';
-      // return '20';
     }
 
     await ffmpeg.writeFile(inputName, await fetchFile(file));
@@ -322,7 +342,7 @@ export const compressVideo = async ({
 
     if (blob.size >= file.size) {
       if (inputFormat === outputFormat) {
-        throw new Error('This video is alreay highly compressed');
+        throw new Error('This video is already highly compressed');
       } else {
         // show disclaimer
         setWarning('File size may have increased due to format type');
