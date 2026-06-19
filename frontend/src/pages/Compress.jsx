@@ -169,6 +169,7 @@ export default function Compress() {
   const singleUpload = fileItems.length === 1;
   const multipleResults = completedItems.length > 1;
   const singleResult = completedItems.length === 1;
+  const hasResult = completedItems.length > 0;
 
   const handleDownloadAll = async () => { // Just for zipping 
     if (completedItems.length === 0) return;
@@ -242,13 +243,16 @@ export default function Compress() {
             )} */}
             {fileItems.length > 0 && (
               <div className="mt-6 space-y-3">
-                {fileItems.map((item) => (
+                {fileItems.map((item) => (  // for each item 
                   <div
                     key={item.id}
-                    className="p-4 bg-stone-100 rounded-xl flex items-center justify-between"
+                    className="p-4 bg-stone-100 rounded-xl flex items-center justify-between gap-4"
                   >
-                    {/* <div>
-                      <p className="font-semibold text-stone-800 text-sm truncate max-w-xs">
+                    <div className="min-w-0 flex-1">
+                      <p
+                        title={item.file.name}
+                        className="font-semibold text-stone-800 text-sm truncate"
+                      >
                         {item.file.name}
                       </p>
 
@@ -257,42 +261,32 @@ export default function Compress() {
                       </p>
                     </div>
 
-                    <button
-                      onClick={() => removeFileItem(item.id)}
-                      className="text-stone-400 hover:text-stone-600 text-xs font-semibold"
-                    >
-                      Remove
-                    </button> */}
-                    <div>
-                      <p className="font-semibold text-stone-800 text-sm truncate max-w-xs">
-                        {item.file.name}
-                      </p>
-
-                      <p className="text-xs text-stone-500">
-                        Original Size: {(item.file.size / 1024 / 1024).toFixed(2)} MB
-                      </p>
-                    </div>
-
+                    {/* possible format types for each item */}
                     <div className="flex items-center gap-3">
                       {item.fileInfo.outputFormats.length > 0 && (
-                        <select
-                          value={item.format}
-                          onChange={(e) =>
-                            updateFileItem(item.id, {
-                              format: e.target.value,
-                              result: null,
-                              downloadUrl: '',
-                              compressedFileName: '',
-                            })
-                          }
-                          className="bg-white border border-stone-200 rounded-lg p-2 text-stone-800 font-medium"
-                        >
-                          {item.fileInfo.outputFormats.map((fmt) => (
-                            <option key={fmt} value={fmt}>
-                              {fmt}
-                            </option>
-                          ))}
-                        </select>
+                        <>
+                          <span className="text-stone-400 text-xs font-semibold uppercase tracking-wide">
+                            Output:
+                          </span>
+                          <select
+                            value={item.format}
+                            onChange={(e) =>
+                              updateFileItem(item.id, {
+                                format: e.target.value,
+                                result: null,
+                                downloadUrl: '',
+                                compressedFileName: '',
+                              })
+                            }
+                            className="bg-white border border-stone-200 rounded-lg p-2 text-stone-800 font-medium"
+                          >
+                            {item.fileInfo.outputFormats.map((fmt) => (
+                              <option key={fmt} value={fmt}>
+                                {fmt}
+                              </option>
+                            ))}
+                          </select>
+                        </>
                       )}
 
                       <button
@@ -335,7 +329,7 @@ export default function Compress() {
             </div>
 
             
-
+            {/* Link to Zip Compression */}
             {multipleUploads && (
               <Link
                 to="/zip-compression"
@@ -344,7 +338,8 @@ export default function Compress() {
                 Zip compression
               </Link>
             )}
-            {/* TODO: add link to Manipulation.jsx */}
+
+            {/* Link to Manipulation */}
             {hasManipulatableFile && (
                 <Link
                   to="/manipulation"
@@ -380,7 +375,7 @@ export default function Compress() {
         )}
 
         {/* Showing result of compression */}
-        {multipleResults && (
+        {hasResult && (
           <div className="mt-8 bg-green-50 border border-green-200 text-green-800 p-6 rounded-2xl">
             {singleResult ? (
               (() => {
