@@ -2,7 +2,16 @@ import { getFileInfo, getOutputInfo } from '../lib/fileTypes';
 import { convertMedia } from './conversionService';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile } from '@ffmpeg/util';
+
+// image conversion 
 import { convertImage } from './conversionService';
+import { svgToRaster } from './imageConversionServices/svgToRaster';
+import { extractGifFrames, extractIcoFrames } from './imageConversionServices/extractFrames';
+import { rasterToRaster } from './imageConversionServices/rasterToRaster';
+import { rasterToGif } from './imageConversionServices/rasterToGif';
+import { pngToIco } from './imageConversionServices/pngToIco';
+import { normalizeImageForCompression, compressRasterWithCanvas } from './compressionHelpers/imageCompressionHelper';
+import { convertDocument } from './conversionService';
 
 // Helps with Audio and Video compression 
 const ffmpeg = new FFmpeg();
@@ -15,7 +24,111 @@ const loadFFmpeg = async () => {
 
 // Image compression logic 
 // TODO: Compression for svg gif and heic 
-export const compressImage = ({
+// export const compressImage = ({
+//   file,
+//   ratio,
+//   format,
+//   fileInfo,
+//   setDownloadUrl,
+//   setCompressedFileName,
+//   setResult,
+//   setCompressing,
+//   setWarning,
+// }) => {  
+//   const reader = new FileReader();
+
+//   reader.onload = (e) => {
+//     const img = new Image();
+
+//     img.onload = () => {
+//       try {
+//         // Output type form dictionary in compressService.js 
+//         const outputType = getOutputInfo(format, 'images');
+//         if (!outputType) {
+//           throw new Error(`${format} output is not supported yet`);
+//         }
+//         const inputFormat = fileInfo.format.toLowerCase();
+//         const outputFormat = outputType.ext.toLowerCase();
+
+//         const canvas = document.createElement('canvas');
+
+//         let scale = 1.0;
+//         if (ratio > 75) {
+//             scale = 0.7;
+//         } else if (ratio > 50) {
+//             scale = 0.85;
+//         }
+
+//         canvas.width = img.width * scale;
+//         canvas.height = img.height * scale;
+
+//         const ctx = canvas.getContext('2d');
+//         if (!ctx) throw new Error('Could not create canvas context');
+
+//         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+//         // quality range = [0.05, 0.95] 
+//         const quality = Math.max(0.05, Math.min(0.95, (100 - ratio) / 100));
+
+
+
+//         const dataUrl =
+//           outputType.mime === 'image/png'
+//             ? canvas.toDataURL(outputType.mime)
+//             : canvas.toDataURL(outputType.mime, quality);
+
+//         const base64Str = dataUrl.split(',')[1];
+//         const actualCompressedBytes = atob(base64Str).length;
+//         if (actualCompressedBytes >= file.size) {
+//           if (inputFormat === outputFormat) {
+//             throw new Error('This image file is already highly compressed');
+//           } else {
+//             // show disclaimer
+//             setWarning('File size may have increased due to format type');
+//           }
+//         }
+
+
+//         const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+
+//         const savedPercentage = Math.round(
+//           ((file.size - actualCompressedBytes) / file.size) * 100
+//         );
+
+//         setDownloadUrl(dataUrl);
+//         setCompressedFileName(`${baseName}_compressed.${outputType.ext}`);
+//         setResult({
+//           originalSize: (file.size / 1024 / 1024).toFixed(2) + ' MB',
+//           compressedSize:
+//             (actualCompressedBytes / 1024 / 1024).toFixed(2) + ' MB',
+//           ratio: Math.max(0, savedPercentage) + '%',
+//         });
+//         setCompressing(false);
+//       } catch (err) {
+//         console.error('Image compression error:', err);
+//         setCompressing(false);
+//         alert(err.message);
+//       }
+//     };
+
+//     img.onerror = () => {
+//       setCompressing(false);
+//       alert('This image type cannot be loaded by the browser.');
+//     };
+
+//     img.src = e.target?.result;
+//   };
+
+//   reader.onerror = () => {
+//     setCompressing(false);
+//     alert('Error reading file.');
+//   };
+
+//   reader.readAsDataURL(file);
+// };
+
+// process if is svg/ico/gif wtvrtype --> png --> wtvr type
+export const compressImage = async ({
   file,
   ratio,
   format,
@@ -25,97 +138,84 @@ export const compressImage = ({
   setResult,
   setCompressing,
   setWarning,
-}) => {  
-  const reader = new FileReader();
+}) => {
+  try {
+    const outputType = getOutputInfo(format, 'images');
 
-  reader.onload = (e) => {
-    const img = new Image();
+    if (!outputType) {
+      throw new Error(`${format} output is not supported yet`);
+    }
 
-    img.onload = () => {
-      try {
-        // Output type form dictionary in compressService.js 
-        const outputType = getOutputInfo(format, 'images');
-        if (!outputType) {
-          throw new Error(`${format} output is not supported yet`);
-        }
-        const inputFormat = fileInfo.format.toLowerCase();
-        const outputFormat = outputType.ext.toLowerCase();
+    const inputFormat = fileInfo.format.toLowerCase();
+    const outputFormat = outputType.ext.toLowerCase();
 
-        const canvas = document.createElement('canvas');
+    // Step 1: normalize awkward image types into something canvas can load
+    const normalizedBlob = await normalizeImageForCompression(file);
 
-        let scale = 1.0;
-        if (ratio > 75) {
-            scale = 0.7;
-        } else if (ratio > 50) {
-            scale = 0.85;
-        }
+    // Step 2: compress into an intermediate raster format
+    // Use PNG as intermediate for GIF/ICO because canvas cannot really encode GIF/ICO.
+    const needsSpecialOutput =
+      outputType.mime === 'image/gif' ||
+      outputType.mime === 'image/x-icon' ||
+      outputType.mime === 'image/vnd.microsoft.icon';
 
-        canvas.width = img.width * scale;
-        canvas.height = img.height * scale;
+    const canvasOutputMime = needsSpecialOutput
+      ? 'image/png'
+      : outputType.mime;
 
-        const ctx = canvas.getContext('2d');
-        if (!ctx) throw new Error('Could not create canvas context');
+    const compressedRasterBlob = await compressRasterWithCanvas(
+      normalizedBlob,
+      canvasOutputMime,
+      ratio
+    );
 
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    // Step 3: convert compressed raster into final requested output if needed
+    let finalBlob = compressedRasterBlob;
 
-        // quality range = [0.05, 0.95] 
-        const quality = Math.max(0.05, Math.min(0.95, (100 - ratio) / 100));
+    if (outputType.mime === 'image/gif') {
+      finalBlob = await rasterToGif(compressedRasterBlob);
+    }
 
+    if (
+      outputType.mime === 'image/x-icon' ||
+      outputType.mime === 'image/vnd.microsoft.icon'
+    ) {
+      finalBlob = await pngToIco(compressedRasterBlob);
+    }
 
+    const actualCompressedBytes = finalBlob.size;
 
-        const dataUrl =
-          outputType.mime === 'image/png'
-            ? canvas.toDataURL(outputType.mime)
-            : canvas.toDataURL(outputType.mime, quality);
-
-        const base64Str = dataUrl.split(',')[1];
-        const actualCompressedBytes = atob(base64Str).length;
-        if (actualCompressedBytes >= file.size) {
-          if (inputFormat === outputFormat) {
-            throw new Error('This image file is already highly compressed');
-          } else {
-            // show disclaimer
-            setWarning('File size may have increased due to format type');
-          }
-        }
-
-
-        const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-
-        const savedPercentage = Math.round(
-          ((file.size - actualCompressedBytes) / file.size) * 100
-        );
-
-        setDownloadUrl(dataUrl);
-        setCompressedFileName(`${baseName}_compressed.${outputType.ext}`);
-        setResult({
-          originalSize: (file.size / 1024 / 1024).toFixed(2) + ' MB',
-          compressedSize:
-            (actualCompressedBytes / 1024 / 1024).toFixed(2) + ' MB',
-          ratio: Math.max(0, savedPercentage) + '%',
-        });
-        setCompressing(false);
-      } catch (err) {
-        console.error('Image compression error:', err);
-        setCompressing(false);
-        alert(err.message);
+    if (actualCompressedBytes >= file.size) {
+      if (inputFormat === outputFormat) {
+        throw new Error('This image file is already highly compressed');
+      } else {
+        setWarning('File size may have increased due to format type');
       }
-    };
+    }
 
-    img.onerror = () => {
-      setCompressing(false);
-      alert('This image type cannot be loaded by the browser.');
-    };
+    const downloadUrl = URL.createObjectURL(finalBlob);
+    const baseName =
+      file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
 
-    img.src = e.target?.result;
-  };
+    const savedPercentage = Math.round(
+      ((file.size - actualCompressedBytes) / file.size) * 100
+    );
 
-  reader.onerror = () => {
+    setDownloadUrl(downloadUrl);
+    setCompressedFileName(`${baseName}_compressed.${outputType.ext}`);
+
+    setResult({
+      originalSize: (file.size / 1024 / 1024).toFixed(2) + ' MB',
+      compressedSize: (actualCompressedBytes / 1024 / 1024).toFixed(2) + ' MB',
+      ratio: Math.max(0, savedPercentage) + '%',
+    });
+
     setCompressing(false);
-    alert('Error reading file.');
-  };
-
-  reader.readAsDataURL(file);
+  } catch (err) {
+    console.error('Image compression error:', err);
+    setCompressing(false);
+    alert(err.message);
+  }
 };
 
 
@@ -123,6 +223,64 @@ export const compressImage = ({
 // TODO: Extension --> allow for rendering and adjusting of quality of output pdf !!  (Go do audio first )
 // Backend required for GhostScript to work 
 // PDF compression logic
+// export const compressDocument = async ({
+//   file,
+//   ratio,
+//   setDownloadUrl,
+//   setCompressedFileName,
+//   setResult,
+//   setCompressing,
+// }) => {
+//   try {
+//     const formData = new FormData();
+//     formData.append('file', file);
+//     formData.append('ratio', ratio);
+
+//     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+//     const response = await fetch(`${API_URL}/compress-pdf`, {
+//       method: 'POST',
+//       body: formData,
+//     });
+
+//     if (!response.ok) {
+//       throw new Error('PDF compression failed.');
+//     }
+
+//     const blob = await response.blob();
+//     const downloadUrl = URL.createObjectURL(blob);
+
+//     const baseName = file.name.replace(/\.pdf$/i, '');
+//     const compressedSize = blob.size;
+
+//     if (compressedSize >= file.size) {
+//       throw new Error('This document file is already highly compressed');
+//       // if (inputFormat === outputFormat) {
+//       //   throw new Error('This document file is alreay highly compressed');
+//       // } else {
+//       //   // show disclaimer
+//       //   setWarning('File size may have increased due to format type');
+//       // }
+//     }
+
+//     const savedPercentage = Math.round(
+//       ((file.size - compressedSize) / file.size) * 100
+//     );
+
+//     setDownloadUrl(downloadUrl);
+//     setCompressedFileName(`${baseName}_compressed.pdf`);
+//     setResult({
+//       originalSize: (file.size / 1024 / 1024).toFixed(2) + ' MB',
+//       compressedSize: (compressedSize / 1024 / 1024).toFixed(2) + ' MB',
+//       ratio: Math.max(0, savedPercentage) + '%',
+//     });
+//   } catch (err) {
+//     console.error('PDF compression error:', err);
+//     alert(err.message);
+//   } finally {
+//     setCompressing(false);
+//   }
+// };
+
 export const compressDocument = async ({
   file,
   ratio,
@@ -130,56 +288,78 @@ export const compressDocument = async ({
   setCompressedFileName,
   setResult,
   setCompressing,
+  setWarning,
 }) => {
   try {
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+    const inputIsPdf = file.type === 'application/pdf';
+
+    let pdfBlob = file;
+    let pdfFileName = file.name;
+
+    if (!inputIsPdf) {
+      const converted = await convertDocument(file, 'PDF');
+
+      const pdfResponse = await fetch(converted.downloadUrl);
+      pdfBlob = await pdfResponse.blob();
+
+      pdfFileName = converted.convertedFileName;
+
+      if (converted.downloadUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(converted.downloadUrl);
+      }
+    }
+
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', pdfBlob, pdfFileName);
     formData.append('ratio', ratio);
 
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
     const response = await fetch(`${API_URL}/compress-pdf`, {
       method: 'POST',
       body: formData,
     });
 
     if (!response.ok) {
-      throw new Error('PDF compression failed.');
+      const errorText = await response.text();
+      throw new Error(errorText || 'PDF compression failed.');
     }
 
-    const blob = await response.blob();
-    const downloadUrl = URL.createObjectURL(blob);
+    const compressedBlob = await response.blob();
+    const downloadUrl = URL.createObjectURL(compressedBlob);
 
-    const baseName = file.name.replace(/\.pdf$/i, '');
-    const compressedSize = blob.size;
+    const compressedSize = compressedBlob.size;
 
     if (compressedSize >= file.size) {
-      throw new Error('This document file is already highly compressed');
-      // if (inputFormat === outputFormat) {
-      //   throw new Error('This document file is alreay highly compressed');
-      // } else {
-      //   // show disclaimer
-      //   setWarning('File size may have increased due to format type');
-      // }
+      if (inputIsPdf) {
+        throw new Error('This document file is already highly compressed');
+      } else {
+        setWarning?.('File size may have increased because it was converted to PDF first');
+      }
     }
 
     const savedPercentage = Math.round(
       ((file.size - compressedSize) / file.size) * 100
     );
 
+    const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+
     setDownloadUrl(downloadUrl);
     setCompressedFileName(`${baseName}_compressed.pdf`);
+
     setResult({
       originalSize: (file.size / 1024 / 1024).toFixed(2) + ' MB',
       compressedSize: (compressedSize / 1024 / 1024).toFixed(2) + ' MB',
       ratio: Math.max(0, savedPercentage) + '%',
     });
   } catch (err) {
-    console.error('PDF compression error:', err);
+    console.error('Document compression error:', err);
     alert(err.message);
   } finally {
     setCompressing(false);
   }
 };
+
 
 export const compressAudio = async ({ // don ned format cos ffmpeg extracts it from file directly
   file,
