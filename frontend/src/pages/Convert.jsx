@@ -219,7 +219,6 @@ export default function Convert() {
   };
 
   const handleDownloadAll = async () => {
-    const completedItems = items.filter(i => i.status === 'completed' && i.result);
     if (completedItems.length === 0) return;
 
     setIsDownloadingAll(true);
@@ -273,7 +272,22 @@ export default function Convert() {
   }, [items]);
 
   const allFinished = items.length > 0 && items.every(i => i.status === 'completed' || i.status === 'error');
-  const hasCompleted = items.some(i => i.status === 'completed');
+  
+  const completedItems = useMemo(() => {
+    return items.filter(item => item.status === 'completed' && item.result && item.result.downloadUrl);
+  }, [items]);
+
+  const hasCompleted = completedItems.length > 0;
+  const singleResult = completedItems.length === 1;
+
+  const formatSize = (bytes) => {
+    if (bytes === undefined || bytes === null || isNaN(bytes)) return '0.00 KB';
+    if (bytes < 1024) return `${bytes} B`;
+    const kb = bytes / 1024;
+    if (kb < 1024) return `${kb.toFixed(2)} KB`;
+    const mb = kb / 1024;
+    return `${mb.toFixed(2)} MB`;
+  };
 
   return (
     <Layout>
@@ -504,6 +518,132 @@ export default function Convert() {
           <div className="mt-8 bg-indigo-50 border border-indigo-100 text-indigo-700 p-4 rounded-2xl flex items-center gap-3 animate-pulse">
             <Loader2 className="w-5 h-5 animate-spin" />
             <span className="font-bold">Processing your files batch... This may take a moment depending on file sizes.</span>
+          </div>
+        )}
+
+        {/* Showing result of conversion (Output Cards) */}
+        {hasCompleted && (
+          <div className="mt-8 bg-indigo-50 border border-indigo-200 text-indigo-800 p-6 rounded-2xl">
+            {singleResult ? (
+              (() => {
+                const item = completedItems[0];
+                return (
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-4">
+                        <CheckCircle2 className="w-6 h-6 text-indigo-600" />
+                        <h4 className="font-bold text-lg text-indigo-950">
+                          Conversion Complete! File ready
+                        </h4>
+                      </div>
+
+                      <div className="flex gap-12 text-sm border-t border-indigo-200/50 pt-4">
+                        <div>
+                          <span className="block text-xs text-indigo-700/70 font-bold uppercase tracking-wide">
+                            Original File
+                          </span>
+                          <span className="text-sm font-black text-indigo-950 truncate max-w-[200px] block" title={item.file.name}>
+                            {item.file.name}
+                          </span>
+                          <span className="text-xs text-stone-500 font-bold">
+                            {formatSize(item.file.size)}
+                          </span>
+                        </div>
+
+                        <div>
+                          <span className="block text-xs text-indigo-700/70 font-bold uppercase tracking-wide">
+                            Converted File
+                          </span>
+                          <span className="text-sm font-black text-indigo-950 truncate max-w-[200px] block" title={item.result.convertedFileName}>
+                            {item.result.convertedFileName}
+                          </span>
+                          <span className="text-xs text-stone-500 font-bold">
+                            {formatSize(item.result.size)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="w-full md:w-auto">
+                      <a
+                        href={item.result.downloadUrl}
+                        download={item.result.convertedFileName}
+                        className="block bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-4 rounded-xl font-bold text-center shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all"
+                      >
+                        Download Converted File
+                      </a>
+                    </div>
+                  </div>
+                );
+              })()
+            ) : (
+              <div>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2 className="w-6 h-6 text-indigo-600" />
+                    <h4 className="font-bold text-lg text-indigo-950">
+                      Conversion Complete! {completedItems.length} files ready
+                    </h4>
+                  </div>
+
+                  <button
+                    onClick={handleDownloadAll}
+                    disabled={isDownloadingAll}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-4 rounded-xl font-bold text-center shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2"
+                  >
+                    {isDownloadingAll ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Archive className="w-4 h-4" />
+                    )}
+                    Download All (ZIP)
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {completedItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="bg-white border border-indigo-100 rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-indigo-950 text-sm truncate max-w-md" title={item.result.convertedFileName}>
+                          {item.result.convertedFileName}
+                        </p>
+
+                        <div className="flex gap-8 text-sm mt-3">
+                          <div>
+                            <span className="block text-xs text-indigo-700/70 font-bold uppercase">
+                              Original Size
+                            </span>
+                            <span className="font-black text-indigo-950">
+                              {formatSize(item.file.size)}
+                            </span>
+                          </div>
+
+                          <div>
+                            <span className="block text-xs text-indigo-700/70 font-bold uppercase">
+                              Downloaded Size
+                            </span>
+                            <span className="font-black text-indigo-950">
+                              {formatSize(item.result.size)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <a
+                        href={item.result.downloadUrl}
+                        download={item.result.convertedFileName}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-bold text-center self-stretch md:self-center hover:scale-[1.02] active:scale-[0.98] transition-all"
+                      >
+                        Download
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>
