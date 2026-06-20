@@ -63,7 +63,7 @@ export const zipBlobs = async (blobs, baseFileName, targetFormat) => {
   
   const content = await zip.generateAsync({ type: 'blob' });
   const downloadUrl = URL.createObjectURL(content);
-  return { downloadUrl, convertedFileName: `${baseFileName}_frames.zip` };
+  return { downloadUrl, convertedFileName: `${baseFileName}_frames.zip`, size: content.size };
 };
 
 export const convertAudio = async (file, format, ffmpegRef) => {
@@ -88,7 +88,7 @@ export const convertAudio = async (file, format, ffmpegRef) => {
 
   const downloadUrl = URL.createObjectURL(blob);
   const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-  return { downloadUrl, convertedFileName: `${baseName}_converted.${outputExt}` };
+  return { downloadUrl, convertedFileName: `${baseName}_converted.${outputExt}`, size: blob.size };
 };
 
 export const convertVideo = async (file, format, ffmpegRef) => {
@@ -121,7 +121,7 @@ export const convertVideo = async (file, format, ffmpegRef) => {
 
   const downloadUrl = URL.createObjectURL(blob);
   const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-  return { downloadUrl, convertedFileName: `${baseName}_converted.${outputExt}` };
+  return { downloadUrl, convertedFileName: `${baseName}_converted.${outputExt}`, size: blob.size };
 };
 
 const converters = {
@@ -243,7 +243,7 @@ export async function convertImage(file, format) {
   const blob = await handler(file);
   const downloadUrl = URL.createObjectURL(blob);
   const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-  return { downloadUrl, convertedFileName: `${baseName}_converted.${outputExt}` };
+  return { downloadUrl, convertedFileName: `${baseName}_converted.${outputExt}`, size: blob.size };
 }
 
 export const convertDocument = async (file, format) => {
@@ -259,7 +259,7 @@ export const convertDocument = async (file, format) => {
     const downloadUrl = URL.createObjectURL(blob);
     const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
     const ext = info?.ext || 'pdf';
-    return { downloadUrl, convertedFileName: `${baseName}_converted.${ext}` };
+    return { downloadUrl, convertedFileName: `${baseName}_converted.${ext}`, size: blob.size };
   }
 
   // If source is image-like, reuse image conversion
@@ -273,7 +273,10 @@ export const convertDocument = async (file, format) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-      resolve({ downloadUrl: e.target?.result || '', convertedFileName: `${baseName}_converted.${ext}` });
+      const dataUrl = e.target?.result || '';
+      const head = dataUrl.indexOf(',');
+      const size = head !== -1 ? Math.round((dataUrl.length - head - 1) * 3 / 4) : file.size;
+      resolve({ downloadUrl: dataUrl, convertedFileName: `${baseName}_converted.${ext}`, size });
     };
     reader.onerror = () => reject(new Error('Error reading file.'));
     reader.readAsDataURL(file);
