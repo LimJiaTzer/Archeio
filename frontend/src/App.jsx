@@ -14,7 +14,7 @@ import Ocr from './pages/Ocr';
 import Compress from './pages/Compress';
 import ZipCompression from './pages/ZipCompression';
 import Manipulation from './pages/Manipulation';
-
+import PDFEditor from './pages/PDFEditor';
 
 // Grouped helpers 
 import FeatureCard from './components/FeatureCard';
@@ -132,6 +132,7 @@ function App() {
         <Route path="/compress" element={<Compress />} />
         <Route path="/manipulation" element={<Manipulation />} />
         <Route path="/zip-compression" element={<ZipCompression />} />
+        <Route path='/pdfEditor' element={<PDFEditor />} />
 
       </Routes>
     </BrowserRouter>

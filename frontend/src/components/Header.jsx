@@ -41,7 +41,8 @@ export const navMenus = [
     options: [
       { label: 'Scanned PDF to Word', href: '#' },
       { label: 'Zip Archive', href: '#' },
-      { label: 'Crop vid / img', href: '#' }
+      { label: 'Crop vid / img', href: '#' },
+      { label: "Edit PDF", href: '/PDFEditor'}
     ]
   }
 ];
