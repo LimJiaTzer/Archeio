@@ -44,32 +44,12 @@ git clone <repository-url>
 cd Archeio
 ```
 
-### 2. Backend Setup (Node.js)
+### 2. Run the Setup Wizard
+Run the setup wizard to automatically install frontend and backend Node dependencies, configure the Python virtual environment, install Python libraries, and create configuration files:
 ```bash
-cd backend
-npm install
+npm run setup
 ```
-
-### 3. Backend Setup (Python Venv)
-Required for HEIC conversion logic.
-```bash
-# From the root directory
-python3 -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install pillow pillow_heif
-```
-
-### 4. Frontend Setup
-```bash
-cd ../frontend
-npm install
-```
-
-### 5. Environment Variables
-Create a `.env` file in the `frontend` directory:
-```env
-VITE_API_URL=http://localhost:3001
-```
+*(The setup wizard will also scan your system for required engines like LibreOffice, Calibre, and Ghostscript and provide guided platform-specific commands if any are missing).*
 
 ---
 
