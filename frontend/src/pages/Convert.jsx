@@ -359,7 +359,7 @@ export default function Convert() {
           {/* File List */}
           {items.length > 0 && (
             <div className="divide-y divide-stone-100">
-              {items.map((item) => (
+              {items.map((item) => ( 
                 <div key={item.id} className="p-1">
                   <div className="p-4 flex flex-wrap sm:flex-nowrap items-center gap-4 hover:bg-stone-50/50 transition-colors rounded-2xl">
                     <FilePreview file={item.file} previewUrl={item.previewUrl} />
