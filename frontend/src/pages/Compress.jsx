@@ -1,10 +1,11 @@
-import React, { useState } from 'react';    // useState helps track variables 
+import React, { useState, useEffect } from 'react';   // useState helps track variables 
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Archive, Sliders, CheckCircle2 } from 'lucide-react'; // icons, can change them 
 import { getFileInfo } from '../lib/fileTypes'; // file types
 import { compressDocument, compressImage, compressAudio, compressVideo } from '../services/compressService';
 import JSZip from 'jszip';
 import Layout from '../components/Layout';
+import FilePreview from '../components/FilePreviewAltered';
 
 export default function Compress() {
   // input & output file(s) state
@@ -42,11 +43,16 @@ export default function Compress() {
             // TODO: Link to manipulation.jsx
           }
 
+          const previewUrl = uploadedFile.type.startsWith('image/')
+            ? URL.createObjectURL(uploadedFile)
+            : null;
+
           return {
             id: crypto.randomUUID(),
             file: uploadedFile,
             fileInfo: detFileInfo,
             format: detFileInfo.format,
+            previewUrl,
             result: null,
             downloadUrl: '',
             compressedFileName: '',
@@ -72,12 +78,39 @@ export default function Compress() {
   };
 
   const removeFileItem = (id) => {
-    setFileItems((prev) => prev.filter((item) => item.id !== id));
+    setFileItems((prev) =>
+      prev.filter((item) => {
+        if (item.id === id) {
+          if (item.previewUrl) {
+            URL.revokeObjectURL(item.previewUrl);
+          }
+          return false;
+        }
+
+        return true;
+      })
+    );
   };
 
   const handleReset = () => {
+    fileItems.forEach((item) => {
+      if (item.previewUrl) {
+        URL.revokeObjectURL(item.previewUrl);
+      }
+    });
+
     setFileItems([]);
   };
+
+  useEffect(() => { // clean up when compress page is closed 
+    return () => {
+      fileItems.forEach((item) => {
+        if (item.previewUrl) {
+          URL.revokeObjectURL(item.previewUrl);
+        }
+      });
+    };
+  }, [fileItems]);
 
   // Compression (Ive got a feeling this doesnt follow Tell Don't Ask Principle)
   const startCompression = async () => {
@@ -167,6 +200,7 @@ export default function Compress() {
 
   const multipleUploads = fileItems.length > 1;
   const singleUpload = fileItems.length === 1;
+  const hasUpload = fileItems.length > 0;
   const multipleResults = completedItems.length > 1;
   const singleResult = completedItems.length === 1;
   const hasResult = completedItems.length > 0;
@@ -213,6 +247,7 @@ export default function Compress() {
           <p className="text-stone-600">Shrink high-density file sizes while maintaining immaculate graphic fidelity.</p>
         </div>
 
+        {/* Upload / drop box */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="md:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-stone-200">
             <div className="border-2 border-dashed border-stone-300 rounded-xl p-12 text-center hover:border-orange-500 transition-colors cursor-pointer relative">
@@ -241,13 +276,15 @@ export default function Compress() {
                 </button>
               </div>
             )} */}
-            {fileItems.length > 0 && (
+            {/* Display uploaded files */}
+            {hasUpload && (
               <div className="mt-6 space-y-3">
                 {fileItems.map((item) => (  // for each item 
                   <div
                     key={item.id}
                     className="p-4 bg-stone-100 rounded-xl flex items-center justify-between gap-4"
                   >
+                    <FilePreview file={item.file} previewUrl={item.previewUrl} />
                     <div className="min-w-0 flex-1">
                       <p
                         title={item.file.name}
@@ -278,7 +315,7 @@ export default function Compress() {
                                 compressedFileName: '',
                               })
                             }
-                            className="bg-white border border-stone-200 rounded-lg p-2 text-stone-800 font-medium"
+                            className="w-16 bg-white border border-stone-200 rounded-lg p-2 text-stone-800 font-medium"
                           >
                             {item.fileInfo.outputFormats.map((fmt) => (
                               <option key={fmt} value={fmt}>
@@ -392,6 +429,7 @@ export default function Compress() {
                       </div>
 
                       <div className="flex gap-12 text-sm border-t border-green-200/50 pt-4">
+                        <FilePreview file={item.file} previewUrl={item.downloadUrl} />
                         <div>
                           <span className="block text-xs text-green-700/70 font-bold uppercase tracking-wide">
                             Before
@@ -464,7 +502,7 @@ export default function Compress() {
                 )}
 
                 <div className="space-y-3">
-                  {completedItems.map((item) => (
+                  {completedItems.map((item) => ( 
                     <div
                       key={item.id}
                       className="bg-white border border-green-200 rounded-xl p-4 flex flex-col md:flex-row justify-between gap-4"
@@ -475,6 +513,7 @@ export default function Compress() {
                         </p>
 
                         <div className="flex gap-8 text-sm mt-3">
+                        <FilePreview file={item.file} previewUrl={item.downloadUrl} />
                           <div>
                             <span className="block text-xs text-green-700/70 font-bold uppercase">
                               Before

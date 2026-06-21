@@ -76,21 +76,32 @@ app.post('/compress-pdf', upload.single('file'), (req, res) => {
 app.post('/convert-to-heic', upload.single('file'), (req, res) => {
   const inputPath = req.file.path;
   const outputPath = path.join('uploads', `${req.file.filename}.heic`);
-  const pythonPath = path.join(__dirname, '../venv/bin/python3');
   const scriptPath = path.join(__dirname, 'anyToHEIC.py');
+
+  // Prefer venv python if present, otherwise fall back to system python3 / python
+  const venvPython = path.join(__dirname, '../venv/bin/python3');
+  let pythonPath = venvPython;
+  if (!fs.existsSync(pythonPath)) {
+    const found = findBinary('python3') || findBinary('python');
+    pythonPath = found || 'python3';
+  }
 
   execFile(
     pythonPath,
     [scriptPath, inputPath, outputPath],
     (error, stdout, stderr) => {
       if (error) {
-        console.error('Conversion error:', stderr);
-        return res.status(500).send('HEIC conversion failed.');
+        console.error('Conversion error:', error, stderr);
+        // Return stderr to client for debugging (trim to reasonable length)
+        const msg = (stderr && stderr.toString()) || (error && error.message) || 'HEIC conversion failed.';
+        const safeMsg = msg.length > 1000 ? msg.slice(0, 1000) + '... (truncated)' : msg;
+        if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+        return res.status(500).send(`HEIC conversion failed: ${safeMsg}`);
       }
 
       res.download(outputPath, 'converted.heic', () => {
-        fs.unlinkSync(inputPath);
-        fs.unlinkSync(outputPath);
+        if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+        if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
       });
     }
   );
