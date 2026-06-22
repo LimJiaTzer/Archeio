@@ -6,6 +6,8 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import shell from 'shelljs'; 
+import AdmZip from 'adm-zip';
+import sharp from 'sharp';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,6 +31,129 @@ const findBinary = (binName, macPath) => {
   }
 
   return null;
+};
+
+// DOCX, PPTX, XLSX, ODT, ODP, ODS, EPUB
+const compressPackagedDocument = async ({
+  inputPath,
+  outputPath,
+  ratio = 70,
+  ext,
+}) => {
+  const zip = new AdmZip(inputPath);
+  const entries = zip.getEntries();
+
+  const isImageFile = (entryName) => {
+    const lower = entryName.toLowerCase();
+
+    return (
+      lower.endsWith('.jpg') ||
+      lower.endsWith('.jpeg') ||
+      lower.endsWith('.png') ||
+      lower.endsWith('.webp')
+    );
+  };
+
+  const isCompressibleMediaPath = (entryName) => {
+    const lower = entryName.toLowerCase();
+
+    // EPUB files can place images in many different folders,
+    // so for EPUB, just compress image files anywhere inside the package.
+    if (ext === '.epub') {
+      return isImageFile(lower);
+    }
+
+    return (
+      lower.startsWith('word/media/') ||
+      lower.startsWith('ppt/media/') ||
+      lower.startsWith('xl/media/') ||
+      lower.startsWith('pictures/') ||
+      lower.includes('/media/') ||
+      lower.includes('/pictures/')
+    );
+  };
+
+  for (const entry of entries) {
+    if (entry.isDirectory) continue;
+
+    const entryName = entry.entryName;
+
+    if (!isCompressibleMediaPath(entryName)) continue;
+    if (!isImageFile(entryName)) continue;
+
+    const inputBuffer = entry.getData();
+    const lower = entryName.toLowerCase();
+
+    let outputBuffer = null;
+
+    try {
+      if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
+        outputBuffer = await sharp(inputBuffer)
+          .jpeg({ quality: Number(ratio) })
+          .toBuffer();
+      } else if (lower.endsWith('.png')) {
+        outputBuffer = await sharp(inputBuffer)
+          .png({ compressionLevel: 9, palette: true })
+          .toBuffer();
+      } else if (lower.endsWith('.webp')) {
+        outputBuffer = await sharp(inputBuffer)
+          .webp({ quality: Number(ratio) })
+          .toBuffer();
+      }
+
+      if (outputBuffer && outputBuffer.length < inputBuffer.length) {
+        zip.updateFile(entry.entryName, outputBuffer);
+      }
+    } catch (err) {
+      console.warn(`Skipped ${entryName}:`, err.message);
+    }
+  }
+
+  zip.writeZip(outputPath);
+};
+
+// DOC, PPT, XLS, RTF
+const resaveWithLibreOffice = async ({
+  inputPath,
+  outputDir,
+  ext,
+}) => {
+  const loBinary =
+    findBinary('libreoffice', '/Applications/LibreOffice.app/Contents/MacOS/soffice') ||
+    findBinary('soffice', '');
+
+  if (!loBinary) {
+    throw new Error('LibreOffice not found on server.');
+  }
+
+  const convertToMap = {
+    '.doc': 'doc',
+    '.ppt': 'ppt',
+    '.xls': 'xls',
+    '.rtf': 'rtf',
+  };
+
+  const convertTo = convertToMap[ext];
+
+  if (!convertTo) {
+    throw new Error(`${ext} cannot be re-saved with LibreOffice.`);
+  }
+
+  await new Promise((resolve, reject) => {
+    execFile(
+      loBinary,
+      ['--headless', '--convert-to', convertTo, inputPath, '--outdir', outputDir],
+      (error, stdout, stderr) => {
+        if (error) {
+          console.error('LibreOffice same-format error:', stderr || error.message);
+          reject(new Error('LibreOffice same-format compression failed.'));
+          return;
+        }
+
+        resolve();
+      }
+    );
+  });
 };
 
 app.post('/compress-pdf', upload.single('file'), (req, res) => {
@@ -71,6 +196,97 @@ app.post('/compress-pdf', upload.single('file'), (req, res) => {
       });
     }
   );
+});
+
+// for compression of microsoft / opendocs / libre 
+app.post('/compress-office', upload.single('file'), async (req, res) => {
+  let inputPath;
+  let outputPath;
+
+  try {
+    if (!req.file) {
+      return res.status(400).send('No file uploaded.');
+    }
+
+    const ratio = Number(req.body.ratio) || 70;
+
+    const originalName = req.file.originalname;
+    const ext = path.extname(originalName).toLowerCase();
+    const baseName = path.basename(originalName, ext);
+
+    inputPath = req.file.path;
+    outputPath = path.join('uploads', `${req.file.filename}_compressed${ext}`);
+
+    const packagedExtensions = [
+      '.docx',
+      '.pptx',
+      '.xlsx',
+      '.odt',
+      '.odp',
+      '.ods',
+      '.epub',
+    ];
+
+    const libreOfficeResaveExtensions = [
+      '.doc',
+      '.ppt',
+      '.xls',
+      '.rtf',
+    ];
+
+    const plainTextExtensions = [
+      '.txt',
+      '.csv',
+      '.md',
+    ];
+
+    if (packagedExtensions.includes(ext)) {
+      await compressPackagedDocument({
+        inputPath,
+        outputPath,
+        ratio,
+        ext,
+      });
+    } else if (libreOfficeResaveExtensions.includes(ext)) {
+      const outputDir = 'uploads';
+
+      await resaveWithLibreOffice({
+        inputPath,
+        outputDir,
+        ext,
+      });
+
+      const libreOfficeOutputPath = path.join(
+        outputDir,
+        `${req.file.filename}${ext}`
+      );
+
+      if (!fs.existsSync(libreOfficeOutputPath)) {
+        throw new Error('LibreOffice produced no output.');
+      }
+
+      fs.renameSync(libreOfficeOutputPath, outputPath);
+    } else if (plainTextExtensions.includes(ext)) {
+      // TXT/CSV/MD have no meaningful same-extension native compression.
+      // Return the original file. Frontend may say "already highly compressed"
+      // if output size is not smaller.
+      fs.copyFileSync(inputPath, outputPath);
+    } else {
+      return res.status(400).send(`${ext} native compression is not supported yet.`);
+    }
+
+    res.download(outputPath, `${baseName}_compressed${ext}`, () => {
+      if (inputPath && fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+      if (outputPath && fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+    });
+  } catch (err) {
+    console.error('Document native compression error:', err);
+
+    if (inputPath && fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+    if (outputPath && fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+
+    res.status(500).send(err.message || 'Native document compression failed.');
+  }
 });
 
 app.post('/convert-to-heic', upload.single('file'), (req, res) => {

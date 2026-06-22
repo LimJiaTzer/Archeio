@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FileType, X, Play, FileText, Eye } from 'lucide-react';
+import { FileType, X, Play, FileText, Eye, Music } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import * as docx from 'docx-preview';
 import { createPortal } from 'react-dom';
@@ -23,10 +23,11 @@ export default function FilePreview({
   if (!file) return null;
 
   const isImage = file.type.startsWith('image/');
-  const isVideo = file.type.startsWith('video/');
   const isDocx = file.name.toLowerCase().endsWith('.docx') || 
-                 file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
   const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  const isAudio = file.type.startsWith('audio/');
+  const isVideo = file.type.startsWith('video/');
 
   const canPreview = isImage || isVideo || isDocx || isPdf;
 
@@ -76,11 +77,15 @@ export default function FilePreview({
             ${canPreview ? 'cursor-pointer hover:border-indigo-400 hover:ring-4 hover:ring-indigo-500/10 transition-all group relative' : ''}
           `}
         >
-          {previewUrl ? (
+          {previewUrl && isImage ? (
             <img src={previewUrl} alt={file.name} className="w-full h-full object-cover" />
           ) : isVideo ? (
             <div className="bg-stone-200 w-full h-full flex items-center justify-center">
               <Play className={`${currentSize.icon} text-stone-500 fill-stone-500`} />
+            </div>
+          ) : isAudio ? (
+            <div className="bg-stone-50 w-full h-full flex items-center justify-center">
+              <Music className={`${currentSize.icon} text-purple-400`} />
             </div>
           ) : isDocx || isPdf ? (
             <div className="bg-stone-50 w-full h-full flex items-center justify-center">
@@ -88,7 +93,7 @@ export default function FilePreview({
             </div>
           ) : (
             <FileType className={`${currentSize.icon} text-stone-400`} />
-          )}
+          )}  
 
           {canPreview && (
             <div className="absolute inset-0 bg-indigo-600/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
