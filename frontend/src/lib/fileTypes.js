@@ -3,6 +3,10 @@
 
 // format are what the user can upload
 // output formats are what the user can convert to (based on input format)
+
+///////////////////////////////////
+// FILES THAT WEBPAGE RECOGNISES //
+///////////////////////////////////
 export const FILE_TYPES = {
   // categroy 
   documents: {  
@@ -13,13 +17,22 @@ export const FILE_TYPES = {
     // if its only PDF, can lock it in the dropdown 
     formats: {
       'application/pdf': 'PDF',
-      'text/html': 'HTML',
-      'text/plain': 'TXT',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'XLSX',
-      'application/rtf': 'RTF',
-      'application/epub+zip': 'EPUB',
       'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PPTX',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'XLSX',
+      'application/msword': 'DOC',
+      'application/vnd.ms-powerpoint': 'PPT',
+      'application/vnd.ms-excel': 'XLS',
+      'application/vnd.oasis.opendocument.text': 'ODT',
+      'application/vnd.oasis.opendocument.presentation': 'ODP',
+      'application/vnd.oasis.opendocument.spreadsheet': 'ODS',
+      'text/plain': 'TXT',
+      'text/csv': 'CSV',
+      'text/markdown': 'MD',
+      'application/x-markdown': 'MD',
+      'application/rtf': 'RTF',
+      'text/rtf': 'RTF',
+      'application/epub+zip': 'EPUB', 
     },
   },
   
@@ -73,8 +86,12 @@ export const FILE_TYPES = {
 };
 
 
-// mime: what user selected      ext: label eg something.jpg
 
+/////////////////////////////////////////////////
+// returns mime / ext based on uploaded format //
+/////////////////////////////////////////////////
+
+// mime: what user selected      ext: label eg something.jpg
 // Map for images
 export const IMAGE_OUTPUT_TYPES = {
   JPG: { mime: 'image/jpeg', ext: 'jpg' },
@@ -91,12 +108,30 @@ export const IMAGE_OUTPUT_TYPES = {
 // Map for Documents
 export const DOC_OUTPUT_TYPES = {
   PDF: { mime: 'application/pdf', ext: 'pdf' },
-  // DOCX: { mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', ext: 'docx' },
-  // TXT: { mime: 'text/plain', ext: 'txt' },
-  // RTF: { mime: 'application/rtf', ext: 'rtf' },
-  // EPUB: { mime: 'application/epub+zip', ext: 'epub' },
-  // PPTX: { mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', ext: 'pptx' },
-  // XLSX: { mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ext: 'xlsx' },
+
+  // Microsoft (modern XML)
+  DOCX: { mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', ext: 'docx' },
+  PPTX: { mime: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', ext: 'pptx' },
+  XLSX: { mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ext: 'xlsx' },
+
+  // Microsoft (old binary)
+  DOC: { mime: 'application/msword', ext: 'doc' },
+  PPT: { mime: 'application/vnd.ms-powerpoint', ext: 'ppt' },
+  XLS: { mime: 'application/vnd.ms-excel', ext: 'xls' },
+
+  // OpenDocument / LibreOffice / OpenOffice 
+  ODT: { mime: 'application/vnd.oasis.opendocument.text', ext: 'odt' },
+  ODP: { mime: 'application/vnd.oasis.opendocument.presentation', ext: 'odp' },
+  ODS: { mime: 'application/vnd.oasis.opendocument.spreadsheet', ext: 'ods' },
+
+  // Plain text / lightweight doc
+  TXT: { mime: 'text/plain', ext: 'txt' },
+  CSV: { mime: 'text/csv', ext: 'csv' },
+  MD: { mime: 'text/markdown', ext: 'md' },
+
+  // Rich text / ebook 
+  RTF: { mime: 'application/rtf', ext: 'rtf' },
+  EPUB: { mime: 'application/epub+zip', ext: 'epub' }, // ebook 
 };
 
 // Map for Videos
@@ -119,6 +154,19 @@ export const AUDIO_OUTPUT_TYPES = {
 //  MIDI: { mime: 'audio/midi', ext: 'midi' },
 };
 
+// to ensure only {file_type} && {pdf} are displayed 
+export const getDocumentCompressionOutputs = (inputFormat) => {
+  const fmt = inputFormat.toUpperCase();
+
+  if (fmt === 'PDF') return ['PDF'];
+
+  if (DOC_OUTPUT_TYPES[fmt]) {
+    return [fmt, 'PDF'];
+  }
+
+  return ['PDF'];
+};
+
 export const getOutputInfo = (format, category) => {
   const key = (format || '').toUpperCase();
   if (category === 'images') return IMAGE_OUTPUT_TYPES[key] || null;
@@ -128,13 +176,17 @@ export const getOutputInfo = (format, category) => {
   return null;
 };
 
-
-
 export const getFileInfo = (type) => {
   for (const [category, data] of Object.entries(FILE_TYPES)) {
     if (type in data.formats) {
       const formatKey = data.formats[type];
-      const outputFormatsInfo = (data.outputFormats || []).map((f) => {
+
+      const outputFormats =
+        category === 'documents'
+          ? getDocumentCompressionOutputs(formatKey)
+          : data.outputFormats || [];
+
+      const outputFormatsInfo = outputFormats.map((f) => {
         const info = getOutputInfo(f, category);
         return info ? { key: f, ...info } : { key: f, mime: null, ext: f.toLowerCase() };
       });
@@ -142,7 +194,7 @@ export const getFileInfo = (type) => {
       return {
         category,
         label: data.label,
-        outputFormats: data.outputFormats,
+        outputFormats,
         outputFormatsInfo,
         format: formatKey,
         formatInfo: getOutputInfo(formatKey, category) || null,
@@ -164,3 +216,4 @@ export const getFileInfo = (type) => {
     canResize: false,
   };
 };
+

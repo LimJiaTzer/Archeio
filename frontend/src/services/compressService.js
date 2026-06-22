@@ -219,8 +219,6 @@ export const compressImage = async ({
 };
 
 
-// TODO: Introduce batch processing next time 
-// TODO: Extension --> allow for rendering and adjusting of quality of output pdf !!  (Go do audio first )
 // Backend required for GhostScript to work 
 // PDF compression logic
 // export const compressDocument = async ({
@@ -281,9 +279,90 @@ export const compressImage = async ({
 //   }
 // };
 
+// export const compressDocument = async ({
+//   file,
+//   ratio,
+//   setDownloadUrl,
+//   setCompressedFileName,
+//   setResult,
+//   setCompressing,
+//   setWarning,
+// }) => {
+//   try {
+//     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+//     const inputIsPdf = file.type === 'application/pdf';
+
+//     let pdfBlob = file;
+//     let pdfFileName = file.name;
+
+//     if (!inputIsPdf) {
+//       const converted = await convertDocument(file, 'PDF');
+
+//       const pdfResponse = await fetch(converted.downloadUrl);
+//       pdfBlob = await pdfResponse.blob();
+
+//       pdfFileName = converted.convertedFileName;
+
+//       if (converted.downloadUrl.startsWith('blob:')) {
+//         URL.revokeObjectURL(converted.downloadUrl);
+//       }
+//     }
+
+//     const formData = new FormData();
+//     formData.append('file', pdfBlob, pdfFileName);
+//     formData.append('ratio', ratio);
+
+//     const response = await fetch(`${API_URL}/compress-pdf`, {
+//       method: 'POST',
+//       body: formData,
+//     });
+
+//     if (!response.ok) {
+//       const errorText = await response.text();
+//       throw new Error(errorText || 'PDF compression failed.');
+//     }
+
+//     const compressedBlob = await response.blob();
+//     const downloadUrl = URL.createObjectURL(compressedBlob);
+
+//     const compressedSize = compressedBlob.size;
+
+//     if (compressedSize >= file.size) {
+//       if (inputIsPdf) {
+//         throw new Error('This document file is already highly compressed');
+//       } else {
+//         setWarning?.('File size may have increased because it was converted to PDF first');
+//       }
+//     }
+
+//     const savedPercentage = Math.round(
+//       ((file.size - compressedSize) / file.size) * 100
+//     );
+
+//     const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+
+//     setDownloadUrl(downloadUrl);
+//     setCompressedFileName(`${baseName}_compressed.pdf`);
+
+//     setResult({
+//       originalSize: (file.size / 1024 / 1024).toFixed(2) + ' MB',
+//       compressedSize: (compressedSize / 1024 / 1024).toFixed(2) + ' MB',
+//       ratio: Math.max(0, savedPercentage) + '%',
+//     });
+//   } catch (err) {
+//     console.error('Document compression error:', err);
+//     alert(err.message);
+//   } finally {
+//     setCompressing(false);
+//   }
+// };
+
 export const compressDocument = async ({
   file,
   ratio,
+  format,
+  fileInfo,
   setDownloadUrl,
   setCompressedFileName,
   setResult,
@@ -291,75 +370,192 @@ export const compressDocument = async ({
   setWarning,
 }) => {
   try {
+    const inputFormat = fileInfo.format.toLowerCase();
+    const outputFormat = format.toLowerCase();
+
     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
-    const inputIsPdf = file.type === 'application/pdf';
+    const baseName =
+      file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
 
-    let pdfBlob = file;
-    let pdfFileName = file.name;
+    // Case 1: PDF -> PDF
+    if (inputFormat === 'pdf' && outputFormat === 'pdf') {
+      const compressedBlob = await compressPdfViaBackend({
+        file,
+        ratio,
+        API_URL,
+      });
 
-    if (!inputIsPdf) {
+      return handleCompressedResult({
+        originalFile: file,
+        compressedBlob,
+        outputFormat: 'pdf',
+        outputMime: 'application/pdf',
+        baseName,
+        setDownloadUrl,
+        setCompressedFileName,
+        setResult,
+        setWarning,
+      });
+    }
+
+    // Case 2: DOCX/PPTX/XLSX/ODT/ODP/ODS/etc -> same type
+    if (inputFormat === outputFormat) {
+      const compressedBlob = await compressOfficeViaBackend({
+        file,
+        ratio,
+        API_URL,
+      });
+
+      const outputType = getOutputInfo(outputFormat, 'documents');
+
+      return handleCompressedResult({
+        originalFile: file,
+        compressedBlob,
+        outputFormat,
+        outputMime: outputType?.mime || file.type,
+        baseName,
+        setDownloadUrl,
+        setCompressedFileName,
+        setResult,
+        setWarning,
+      });
+    }
+
+    // Case 3: Any document -> PDF
+    if (outputFormat === 'pdf') {
       const converted = await convertDocument(file, 'PDF');
 
       const pdfResponse = await fetch(converted.downloadUrl);
-      pdfBlob = await pdfResponse.blob();
-
-      pdfFileName = converted.convertedFileName;
+      const pdfBlob = await pdfResponse.blob();
 
       if (converted.downloadUrl.startsWith('blob:')) {
         URL.revokeObjectURL(converted.downloadUrl);
       }
+
+      const compressedBlob = await compressPdfViaBackend({
+        file: pdfBlob,
+        ratio,
+        API_URL,
+        fileName: converted.convertedFileName,
+      });
+
+      return handleCompressedResult({
+        originalFile: file,
+        compressedBlob,
+        outputFormat: 'pdf',
+        outputMime: 'application/pdf',
+        baseName,
+        setDownloadUrl,
+        setCompressedFileName,
+        setResult,
+        setWarning,
+        sizeWarning:
+          compressedBlob.size >= file.size
+            ? 'File size may have increased because it was converted to PDF first'
+            : '',
+      });
     }
 
-    const formData = new FormData();
-    formData.append('file', pdfBlob, pdfFileName);
-    formData.append('ratio', ratio);
-
-    const response = await fetch(`${API_URL}/compress-pdf`, {
-      method: 'POST',
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(errorText || 'PDF compression failed.');
-    }
-
-    const compressedBlob = await response.blob();
-    const downloadUrl = URL.createObjectURL(compressedBlob);
-
-    const compressedSize = compressedBlob.size;
-
-    if (compressedSize >= file.size) {
-      if (inputIsPdf) {
-        throw new Error('This document file is already highly compressed');
-      } else {
-        setWarning?.('File size may have increased because it was converted to PDF first');
-      }
-    }
-
-    const savedPercentage = Math.round(
-      ((file.size - compressedSize) / file.size) * 100
+    throw new Error(
+      `${inputFormat.toUpperCase()} to ${outputFormat.toUpperCase()} is not supported.`
     );
-
-    const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-
-    setDownloadUrl(downloadUrl);
-    setCompressedFileName(`${baseName}_compressed.pdf`);
-
-    setResult({
-      originalSize: (file.size / 1024 / 1024).toFixed(2) + ' MB',
-      compressedSize: (compressedSize / 1024 / 1024).toFixed(2) + ' MB',
-      ratio: Math.max(0, savedPercentage) + '%',
-    });
   } catch (err) {
     console.error('Document compression error:', err);
-    alert(err.message);
+    alert(err.message || 'Document compression failed.');
   } finally {
     setCompressing(false);
   }
 };
 
+const compressPdfViaBackend = async ({
+  file,
+  ratio,
+  API_URL,
+  fileName,
+}) => {
+  const formData = new FormData();
+
+  formData.append('file', file, fileName || file.name || 'document.pdf');
+  formData.append('ratio', ratio);
+
+  const response = await fetch(`${API_URL}/compress-pdf`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || 'PDF compression failed.');
+  }
+
+  return await response.blob();
+};
+
+const compressOfficeViaBackend = async ({
+  file,
+  ratio,
+  API_URL,
+}) => {
+  const formData = new FormData();
+
+  formData.append('file', file, file.name);
+  formData.append('ratio', ratio);
+
+  const response = await fetch(`${API_URL}/compress-office`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || 'Native document compression failed.');
+  }
+
+  return await response.blob();
+};
+
+const handleCompressedResult = ({
+  originalFile,
+  compressedBlob,
+  outputFormat,
+  outputMime,
+  baseName,
+  setDownloadUrl,
+  setCompressedFileName,
+  setResult,
+  setWarning,
+  sizeWarning = '',
+}) => {
+  if (compressedBlob.size >= originalFile.size) {
+    if (sizeWarning) {
+      setWarning?.(sizeWarning);
+    } else {
+      throw new Error('This document file is already highly compressed');
+    }
+  }
+
+  const finalBlob = new Blob([compressedBlob], {
+    type: outputMime,
+  });
+
+  const downloadUrl = URL.createObjectURL(finalBlob);
+
+  const savedPercentage = Math.round(
+    ((originalFile.size - finalBlob.size) / originalFile.size) * 100
+  );
+
+  setDownloadUrl(downloadUrl);
+  setCompressedFileName(`${baseName}_compressed.${outputFormat}`);
+
+  setResult({
+    originalSize: (originalFile.size / 1024 / 1024).toFixed(2) + ' MB',
+    compressedSize: (finalBlob.size / 1024 / 1024).toFixed(2) + ' MB',
+    ratio: Math.max(0, savedPercentage) + '%',
+  });
+};
+
+/////
 
 export const compressAudio = async ({ // don ned format cos ffmpeg extracts it from file directly
   file,
@@ -454,7 +650,7 @@ export const compressAudio = async ({ // don ned format cos ffmpeg extracts it f
 };
 
 // Video compression logic 
-// TODO: Can compression be made faster? Or issit just cos vids are huge 
+// Compresison cant really be made faster without compromising on output quality 
 export const compressVideo = async ({
   file,
   ratio,
