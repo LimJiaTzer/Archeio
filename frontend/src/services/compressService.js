@@ -373,6 +373,32 @@ export const compressDocument = async ({
     const inputFormat = fileInfo.format.toLowerCase();
     const outputFormat = format.toLowerCase();
 
+    const nativeDocumentCompressible = [
+      // Modern Microsoft Office
+      'docx',
+      'pptx',
+      'xlsx',
+
+      // OpenDocument / LibreOffice
+      'odt',
+      'odp',
+      'ods',
+
+      // Old Microsoft Office
+      'doc',
+      'ppt',
+      'xls',
+
+      // Text-ish
+      'txt',
+      'csv',
+      'md',
+
+      // Rich text / ebook
+      'rtf',
+      'epub',
+    ];
+
     const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
     const baseName =
@@ -401,6 +427,10 @@ export const compressDocument = async ({
 
     // Case 2: DOCX/PPTX/XLSX/ODT/ODP/ODS/etc -> same type
     if (inputFormat === outputFormat) {
+      if (!nativeDocumentCompressible.includes(inputFormat)) {
+        throw new Error(`${inputFormat.toUpperCase()} native compression is not supported yet.`);
+      }
+
       const compressedBlob = await compressOfficeViaBackend({
         file,
         ratio,

@@ -429,7 +429,10 @@ export default function Compress() {
                       </div>
 
                       <div className="flex gap-12 text-sm border-t border-green-200/50 pt-4">
-                        <FilePreview file={item.file} previewUrl={item.downloadUrl} />
+                        <FilePreview
+                          file={item.file}
+                          previewUrl={item.fileInfo.category === 'images' ? item.downloadUrl : null}
+                        />
                         <div>
                           <span className="block text-xs text-green-700/70 font-bold uppercase tracking-wide">
                             Before
@@ -513,7 +516,10 @@ export default function Compress() {
                         </p>
 
                         <div className="flex gap-8 text-sm mt-3">
-                        <FilePreview file={item.file} previewUrl={item.downloadUrl} />
+                        <FilePreview
+                          file={item.file}
+                          previewUrl={item.fileInfo.category === 'images' ? item.downloadUrl : null}
+                        /> 
                           <div>
                             <span className="block text-xs text-green-700/70 font-bold uppercase">
                               Before
