@@ -4,16 +4,14 @@ import {
   ArrowLeft, 
   Upload, 
   CheckCircle2, 
-  Layers, 
   X, 
-  Settings,  
   ChevronDown,
-  Download,
   AlertCircle,
   Loader2,
   RefreshCcw,
   Archive,
-  Images
+  Images,
+  Download
 } from 'lucide-react';
 import { getFileInfo } from '../lib/fileTypes';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
@@ -28,18 +26,23 @@ export default function Convert() {
   const [globalFormat, setGlobalFormat] = useState('');
   const [isConvertingAll, setIsConvertingAll] = useState(false);
   const [isDownloadingAll, setIsDownloadingAll] = useState(false);
+  const itemsRef = useRef([]);
   
   // Persist FFmpeg instance
   const ffmpegRef = useRef(new FFmpeg());
 
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
   // Cleanup object URLs on unmount
   useEffect(() => {
     return () => {
-      items.forEach(item => {
+      itemsRef.current.forEach(item => {
         if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
       });
     };
-  }, [items]);
+  }, []);
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -180,7 +183,7 @@ export default function Convert() {
     const item = items.find(i => i.id === id);
     if (!item || item.status === 'converting') return;
 
-    updateItem(id, { status: 'converting', error: null });
+    updateItem(id, { status: 'converting', result: null, error: null });
 
     try {
       let result;
@@ -205,13 +208,13 @@ export default function Convert() {
   };
 
   const startConversionAll = async () => {
-    const idleItems = items.filter(i => i.status !== 'completed');
-    if (idleItems.length === 0) return;
+    const convertibleItems = items.filter(i => i.status !== 'converting');
+    if (convertibleItems.length === 0) return;
 
     setIsConvertingAll(true);
     
     // We can run these sequentially to avoid overloading the browser/FFmpeg
-    for (const item of idleItems) {
+    for (const item of convertibleItems) {
       await convertItem(item.id);
     }
 
@@ -271,8 +274,6 @@ export default function Convert() {
     return union;
   }, [items]);
 
-  const allFinished = items.length > 0 && items.every(i => i.status === 'completed' || i.status === 'error');
-  
   const completedItems = useMemo(() => {
     return items.filter(item => item.status === 'completed' && item.result && item.result.downloadUrl);
   }, [items]);
@@ -334,10 +335,10 @@ export default function Convert() {
               onChange={handleFileChange} 
             />
             
-            <div className={`bg-indigo-50 rounded-3xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform ${
+            <div className={`bg-amber-50 rounded-3xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform ${
               items.length === 0 ? 'w-20 h-20' : 'w-12 h-12'
             }`}>
-              <Upload className={`${items.length === 0 ? 'w-10 h-10' : 'w-6 h-6'} text-indigo-600`} />
+              <Upload className={`${items.length === 0 ? 'w-10 h-10' : 'w-6 h-6'} text-amber-700`} />
             </div>
             
             {items.length === 0 ? (
@@ -362,9 +363,9 @@ export default function Convert() {
               {items.map((item) => ( 
                 <div key={item.id} className="p-1">
                   <div className="p-4 flex flex-wrap sm:flex-nowrap items-center gap-4 hover:bg-stone-50/50 transition-colors rounded-2xl">
-                    <FilePreview file={item.file} previewUrl={item.previewUrl} />
+                    <FilePreview file={item.file} previewUrl={item.previewUrl} className="flex-1 min-w-[180px]" />
 
-                    <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
+                    <div className="ml-auto flex items-center gap-4 justify-end shrink-0">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-bold text-stone-400 uppercase tracking-tight">Output:</span>
                         <div className="relative">
@@ -372,7 +373,7 @@ export default function Convert() {
                             value={item.targetFormat}
                             onChange={(e) => handleFormatChange(item.id, e.target.value)}
                             disabled={item.status === 'converting'}
-                            className="appearance-none bg-white border border-indigo-200 rounded-lg pl-3 pr-8 py-1.5 text-indigo-600 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 disabled:opacity-50 cursor-pointer min-w-[80px]"
+                            className="appearance-none bg-white border border-amber-200 rounded-lg pl-3 pr-8 py-1.5 text-amber-700 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/10 focus:border-amber-500 disabled:opacity-50 cursor-pointer min-w-[80px]"
                           >
                             {item.availableFormats.length > 0 ? (
                               item.availableFormats.map((fmt) => (
@@ -382,7 +383,7 @@ export default function Convert() {
                               <option value="">N/A</option>
                             )}
                           </select>
-                          <ChevronDown className="w-4 h-4 text-indigo-600 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-60" />
+                          <ChevronDown className="w-4 h-4 text-amber-700 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-60" />
                         </div>
                       </div>
 
@@ -391,22 +392,11 @@ export default function Convert() {
                         {(item.file.type === 'image/gif' || item.file.type === 'image/x-icon' || item.file.type === 'image/vnd.microsoft.icon') && (
                           <button 
                             onClick={() => handleToggleSelector(item.id)}
-                            className={`p-2 rounded-lg transition-colors ${item.showSelector ? 'bg-indigo-100 text-indigo-600' : 'text-stone-400 hover:bg-stone-100'}`}
+                            className={`p-2 rounded-lg transition-colors ${item.showSelector ? 'bg-amber-100 text-amber-700' : 'text-stone-400 hover:bg-stone-100'}`}
                             title="Frame Selection"
                           >
                             <Images className={`w-5 h-5 ${item.extracting ? 'animate-spin' : ''}`} />
                           </button>
-                        )}
-                        
-                        {item.status === 'completed' && item.result && (
-                          <a 
-                            href={item.result.downloadUrl}
-                            download={item.result.convertedFileName}
-                            className="flex items-center gap-2 px-3 py-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors font-bold text-xs"
-                          >
-                            <Download className="w-4 h-4" />
-                            <span>Download</span>
-                          </a>
                         )}
 
                         <button 
@@ -424,7 +414,7 @@ export default function Convert() {
                   {item.status === 'converting' && (
                     <div className="px-4 pb-4">
                       <div className="h-1 w-full bg-stone-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-indigo-500 animate-progress"></div>
+                        <div className="h-full bg-amber-500 animate-progress"></div>
                       </div>
                     </div>
                   )}
@@ -464,7 +454,7 @@ export default function Convert() {
                   <select 
                     value={globalFormat}
                     onChange={(e) => handleGlobalFormatChange(e.target.value)}
-                    className="appearance-none bg-white border border-stone-200 rounded-xl pl-4 pr-10 py-2 text-red-400 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 cursor-pointer shadow-sm"
+                    className="appearance-none bg-white border border-amber-200 rounded-xl pl-4 pr-10 py-2 text-amber-700 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/10 focus:border-amber-500 cursor-pointer shadow-sm"
                   >
                     <option value="" disabled>Select</option>
                     {allAvailableFormats.map((fmt) => (
@@ -476,38 +466,23 @@ export default function Convert() {
               </div>
 
               <div className="flex items-center gap-3">
-                {allFinished && hasCompleted ? (
-                  <button 
-                    onClick={handleDownloadAll}
-                    disabled={isDownloadingAll}
-                    className="px-8 py-3 bg-stone-900 text-white rounded-xl font-bold text-sm hover:bg-stone-800 transition-all active:scale-95 shadow-md flex items-center gap-2"
-                  >
-                    {isDownloadingAll ? (
+                <button 
+                  onClick={startConversionAll}
+                  disabled={isConvertingAll}
+                  className="px-8 py-3 bg-amber-400 text-stone-950 rounded-xl font-bold text-sm hover:bg-amber-500 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-md flex items-center gap-2"
+                >
+                  {isConvertingAll ? (
+                    <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Archive className="w-4 h-4" />
-                    )}
-                    Download All (ZIP)
-                  </button>
-                ) : (
-                  <button 
-                    onClick={startConversionAll}
-                    disabled={isConvertingAll}
-                    className="px-8 py-3 bg-indigo-300 text-grey rounded-xl font-bold text-sm hover:bg-indigo-700 hover:text-white transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-md flex items-center gap-2"
-                  >
-                    {isConvertingAll ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Converting...
-                      </>
-                    ) : (
-                      <>
-                        Convert
-                        <ArrowLeft className="w-4 h-4 rotate-180" />
-                      </>
-                    )}
-                  </button>
-                )}
+                      Converting...
+                    </>
+                  ) : (
+                    <>
+                      {hasCompleted ? 'Convert Again' : 'Convert'}
+                      <ArrowLeft className="w-4 h-4 rotate-180" />
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           )}
@@ -515,7 +490,7 @@ export default function Convert() {
 
         {/* Global Progress Indicator */}
         {isConvertingAll && (
-          <div className="mt-8 bg-indigo-50 border border-indigo-100 text-indigo-700 p-4 rounded-2xl flex items-center gap-3 animate-pulse">
+          <div className="mt-8 bg-amber-50 border border-amber-100 text-amber-800 p-4 rounded-2xl flex items-center gap-3 animate-pulse">
             <Loader2 className="w-5 h-5 animate-spin" />
             <span className="font-bold">Processing your files batch... This may take a moment depending on file sizes.</span>
           </div>
@@ -523,7 +498,7 @@ export default function Convert() {
 
         {/* Showing result of conversion (Output Cards) */}
         {hasCompleted && (
-          <div className="mt-8 bg-indigo-50 border border-indigo-200 text-indigo-800 p-6 rounded-2xl">
+          <div className="mt-8 bg-amber-50 border border-amber-200 text-amber-900 p-6 rounded-2xl">
             {singleResult ? (
               (() => {
                 const item = completedItems[0];
@@ -531,18 +506,18 @@ export default function Convert() {
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-4">
-                        <CheckCircle2 className="w-6 h-6 text-indigo-600" />
-                        <h4 className="font-bold text-lg text-indigo-950">
+                        <CheckCircle2 className="w-6 h-6 text-amber-700" />
+                        <h4 className="font-bold text-lg text-stone-950">
                           Conversion Complete! File ready
                         </h4>
                       </div>
 
-                      <div className="flex gap-12 text-sm border-t border-indigo-200/50 pt-4">
+                      <div className="flex gap-12 text-sm border-t border-amber-200/70 pt-4">
                         <div>
-                          <span className="block text-xs text-indigo-700/70 font-bold uppercase tracking-wide">
+                          <span className="block text-xs text-amber-800/70 font-bold uppercase tracking-wide">
                             Original File
                           </span>
-                          <span className="text-sm font-black text-indigo-950 truncate max-w-[200px] block" title={item.file.name}>
+                          <span className="text-sm font-black text-stone-950 truncate max-w-[200px] block" title={item.file.name}>
                             {item.file.name}
                           </span>
                           <span className="text-xs text-stone-500 font-bold">
@@ -551,10 +526,10 @@ export default function Convert() {
                         </div>
 
                         <div>
-                          <span className="block text-xs text-indigo-700/70 font-bold uppercase tracking-wide">
+                          <span className="block text-xs text-amber-800/70 font-bold uppercase tracking-wide">
                             Converted File
                           </span>
-                          <span className="text-sm font-black text-indigo-950 truncate max-w-[200px] block" title={item.result.convertedFileName}>
+                          <span className="text-sm font-black text-stone-950 truncate max-w-[200px] block" title={item.result.convertedFileName}>
                             {item.result.convertedFileName}
                           </span>
                           <span className="text-xs text-stone-500 font-bold">
@@ -568,9 +543,9 @@ export default function Convert() {
                       <a
                         href={item.result.downloadUrl}
                         download={item.result.convertedFileName}
-                        className="block bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-4 rounded-xl font-bold text-center shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all"
+                        className="inline-flex items-center gap-2 justify-center bg-amber-500 hover:bg-amber-600 text-stone-950 px-4 py-2 rounded-xl font-bold text-center shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all"
                       >
-                        Download Converted File
+                        Download <Download />
                       </a>
                     </div>
                   </div>
@@ -580,8 +555,8 @@ export default function Convert() {
               <div>
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                   <div className="flex items-center gap-3">
-                    <CheckCircle2 className="w-6 h-6 text-indigo-600" />
-                    <h4 className="font-bold text-lg text-indigo-950">
+                    <CheckCircle2 className="w-6 h-6 text-amber-700" />
+                    <h4 className="font-bold text-lg text-stone-950">
                       Conversion Complete! {completedItems.length} files ready
                     </h4>
                   </div>
@@ -589,7 +564,7 @@ export default function Convert() {
                   <button
                     onClick={handleDownloadAll}
                     disabled={isDownloadingAll}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-4 rounded-xl font-bold text-center shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2"
+                    className="bg-amber-500 hover:bg-amber-600 text-stone-950 text-s px-4 py-2 rounded-xl font-bold text-center shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2"
                   >
                     {isDownloadingAll ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -604,28 +579,28 @@ export default function Convert() {
                   {completedItems.map((item) => (
                     <div
                       key={item.id}
-                      className="bg-white border border-indigo-100 rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
+                      className="bg-white border border-amber-100 rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="font-bold text-indigo-950 text-sm truncate max-w-md" title={item.result.convertedFileName}>
+                        <p className="font-bold text-stone-950 text-sm truncate max-w-md" title={item.result.convertedFileName}>
                           {item.result.convertedFileName}
                         </p>
 
                         <div className="flex gap-8 text-sm mt-3">
                           <div>
-                            <span className="block text-xs text-indigo-700/70 font-bold uppercase">
-                              Original Size
+                            <span className="block text-xs text-amber-800/70 font-bold uppercase">
+                              Initial File Size
                             </span>
-                            <span className="font-black text-indigo-950">
+                            <span className="font-black text-stone-950">
                               {formatSize(item.file.size)}
                             </span>
                           </div>
 
                           <div>
-                            <span className="block text-xs text-indigo-700/70 font-bold uppercase">
-                              Downloaded Size
+                            <span className="block text-xs text-amber-800/70 font-bold uppercase">
+                              New File Size
                             </span>
-                            <span className="font-black text-indigo-950">
+                            <span className="font-black text-stone-950">
                               {formatSize(item.result.size)}
                             </span>
                           </div>
@@ -635,9 +610,9 @@ export default function Convert() {
                       <a
                         href={item.result.downloadUrl}
                         download={item.result.convertedFileName}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-xl font-bold text-center self-stretch md:self-center hover:scale-[1.02] active:scale-[0.98] transition-all"
+                        className="inline-flex items-center gap-1 justify-center bg-amber-500 hover:bg-amber-600 text-xs text-stone-950 px-4 py-2 rounded-xl font-bold text-center self-stretch md:self-center hover:scale-[1.02] active:scale-[0.98] transition-all"
                       >
-                        Download
+                        Download <Download className="w-3.5 h-3.5"/>
                       </a>
                     </div>
                   ))}

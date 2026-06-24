@@ -46,9 +46,9 @@ export default function FilePreview({
     }
   }, [isPreviewOpen, isDocx, file]);
 
-  // Handle blob URL lifecycle for video/pdf
+  // Handle blob URL lifecycle for full previews.
   useEffect(() => {
-    if (isPreviewOpen && (isVideo || isPdf)) {
+    if (isPreviewOpen && (isImage || isVideo || isPdf)) {
       const url = URL.createObjectURL(file);
       setBlobUrl(url);
       return () => {
@@ -56,7 +56,7 @@ export default function FilePreview({
         setBlobUrl(null);
       };
     }
-  }, [isPreviewOpen, isVideo, isPdf, file]);
+  }, [isPreviewOpen, isImage, isVideo, isPdf, file]);
 
   const togglePreview = (e) => {
     if (e) {
@@ -118,7 +118,7 @@ export default function FilePreview({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[9999] flex items-center justify-center bg-stone-950/90 backdrop-blur-2xl p-4 md:p-12"
+              className="fixed inset-0 z-[9999] flex items-center justify-center bg-stone-950/90 backdrop-blur-l p-4 md:p-12"
               onClick={() => setIsPreviewOpen(false)}
             >
               <motion.button
@@ -159,7 +159,7 @@ export default function FilePreview({
                   <div className="p-4 md:p-12 w-full flex justify-center">
                     {isImage ? (
                       <img 
-                        src={previewUrl} 
+                        src={blobUrl || previewUrl} 
                         alt={file.name} 
                         className="max-w-full h-auto rounded-xl shadow-lg" 
                       />
