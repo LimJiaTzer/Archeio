@@ -494,7 +494,7 @@ export default function Compress() {
                     onClick={handleDownloadAll}
                     className="bg-green-800 hover:bg-green-900 text-white px-6 py-4 rounded-xl font-bold text-center shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all"
                   >
-                    Download All
+                    Download As Zip
                   </button>
                 </div>
 
