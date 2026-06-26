@@ -14,37 +14,161 @@ export const navMenus = [
     title: 'Convert',
     categories: [
       {
-        title: 'Video',
+        title: 'PDF & Documents',
         options: [
-          { label: 'MP4 to MP3', href: '#' },
-          { label: 'MOV to MP4', href: '#' }
-        ]
+          { label: 'PDF Converter', href: '#' },
+          { label: 'Document Converter', href: '#' },
+          { label: 'Ebook Converter', href: '#' },
+          { label: 'Word to PDF', href: '#' },
+          { label: 'PDF to JPG', href: '#' },
+          { label: 'PDF to EPUB', href: '#' },
+          { label: 'EPUB to PDF', href: '#' },
+          { label: 'HEIC to PDF', href: '#' },
+          { label: 'DOCX to PDF', href: '#' },
+          { label: 'JPG to PDF', href: '#' },
+        ],
       },
       {
-        title: 'Audio',
+        title: 'Image',
         options: [
-          { label: 'WAV to MP3', href: '#' },
-          { label: 'MP3 to MIDI', href: '#' }
-        ]
-      }
-    ]
+          { label: 'Image Converter', href: '#' },
+          { label: 'WEBP to PNG', href: '#' },
+          { label: 'JFIF to PNG', href: '#' },
+          { label: 'PNG to SVG', href: '#' },
+          { label: 'HEIC to JPG', href: '#' },
+          { label: 'HEIC to PNG', href: '#' },
+          { label: 'WEBP to JPG', href: '#' },
+          { label: 'SVG Converter', href: '#' },
+        ],
+      },
+      {
+        title: 'Video & Audio',
+        options: [
+          { label: 'Video Converter', href: '#' },
+          { label: 'Audio Converter', href: '#' },
+          { label: 'MP3 Converter', href: '#' },
+          { label: 'MP4 to MP3', href: '#' },
+          { label: 'Video to MP3', href: '#' },
+          { label: 'MP4 Converter', href: '#' },
+          { label: 'MOV to MP4', href: '#' },
+          { label: 'MP3 to OGG', href: '#' },
+        ],
+      },
+      {
+        title: 'GIF',
+        options: [
+          { label: 'Video to GIF', href: '#' },
+          { label: 'MP4 to GIF', href: '#' },
+          { label: 'WEBM to GIF', href: '#' },
+          { label: 'APNG to GIF', href: '#' },
+          { label: 'GIF to MP4', href: '#' },
+          { label: 'GIF to APNG', href: '#' },
+          { label: 'Image to GIF', href: '#' },
+          { label: 'MOV to GIF', href: '#' },
+          { label: 'AVI to GIF', href: '#' },
+        ],
+      },
+      {
+        title: 'Others',
+        options: [
+          { label: 'Unit Converter', href: '#' },
+          { label: 'Time Converter', href: '#' },
+          { label: 'Archive Converter', href: '#' },
+        ],
+      },
+    ],
   },
   {
     title: 'Compress',
-    options: [
-      { label: 'Compress PDF', href: '#' },
-      { label: 'Compress Image', href: '#' }
-    ]
+    categories: [
+      {
+        title: 'Documents',
+        options: [
+          { label: 'Compress PDF', href: '#' },
+          { label: 'Compress DOCX', href: '#' },
+          { label: 'Compress PPTX', href: '#' },
+          { label: 'Compress XLSX', href: '#' },
+          { label: 'Compress RTF', href: '#' },
+          { label: 'Compress EUP', href: '#' },
+        ],
+      },
+      {
+        title: 'Image',
+        options: [
+          { label: 'Compress Image', href: '#' },
+          { label: 'Compress PNG', href: '#' },
+          { label: 'Compress JPG', href: '#' },
+          { label: 'Compress SVG', href: '#' },
+          { label: 'Compress WEBP', href: '#' },
+          { label: 'Compress AVIF', href: '#' },
+          { label: 'Compress HEIC', href: '#' },
+        ],
+      },
+      {
+        title: 'Video & Audio',
+        options: [
+          { label: 'Compress Video', href: '#' },
+          { label: 'Compress Audio', href: '#' },
+          { label: 'Compress MP3', href: '#' },
+          { label: 'Compress MP4', href: '#' },
+        ],
+      },
+      {
+        title: 'GIF',
+        options: [
+          { label: 'Compress GIF', href: '#' },
+        ],
+      },
+    ],
   },
-  {
-    title: 'Tools',
-    options: [
-      { label: 'Scanned PDF to Word', href: '#' },
-      { label: 'Zip Archive', href: '#' },
-      { label: 'Crop vid / img', href: '#' },
-      { label: "Edit PDF", href: '/PDFEditor'}
-    ]
-  }
+{
+  title: 'Tools',
+  categories: [
+    {
+      title: 'PDF Tools',
+      options: [
+        { label: 'PDF Merge', href: '#' },
+        { label: 'PDF Split', href: '#' },
+        { label: 'Flatten PDF', href: '#' },
+        { label: 'Resize PDF', href: '#' },
+        { label: 'Unlock PDF', href: '#' },
+        { label: 'Rotate PDF', href: '#' },
+        { label: 'Protect PDF', href: '#' },
+        { label: 'Crop PDF', href: '#' },
+        { label: 'Organize PDF', href: '#' },
+        { label: 'Extract image from PDF', href: '#' },
+        { label: 'PDF page remover', href: '#' },
+        { label: 'Extract Pages from PDF', href: '#' },
+      ],
+    },
+    {
+      title: 'Image Tools',
+      options: [
+        { label: 'GIF Maker', href: '#' },
+        { label: 'Resize Image', href: '#' },
+        { label: 'Crop Image', href: '#' },
+        { label: 'Color Picker', href: '#' },
+        { label: 'Rotate Image', href: '#' },
+        { label: 'Flip Image', href: '#' },
+        { label: 'Image Enlarger', href: '#' },
+      ],
+    },
+    {
+      title: 'Audio Tools',
+      options: [
+        { label: 'Adjust bitrate', href: '#' },
+        { label: 'Trim Audio', href: '#' },
+      ],
+    },
+    {
+      title: 'Video Tools',
+      options: [
+        { label: 'Crop Video', href: '#' },
+        { label: 'Trim Video', href: '#' },
+      ],
+    },
+  ],
+},
 ];
 
 export default function Header() {
