@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft, Upload, Trash2, RotateCw, ArrowUp, ArrowDown,
@@ -78,6 +78,17 @@ export default function PdfEditor() {
   const [exportComplete,    setExportComplete]    = useState(false);
   const [exportUrl,         setExportUrl]         = useState('');
 
+  // Drag and drop state for page thumbnails
+  const [draggedIdx,        setDraggedIdx]        = useState(null);
+  const [dragOverIdx,       setDragOverIdx]       = useState(null);
+
+  // Position jump state
+  const [moveToIndexValue,  setMoveToIndexValue]  = useState('');
+
+  const sidebarRef = useRef(null);
+  const scrollIntervalRef = useRef(null);
+  const scrollDirectionRef = useRef(null);
+
   const containerRef = useRef(null);
 
   // Signature state
@@ -92,7 +103,7 @@ export default function PdfEditor() {
   const pageDimensions = activePage
     ? { width: activePage.width, height: activePage.height }
     : { width: 420, height: 594 };
-
+  
   // ─── 1. FILE UPLOAD ───────────────────────────────────────────────────────
   const handleFileAdd = async (e) => {
     const files = Array.from(e.target.files).filter(f => f.type === 'application/pdf');
@@ -144,6 +155,31 @@ export default function PdfEditor() {
       }
     }
   };
+  
+    // Handle global paste event (Ctrl+V or Cmd+V)
+    useEffect(() => {
+      const handlePaste = (e) => {
+        const target = e.target;
+        // Bypass if focused inside writing nodes
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+          return;
+        }
+
+        if (e.clipboardData && e.clipboardData.files && e.clipboardData.files.length > 0) {
+          const pdfFiles = Array.from(e.clipboardData.files).filter(f => f.type === 'application/pdf');
+          if (pdfFiles.length === 0) return;
+          
+          e.preventDefault();
+          // Emulate the target wrapper structure expected by handleFileAdd
+          handleFileAdd({ target: { files: pdfFiles } });
+        }
+      };
+
+      window.addEventListener('paste', handlePaste);
+      return () => {
+        window.removeEventListener('paste', handlePaste);
+      };
+    }, []);
 
   // ─── 2. PAGE ACTIONS ──────────────────────────────────────────────────────
   /**
@@ -205,6 +241,122 @@ export default function PdfEditor() {
       return copy;
     });
     setActivePageIndex(newActive);
+  };
+
+  /**
+   * Reorder page within the array based on dragging.
+   */
+  const reorderPage = (draggedIndex, targetIndex) => {
+    if (draggedIndex === targetIndex) return;
+
+    setPagesList(prev => {
+      const copy = [...prev];
+      const [removed] = copy.splice(draggedIndex, 1);
+      copy.splice(targetIndex, 0, removed);
+      return copy;
+    });
+
+    if (activePageIndex === draggedIndex) {
+      setActivePageIndex(targetIndex);
+    } else if (activePageIndex > draggedIndex && activePageIndex <= targetIndex) {
+      setActivePageIndex(prev => prev - 1);
+    } else if (activePageIndex < draggedIndex && activePageIndex >= targetIndex) {
+      setActivePageIndex(prev => prev + 1);
+    }
+  };
+
+  const handleDragStart = (e, index) => {
+    setDraggedIdx(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', index.toString());
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    if (draggedIdx !== index) {
+      setDragOverIdx(index);
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDragOverIdx(null);
+  };
+
+  const handleDrop = (e, index) => {
+    e.preventDefault();
+    if (draggedIdx !== null && draggedIdx !== index) {
+      reorderPage(draggedIdx, index);
+    }
+    setDraggedIdx(null);
+    setDragOverIdx(null);
+  };
+
+  const handleSidebarDragOver = (e) => {
+    e.preventDefault();
+    const container = sidebarRef.current;
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    const relativeY = e.clientY - rect.top;
+
+    // Hot zones: top 40px and bottom 40px of container viewport
+    const threshold = 40;
+    const isNearTop = relativeY < threshold;
+    const isNearBottom = relativeY > rect.height - threshold;
+
+    let newDirection = null;
+    if (isNearTop) {
+      newDirection = 'up';
+    } else if (isNearBottom) {
+      newDirection = 'down';
+    }
+
+    if (newDirection !== scrollDirectionRef.current) {
+      // Clear current interval
+      if (scrollIntervalRef.current) {
+        clearInterval(scrollIntervalRef.current);
+        scrollIntervalRef.current = null;
+      }
+
+      scrollDirectionRef.current = newDirection;
+
+      if (newDirection === 'up') {
+        scrollIntervalRef.current = setInterval(() => {
+          container.scrollTop -= 8;
+        }, 16);
+      } else if (newDirection === 'down') {
+        scrollIntervalRef.current = setInterval(() => {
+          container.scrollTop += 8;
+        }, 16);
+      }
+    }
+  };
+
+  const handleSidebarDragLeaveOrEnd = () => {
+    if (scrollIntervalRef.current) {
+      clearInterval(scrollIntervalRef.current);
+      scrollIntervalRef.current = null;
+    }
+    scrollDirectionRef.current = null;
+  };
+
+  const handleMoveToPage = () => {
+    const pageNum = parseInt(moveToIndexValue, 10);
+    if (isNaN(pageNum) || pageNum < 1 || pageNum > pagesList.length) {
+      alert(`Please enter a valid page number between 1 and ${pagesList.length}`);
+      return;
+    }
+    const targetIdx = pageNum - 1;
+    if (targetIdx === activePageIndex) return;
+
+    reorderPage(activePageIndex, targetIdx);
+    setMoveToIndexValue('');
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIdx(null);
+    setDragOverIdx(null);
+    handleSidebarDragLeaveOrEnd();
   };
 
   // ─── 3. SIGNATURE DRAWING ─────────────────────────────────────────────────
@@ -373,8 +525,8 @@ export default function PdfEditor() {
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
               onChange={handleFileAdd}
             />
-            <div className="bg-indigo-50 rounded-3xl w-16 h-16 flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
-              <Upload className="w-8 h-8 text-indigo-600" />
+            <div className="bg-[#FAF0E1] rounded-3xl w-16 h-16 flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
+              <Upload className="w-8 h-8 text-[#E08E19]" />
             </div>
             <h3 className="text-lg font-bold text-stone-800 mb-2">Upload your PDF</h3>
             <p className="text-stone-500 text-xs sm:text-sm leading-relaxed max-w-xs mx-auto">
@@ -393,8 +545,8 @@ export default function PdfEditor() {
                 </span>
                 
                 <div className="flex items-center gap-2">
-                    <div className="relative cursor-pointer bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg p-1.5 transition-colors">
-                    <button
+                    <div className="relative cursor-pointer bg-[#FAF0E1] hover:bg-[#EADCC3] text-[#E08E19] rounded-lg p-1.5 transition-colors">
+                    <input
                         type="file"
                         accept="application/pdf"
                         multiple
@@ -413,19 +565,35 @@ export default function PdfEditor() {
                 </div>
                 </div>
 
-              <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+              <div
+                ref={sidebarRef}
+                onDragOver={handleSidebarDragOver}
+                onDragLeave={handleSidebarDragLeaveOrEnd}
+                onDrop={handleSidebarDragLeaveOrEnd}
+                className="flex-1 overflow-y-auto space-y-3 pr-1"
+              >
                 {pagesList.map((pageItem, idx) => (
                   <div
                     key={pageItem.id}
                     onClick={() => setActivePageIndex(idx)}
-                    className={`p-2 border rounded-xl cursor-pointer transition-all flex items-center gap-3 group relative ${
-                      activePageIndex === idx
-                        ? 'border-indigo-600 bg-indigo-50/40 shadow-sm'
-                        : 'border-stone-100 hover:border-stone-300 bg-stone-50/50'
+                    draggable="true"
+                    onDragStart={(e) => handleDragStart(e, idx)}
+                    onDragOver={(e) => handleDragOver(e, idx)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => handleDrop(e, idx)}
+                    onDragEnd={handleDragEnd}
+                    className={`p-2 border rounded-xl cursor-grab active:cursor-grabbing transition-all flex items-center gap-3 group relative ${
+                      draggedIdx === idx ? 'opacity-40 border-dashed border-stone-300 bg-stone-100/30' : ''
+                    } ${
+                      dragOverIdx === idx ? 'border-[#E08E19] bg-[#FAF0E1]/80 scale-[1.02]' : ''
+                    } ${
+                      activePageIndex === idx && dragOverIdx !== idx
+                        ? 'border-[#E08E19] bg-[#FAF0E1]/50 shadow-sm'
+                        : (draggedIdx !== idx && dragOverIdx !== idx ? 'border-stone-100 hover:border-stone-300 bg-stone-50/50' : '')
                     }`}
                   >
                     {/* Thumbnail image */}
-                    <div className="w-14 h-16 bg-stone-100 border border-stone-200 overflow-hidden flex-shrink-0 flex items-center justify-center rounded">
+                    <div className="w-14 h-16 bg-stone-100 border border-stone-200 overflow-hidden flex-shrink-0 flex items-center justify-center rounded select-none pointer-events-none">
                       {pageItem.isRendering || !pageItem.thumbnailUrl ? (
                         <Loader2 className="w-4 h-4 text-stone-400 animate-spin" />
                       ) : (
@@ -437,31 +605,13 @@ export default function PdfEditor() {
                       )}
                     </div>
 
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 select-none pointer-events-none">
                       <p className="text-[11px] font-bold text-stone-800 truncate" title={pageItem.file.name}>
                         {pageItem.file.name}
                       </p>
                       <p className="text-[10px] text-stone-400 font-semibold mt-1">
                         Page {idx + 1}
                       </p>
-                    </div>
-
-                    {/* Move controls (visible on hover) */}
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); movePage(idx, -1); }}
-                        disabled={idx === 0}
-                        className="p-0.5 text-stone-400 hover:text-indigo-600 disabled:opacity-30"
-                      >
-                        <ArrowUp className="w-3 h-3" />
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); movePage(idx, 1); }}
-                        disabled={idx === pagesList.length - 1}
-                        className="p-0.5 text-stone-400 hover:text-indigo-600 disabled:opacity-30"
-                      >
-                        <ArrowDown className="w-3 h-3" />
-                      </button>
                     </div>
                   </div>
                 ))}
@@ -561,7 +711,7 @@ export default function PdfEditor() {
                         onClick={() => setActiveTool(tool)}
                         className={`flex-1 py-1.5 rounded-lg text-xs font-bold capitalize transition-all ${
                         activeTool === tool
-                            ? 'bg-white text-indigo-600 shadow-sm'
+                            ? 'bg-white text-[#E08E19] shadow-sm'
                             : 'text-stone-600 hover:bg-white/50'
                         }`}
                     >
@@ -582,9 +732,9 @@ export default function PdfEditor() {
                         <button
                         onClick={() => rotatePage(activePage.id)}
                         disabled={activePage.isRendering}
-                        className="flex flex-col items-center justify-center p-3 border border-stone-200 hover:border-indigo-500 rounded-xl transition-all gap-2 group text-stone-700 disabled:opacity-50"
+                        className="flex flex-col items-center justify-center p-3 border border-stone-200 hover:border-[#E08E19] rounded-xl transition-all gap-2 group text-stone-700 disabled:opacity-50"
                         >
-                        <RotateCw className="w-5 h-5 text-stone-400 group-hover:text-indigo-600 transition-colors" />
+                        <RotateCw className="w-5 h-5 text-stone-400 group-hover:text-[#E08E19] transition-colors" />
                         <span className="text-[10px] font-bold">Rotate 90°</span>
                         </button>
                         <button
@@ -598,7 +748,7 @@ export default function PdfEditor() {
 
                     <div className="border-t pt-4">
                         <h4 className="text-xs font-black uppercase text-stone-400 tracking-wider mb-3">Arrangement</h4>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 mb-3">
                         <button
                             onClick={() => movePage(activePageIndex, -1)}
                             disabled={activePageIndex === 0}
@@ -613,6 +763,26 @@ export default function PdfEditor() {
                         >
                             <ArrowDown className="w-3.5 h-3.5" /> Move Down
                         </button>
+                        </div>
+
+                        {/* Move directly to page position input */}
+                        <div className="flex items-center gap-2 pt-2">
+                          <span className="text-[11px] font-bold text-stone-500 whitespace-nowrap">Move to page:</span>
+                          <input
+                            type="number"
+                            min="1"
+                            max={pagesList.length}
+                            value={moveToIndexValue}
+                            onChange={(e) => setMoveToIndexValue(e.target.value)}
+                            placeholder="#"
+                            className="w-14 px-2 py-1 text-xs border border-stone-200 rounded-lg text-center font-bold text-stone-800"
+                          />
+                          <button
+                            onClick={handleMoveToPage}
+                            className="px-2.5 py-1 bg-[#E08E19] hover:bg-[#C87C11] text-white rounded-lg text-xs font-bold transition-colors"
+                          >
+                            Go
+                          </button>
                         </div>
                     </div>
                     </div>
@@ -646,7 +816,7 @@ export default function PdfEditor() {
                             <button
                                 key={color}
                                 onClick={() => setSigColor(color)}
-                                className={`w-4 h-4 rounded-full border ${sigColor === color ? 'ring-2 ring-indigo-500 scale-110' : ''}`}
+                                className={`w-4 h-4 rounded-full border ${sigColor === color ? 'ring-2 ring-[#E08E19] scale-110' : ''}`}
                                 style={{ backgroundColor: color }}
                             />
                             ))}
@@ -667,12 +837,12 @@ export default function PdfEditor() {
                     {savedSignature && (
                         <div className="border-t pt-4 space-y-3">
                         <h5 className="text-[10px] font-black uppercase text-stone-400">Captured Signature</h5>
-                        <div className="border border-indigo-100 bg-indigo-50/10 rounded-xl p-3 flex items-center justify-center max-h-[80px] overflow-hidden">
+                        <div className="border border-[#EADCC3] bg-[#FAF0E1]/10 rounded-xl p-3 flex items-center justify-center max-h-[80px] overflow-hidden">
                             <img src={savedSignature} alt="saved signature" className="max-h-[60px] object-contain" />
                         </div>
                         <button
                             onClick={placeSignatureOnActivePage}
-                            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow flex items-center justify-center gap-1.5 active:scale-95 transition-all"
+                            className="w-full py-2.5 bg-[#E08E19] hover:bg-[#C87C11] text-white rounded-xl text-xs font-bold shadow flex items-center justify-center gap-1.5 active:scale-95 transition-all"
                         >
                             <PenTool className="w-3.5 h-3.5" /> Place on Active Page
                         </button>
@@ -686,7 +856,7 @@ export default function PdfEditor() {
                     <button
                         onClick={exportPDF}
                         disabled={isExporting}
-                        className="w-full px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 transition-all"
+                        className="w-full px-6 py-2.5 bg-[#E08E19] hover:bg-[#C87C11] text-white rounded-xl text-sm font-bold shadow-md flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 transition-all"
                     >
                         {isExporting ? (
                         <><Loader2 className="w-4 h-4 animate-spin" />Saving...</>
@@ -702,11 +872,11 @@ export default function PdfEditor() {
 
         {/* Export success card */}
         {exportComplete && exportUrl && (
-          <div className="mt-8 bg-indigo-50 border border-indigo-200 text-indigo-800 p-6 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <div className="mt-8 bg-[#FAF0E1] border border-[#EADCC3] text-[#854D0E] p-6 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
-                <CheckCircle2 className="w-6 h-6 text-indigo-600" />
-                <h4 className="font-bold text-lg text-indigo-950">PDF Render Successful!</h4>
+                <CheckCircle2 className="w-6 h-6 text-[#E08E19]" />
+                <h4 className="font-bold text-lg text-stone-900">PDF Render Successful!</h4>
               </div>
               <p className="text-xs text-stone-500 font-semibold leading-relaxed">
                 All page rotations, merges, and signature layers have been baked into a clean PDF locally.
@@ -715,7 +885,7 @@ export default function PdfEditor() {
             <a
               href={exportUrl}
               download="archeio_edited.pdf"
-              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all self-stretch md:self-auto text-center"
+              className="px-6 py-3 bg-[#E08E19] hover:bg-[#C87C11] text-white rounded-xl font-bold text-sm shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all self-stretch md:self-auto text-center"
             >
               Download Edited PDF
             </a>

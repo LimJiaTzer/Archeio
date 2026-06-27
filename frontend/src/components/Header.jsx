@@ -127,18 +127,7 @@ export const navMenus = [
     {
       title: 'PDF Tools',
       options: [
-        { label: 'PDF Merge', href: '#' },
-        { label: 'PDF Split', href: '#' },
-        { label: 'Flatten PDF', href: '#' },
-        { label: 'Resize PDF', href: '#' },
-        { label: 'Unlock PDF', href: '#' },
-        { label: 'Rotate PDF', href: '#' },
-        { label: 'Protect PDF', href: '#' },
-        { label: 'Crop PDF', href: '#' },
-        { label: 'Organize PDF', href: '#' },
-        { label: 'Extract image from PDF', href: '#' },
-        { label: 'PDF page remover', href: '#' },
-        { label: 'Extract Pages from PDF', href: '#' },
+        { label: 'PDF Editor', href: '/PDFEditor' },
       ],
     },
     {

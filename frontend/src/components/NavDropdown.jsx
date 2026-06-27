@@ -12,12 +12,11 @@ export default function NavDropdown({ item }) {
 
       {/* Mega menu for categorized dropdowns */}
       {hasCategories && (
-        <div className="fixed left-1/2 -translate-x-1/2 top-[36px] pt-2 w-[calc(100vw-4rem)] max-w-7xl opacity-0 invisible pointer-events-none group-hover:opacity-100 group-hover:visible group-hover:pointer-events-auto transition-all duration-300 z-50 origin-top scale-95 group-hover:scale-100">
-          <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-2xl">
+        <div className="fixed left-1/2 -translate-x-1/2 top-[20px] pt-6 w-[calc(100vw-4rem)] max-w-7xl opacity-0 invisible pointer-events-none group-hover:opacity-100 group-hover:visible group-hover:pointer-events-auto transition-all duration-300 z-50 origin-top scale-95 group-hover:scale-100">
+          <div className="bg-[#FFFDFA]/100 backdrop-blur-xl border border-white/50 shadow-2xl rounded-3xl p-6">
             
-            {/* Header row */}
             <div
-              className="grid border-b border-stone-200"
+              className="grid gap-4"
               style={{
                 gridTemplateColumns: `repeat(${item.categories.length}, minmax(0, 1fr))`,
               }}
@@ -25,37 +24,19 @@ export default function NavDropdown({ item }) {
               {item.categories.map((cat, i) => (
                 <div
                   key={i}
-                  className={`px-7 py-5 ${
-                    i !== 0 ? 'border-l border-stone-200' : ''
+                  className={`space-y-4 ${
+                    i !== 0 ? 'border-l border-stone-200/50 pl-4' : ''
                   }`}
                 >
-                  <h3 className="text-base font-bold text-stone-950">
+                  <h3 className="text-sm font-bold text-stone-900 px-4">
                     {cat.title}
                   </h3>
-                </div>
-              ))}
-            </div>
-
-            {/* Options row */}
-            <div
-              className="grid"
-              style={{
-                gridTemplateColumns: `repeat(${item.categories.length}, minmax(0, 1fr))`,
-              }}
-            >
-              {item.categories.map((cat, i) => (
-                <div
-                  key={i}
-                  className={`px-7 py-6 ${
-                    i !== 0 ? 'border-l border-stone-200' : ''
-                  }`}
-                >
-                  <div className="space-y-5">
+                  <div className="flex flex-col space-y-1">
                     {cat.options.map((opt, j) => (
                       <a
                         key={j}
                         href={opt.href}
-                        className="block text-base font-medium text-stone-800 hover:text-[#E08E19] transition-colors"
+                        className="px-4 py-2 hover:bg-white/85 rounded-2xl text-stone-700 hover:text-stone-900 transition-all text-sm font-medium block"
                       >
                         {opt.label}
                       </a>
@@ -71,8 +52,8 @@ export default function NavDropdown({ item }) {
 
       {/* Small dropdown for normal options */}
       {hasOptions && !hasCategories && (
-        <div className="absolute left-1/2 -translate-x-1/2 top-full pt-2 w-56 opacity-0 invisible pointer-events-none group-hover:opacity-100 group-hover:visible group-hover:pointer-events-auto transition-all duration-300 z-50 origin-top scale-95 group-hover:scale-100">
-          <div className="bg-white/80 backdrop-blur-xl border border-white/50 shadow-2xl rounded-3xl p-2 flex flex-col">
+        <div className="absolute left-1/2 -translate-x-1/2 top-[20px] pt-10 w-56 opacity-0 invisible pointer-events-none group-hover:opacity-100 group-hover:visible group-hover:pointer-events-auto transition-all duration-300 z-50 origin-top scale-95 group-hover:scale-100">
+          <div className="bg-[#FFFDFA]/100 backdrop-blur-xl border border-white/50 shadow-2xl rounded-3xl p-2 flex flex-col">
             {item.options.map((opt, i) => (
               <a
                 key={i}
