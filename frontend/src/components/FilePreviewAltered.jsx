@@ -74,7 +74,7 @@ export default function FilePreview({
           onClick={togglePreview}
           className={`
             ${currentSize.container} bg-stone-100 rounded-xl flex items-center justify-center shrink-0 overflow-hidden border border-stone-200 shadow-sm
-            ${canPreview ? 'cursor-pointer hover:border-indigo-400 hover:ring-4 hover:ring-indigo-500/10 transition-all group relative' : ''}
+            ${canPreview ? 'cursor-pointer hover:border-[#E08E19] hover:ring-4 hover:ring-[#E08E19]/10 transition-all group relative' : ''}
           `}
         >
           {previewUrl && isImage ? (
@@ -89,14 +89,14 @@ export default function FilePreview({
             </div>
           ) : isDocx || isPdf ? (
             <div className="bg-stone-50 w-full h-full flex items-center justify-center">
-              <FileText className={`${currentSize.icon} text-indigo-400`} />
+              <FileText className={`${currentSize.icon} text-[#E08E19]/70`} />
             </div>
           ) : (
             <FileType className={`${currentSize.icon} text-stone-400`} />
           )}  
 
           {canPreview && (
-            <div className="absolute inset-0 bg-indigo-600/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+            <div className="absolute inset-0 bg-[#E08E19]/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
               <Eye className="w-5 h-5 text-white" />
             </div>
           )}
@@ -150,8 +150,8 @@ export default function FilePreview({
               >
                 <div className="p-6 border-b border-stone-100 flex items-center justify-between bg-white">
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
-                      <FileText className="w-5 h-5 text-indigo-600" />
+                    <div className="w-10 h-10 bg-[#FAF0E1] rounded-xl flex items-center justify-center">
+                      <FileText className="w-5 h-5 text-[#E08E19]" />
                     </div>
                     <div>
                       <p className="font-bold text-stone-900 text-base truncate max-w-[200px] md:max-w-xl">{file.name}</p>

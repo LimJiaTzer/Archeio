@@ -31,6 +31,27 @@ export default function Convert() {
   // Persist FFmpeg instance
   const ffmpegRef = useRef(new FFmpeg());
 
+    // Handle global paste event (Ctrl+V or Cmd+V)
+  useEffect(() => {
+    const handlePaste = (e) => {
+      // Prevent pasting inside text fields or textareas if you have them elsewhere
+      const target = e.target;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+
+      if (e.clipboardData && e.clipboardData.files && e.clipboardData.files.length > 0) {
+        e.preventDefault();
+        processFiles(e.clipboardData.files);
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => {
+      window.removeEventListener('paste', handlePaste);
+    };
+  }, []); // Empty dependency array keeps it active for the component's lifetime
+
   useEffect(() => {
     itemsRef.current = items;
   }, [items]);
@@ -345,7 +366,7 @@ export default function Convert() {
               <>
                 <h3 className="text-xl font-bold text-stone-800 mb-2">Select files to convert</h3>
                 <p className="text-stone-500 max-w-sm mx-auto leading-relaxed">
-                  Drag and drop files here, or click to browse. <br />
+                  Drag, drop or paste any file here, or click to browse. <br />
                   Supports Images, Documents, Audio, and Video.
                 </p>
               </>

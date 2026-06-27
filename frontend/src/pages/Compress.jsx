@@ -22,51 +22,69 @@ export default function Compress() {
     alert(msg);
   }
 
-  // UPLOAD 
-  /* Uploaded file = {
-    name, size, type, lastModified etc
-  } */
+  // Handle global paste event (Ctrl+V / Cmd+V)
+  useEffect(() => {
+    const handlePaste = (e) => {
+      // Ignore if user is currently inside an input/textarea
+      const target = e.target;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+
+      if (e.clipboardData && e.clipboardData.files && e.clipboardData.files.length > 0) {
+        e.preventDefault();
+        // Route the clipboard files directly to your processing pipeline
+        processUploadedFiles(Array.from(e.clipboardData.files));
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => {
+      window.removeEventListener('paste', handlePaste);
+    };
+  }, []);
+
+  // Shared processing function for both input uploading and clipboard pasting
+  const processUploadedFiles = (uploadedFiles) => {
+    const newFileItems = uploadedFiles
+      .map((uploadedFile) => { 
+        const detFileInfo = getFileInfo(uploadedFile.type);
+
+        if (!detFileInfo) {
+          alert(`${uploadedFile.name} is not supported`);
+          return null;
+        }
+
+        const previewUrl = uploadedFile.type.startsWith('image/')
+          ? URL.createObjectURL(uploadedFile)
+          : null;
+
+        return {
+          id: crypto.randomUUID(),
+          file: uploadedFile,
+          fileInfo: detFileInfo,
+          format: detFileInfo.format,
+          previewUrl,
+          result: null,
+          downloadUrl: '',
+          compressedFileName: '',
+          status: 'idle',
+        };
+      })
+      .filter(Boolean);
+
+    setFileItems((prev) => [...prev, ...newFileItems]);
+  };
+
+  // Modified file input element handler
   const handleFileUpload = (e) => {
     if (e.target.files && e.target.files.length > 0) {
       const uploadedFiles = Array.from(e.target.files);
-
-      const newFileItems = uploadedFiles
-        .map((uploadedFile) => { // same map fn we always use 
-          const detFileInfo = getFileInfo(uploadedFile.type);
-
-          if (!detFileInfo) {
-            alert(`${uploadedFile.name} is not supported`);
-            return null;
-          }
-
-          if (detFileInfo.canCrop || detFileInfo.canResize) {
-            // TODO: Link to manipulation.jsx
-          }
-
-          const previewUrl = uploadedFile.type.startsWith('image/')
-            ? URL.createObjectURL(uploadedFile)
-            : null;
-
-          return {
-            id: crypto.randomUUID(),
-            file: uploadedFile,
-            fileInfo: detFileInfo,
-            format: detFileInfo.format,
-            previewUrl,
-            result: null,
-            downloadUrl: '',
-            compressedFileName: '',
-            status: 'idle',
-          };
-        })
-        .filter(Boolean); // removes invalid items 
-
-      setFileItems((prev) => [...prev, ...newFileItems]);
-
-      // Reset the value so the exact same file can be uploaded again after removal
-      e.target.value = null;
+      processUploadedFiles(uploadedFiles);
+      e.target.value = null; // Clear input buffer
     }
   };
+
 
 // Helper fns 
   const updateFileItem = (id, patch) => {
@@ -258,7 +276,7 @@ export default function Compress() {
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
               />
               <Archive className="w-12 h-12 text-stone-400 mx-auto mb-4" />
-              <p className="font-medium text-stone-700">Drag and drop original document here</p>
+              <p className="font-medium text-stone-700">Drag, drop or paste original document here</p>
               <p className="text-xs text-stone-500 mt-1">Supports PDF, JPG, PNG, DOCX, ZIP (Max 100MB)</p>
             </div>
 

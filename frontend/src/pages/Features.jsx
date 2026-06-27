@@ -5,7 +5,7 @@ import { ArrowLeft, ScanText, RefreshCw, Archive } from 'lucide-react';
 export default function Features() {
   const allFeatures = [
     {
-      icon: <ScanText className="w-8 h-8 text-indigo-500" />,
+      icon: <ScanText className="w-8 h-8 text-[#E08E19]" />,
       title: "OCR & Unlock",
       description: "Extract text from single images or complex, multi-page layout PDFs directly. Support for high density scanning engines."
     },
