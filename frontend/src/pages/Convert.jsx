@@ -519,26 +519,35 @@ export default function Convert() {
 
         {/* Showing result of conversion (Output Cards) */}
         {hasCompleted && (
-          <div className="mt-8 bg-amber-50 border border-amber-200 text-amber-900 p-6 rounded-2xl">
+          <div className="mt-8 bg-green-50 border border-green-200 text-green-800 p-6 rounded-2xl">
             {singleResult ? (
               (() => {
                 const item = completedItems[0];
+                const isImg = ['PNG', 'JPG', 'JPEG', 'WEBP', 'GIF', 'SVG', 'ICO', 'HEIC'].includes(item.targetFormat.toUpperCase());
                 return (
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-4">
-                        <CheckCircle2 className="w-6 h-6 text-amber-700" />
-                        <h4 className="font-bold text-lg text-stone-950">
+                        <CheckCircle2 className="w-6 h-6 text-green-600" />
+                        <h4 className="font-bold text-lg text-green-950">
                           Conversion Complete! File ready
                         </h4>
                       </div>
 
-                      <div className="flex gap-12 text-sm border-t border-amber-200/70 pt-4">
+                      <div className="flex gap-12 text-sm border-t border-green-200/50 pt-4">
+                        <FilePreview
+                          file={{
+                            name: item.result.convertedFileName,
+                            type: isImg ? 'image/jpeg' : (item.targetFormat.toLowerCase() === 'pdf' ? 'application/pdf' : '')
+                          }}
+                          previewUrl={isImg ? item.result.downloadUrl : null}
+                          showInfo={false}
+                        />
                         <div>
-                          <span className="block text-xs text-amber-800/70 font-bold uppercase tracking-wide">
+                          <span className="block text-xs text-green-700/70 font-bold uppercase tracking-wide">
                             Original File
                           </span>
-                          <span className="text-sm font-black text-stone-950 truncate max-w-[200px] block" title={item.file.name}>
+                          <span className="text-sm font-black text-green-950 truncate max-w-[200px] block" title={item.file.name}>
                             {item.file.name}
                           </span>
                           <span className="text-xs text-stone-500 font-bold">
@@ -547,10 +556,10 @@ export default function Convert() {
                         </div>
 
                         <div>
-                          <span className="block text-xs text-amber-800/70 font-bold uppercase tracking-wide">
+                          <span className="block text-xs text-green-700/70 font-bold uppercase tracking-wide">
                             Converted File
                           </span>
-                          <span className="text-sm font-black text-stone-950 truncate max-w-[200px] block" title={item.result.convertedFileName}>
+                          <span className="text-sm font-black text-green-950 truncate max-w-[200px] block" title={item.result.convertedFileName}>
                             {item.result.convertedFileName}
                           </span>
                           <span className="text-xs text-stone-500 font-bold">
@@ -564,7 +573,7 @@ export default function Convert() {
                       <a
                         href={item.result.downloadUrl}
                         download={item.result.convertedFileName}
-                        className="inline-flex items-center gap-2 justify-center bg-amber-500 hover:bg-amber-600 text-stone-950 px-4 py-2 rounded-xl font-bold text-center shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all"
+                        className="inline-flex items-center gap-2 justify-center bg-green-800 hover:bg-green-900 text-white px-6 py-4 rounded-xl font-bold text-center shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all"
                       >
                         Download <Download />
                       </a>
@@ -576,8 +585,8 @@ export default function Convert() {
               <div>
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
                   <div className="flex items-center gap-3">
-                    <CheckCircle2 className="w-6 h-6 text-amber-700" />
-                    <h4 className="font-bold text-lg text-stone-950">
+                    <CheckCircle2 className="w-6 h-6 text-green-600" />
+                    <h4 className="font-bold text-lg text-green-950">
                       Conversion Complete! {completedItems.length} files ready
                     </h4>
                   </div>
@@ -585,7 +594,7 @@ export default function Convert() {
                   <button
                     onClick={handleDownloadAll}
                     disabled={isDownloadingAll}
-                    className="bg-amber-500 hover:bg-amber-600 text-stone-950 text-s px-4 py-2 rounded-xl font-bold text-center shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2"
+                    className="bg-green-800 hover:bg-green-900 text-white px-6 py-4 rounded-xl font-bold text-center shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2"
                   >
                     {isDownloadingAll ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -597,46 +606,57 @@ export default function Convert() {
                 </div>
 
                 <div className="space-y-3">
-                  {completedItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="bg-white border border-amber-100 rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="font-bold text-stone-950 text-sm truncate max-w-md" title={item.result.convertedFileName}>
-                          {item.result.convertedFileName}
-                        </p>
+                  {completedItems.map((item) => {
+                    const isImg = ['PNG', 'JPG', 'JPEG', 'WEBP', 'GIF', 'SVG', 'ICO', 'HEIC'].includes(item.targetFormat.toUpperCase());
+                    return (
+                      <div
+                        key={item.id}
+                        className="bg-white border border-green-100 rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-green-950 text-sm truncate max-w-md" title={item.result.convertedFileName}>
+                            {item.result.convertedFileName}
+                          </p>
 
-                        <div className="flex gap-8 text-sm mt-3">
-                          <div>
-                            <span className="block text-xs text-amber-800/70 font-bold uppercase">
-                              Initial File Size
-                            </span>
-                            <span className="font-black text-stone-950">
-                              {formatSize(item.file.size)}
-                            </span>
-                          </div>
+                          <div className="flex gap-8 text-sm mt-3">
+                            <FilePreview
+                              file={{
+                                name: item.result.convertedFileName,
+                                type: isImg ? 'image/jpeg' : (item.targetFormat.toLowerCase() === 'pdf' ? 'application/pdf' : '')
+                              }}
+                              previewUrl={isImg ? item.result.downloadUrl : null}
+                              showInfo={false}
+                            />
+                            <div>
+                              <span className="block text-xs text-green-700/70 font-bold uppercase">
+                                Initial File Size
+                              </span>
+                              <span className="font-black text-green-950">
+                                {formatSize(item.file.size)}
+                              </span>
+                            </div>
 
-                          <div>
-                            <span className="block text-xs text-amber-800/70 font-bold uppercase">
-                              New File Size
-                            </span>
-                            <span className="font-black text-stone-950">
-                              {formatSize(item.result.size)}
-                            </span>
+                            <div>
+                              <span className="block text-xs text-green-700/70 font-bold uppercase">
+                                New File Size
+                              </span>
+                              <span className="font-black text-green-950">
+                                {formatSize(item.result.size)}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      <a
-                        href={item.result.downloadUrl}
-                        download={item.result.convertedFileName}
-                        className="inline-flex items-center gap-1 justify-center bg-amber-500 hover:bg-amber-600 text-xs text-stone-950 px-4 py-2 rounded-xl font-bold text-center self-stretch md:self-center hover:scale-[1.02] active:scale-[0.98] transition-all"
-                      >
-                        Download <Download className="w-3.5 h-3.5"/>
-                      </a>
-                    </div>
-                  ))}
+                        <a
+                          href={item.result.downloadUrl}
+                          download={item.result.convertedFileName}
+                          className="inline-flex items-center gap-1 justify-center bg-green-800 hover:bg-green-900 text-white px-4 py-2 rounded-xl font-bold text-center self-stretch md:self-center hover:scale-[1.02] active:scale-[0.98] transition-all"
+                        >
+                          Download <Download className="w-3.5 h-3.5"/>
+                        </a>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}

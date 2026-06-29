@@ -5,6 +5,7 @@ import {
   Plus, Download, Loader2, CheckCircle2, PenTool, X, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import Layout from '@/components/Layout';
+import FilePreview from '@/components/FilePreview';
 import { pdfjs } from 'react-pdf'; // re-exports pdfjs-dist, already configured
 import { compilePDF } from '@/services/pdfEditorService';
 
@@ -77,6 +78,7 @@ export default function PdfEditor() {
   const [isExporting,       setIsExporting]       = useState(false);
   const [exportComplete,    setExportComplete]    = useState(false);
   const [exportUrl,         setExportUrl]         = useState('');
+  const [exportFile,        setExportFile]        = useState(null);
 
   // Drag and drop state for page thumbnails
   const [draggedIdx,        setDraggedIdx]        = useState(null);
@@ -476,7 +478,10 @@ export default function PdfEditor() {
     setExportComplete(false);
     try {
       const blob = await compilePDF(pagesList, placedSignatures, pageDimensions);
-      setExportUrl(URL.createObjectURL(blob));
+      const url = URL.createObjectURL(blob);
+      const file = new File([blob], "archeio_edited.pdf", { type: "application/pdf" });
+      setExportUrl(url);
+      setExportFile(file);
       setExportComplete(true);
     } catch (err) {
       console.error('Export error:', err);
@@ -492,6 +497,7 @@ export default function PdfEditor() {
     setActivePageIndex(0);
     setExportComplete(false);
     setExportUrl('');
+    setExportFile(null);
   };
 
   // ─── RENDER ───────────────────────────────────────────────────────────────
@@ -871,21 +877,42 @@ export default function PdfEditor() {
         )}
 
         {/* Export success card */}
-        {exportComplete && exportUrl && (
-          <div className="mt-8 bg-[#FAF0E1] border border-[#EADCC3] text-[#854D0E] p-6 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        {exportComplete && exportUrl && exportFile && (
+          <div className="mt-8 bg-green-50 border border-green-200 text-green-800 p-6 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <CheckCircle2 className="w-6 h-6 text-[#E08E19]" />
-                <h4 className="font-bold text-lg text-stone-900">PDF Render Successful!</h4>
+              <div className="flex items-center gap-3 mb-4">
+                <CheckCircle2 className="w-6 h-6 text-green-600" />
+                <h4 className="font-bold text-lg text-green-950">PDF Render Successful!</h4>
               </div>
-              <p className="text-xs text-stone-500 font-semibold leading-relaxed">
-                All page rotations, merges, and signature layers have been baked into a clean PDF locally.
-              </p>
+
+              <div className="flex gap-12 text-sm border-t border-green-200/50 pt-4">
+                <FilePreview
+                  file={exportFile}
+                  previewUrl={null}
+                />
+                <div>
+                  <span className="block text-xs text-green-700/70 font-bold uppercase tracking-wide">
+                    File Name
+                  </span>
+                  <span className="text-sm font-black text-green-950 truncate max-w-[200px] block" title={exportFile.name}>
+                    {exportFile.name}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="block text-xs text-green-700/70 font-bold uppercase tracking-wide">
+                    File Size
+                  </span>
+                  <span className="text-sm font-black text-green-950">
+                    {(exportFile.size / 1024).toFixed(2)} KB
+                  </span>
+                </div>
+              </div>
             </div>
             <a
               href={exportUrl}
               download="archeio_edited.pdf"
-              className="px-6 py-3 bg-[#E08E19] hover:bg-[#C87C11] text-white rounded-xl font-bold text-sm shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all self-stretch md:self-auto text-center"
+              className="px-6 py-4 bg-green-800 hover:bg-green-900 text-white rounded-xl font-bold text-sm shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all self-stretch md:self-auto text-center"
             >
               Download Edited PDF
             </a>

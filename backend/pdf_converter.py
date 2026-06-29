@@ -2,7 +2,7 @@ import subprocess
 import os
 import shutil
 
-LIBREOFFICE_FORMATS = {'.docx', '.xlsx', '.pptx', '.rtf', '.odt', '.html', '.txt'}
+LIBREOFFICE_FORMATS = {'.docx', '.xlsx', '.pptx', '.rtf', '.odt', '.html', '.txt', '.csv'}
 EPUB_FORMATS = {'.epub'}
 
 def convert_to_pdf(input_path: str, output_dir: str):

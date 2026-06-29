@@ -330,7 +330,7 @@ app.post('/convert-to-pdf', upload.single('file'), (req, res) => {
   const baseName = path.basename(originalName, ext);
   const outputDir = 'uploads';
 
-  const LIBREOFFICE_FORMATS = ['.docx', '.xlsx', '.pptx', '.rtf', '.odt', '.html', '.txt'];
+  const LIBREOFFICE_FORMATS = ['.docx', '.xlsx', '.pptx', '.rtf', '.odt', '.html', '.txt', '.csv'];
   const EPUB_FORMATS = ['.epub'];
 
   if (LIBREOFFICE_FORMATS.includes(ext)) {
