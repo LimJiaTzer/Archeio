@@ -19,6 +19,8 @@ import { rtfToPdf } from './documentConversionServices/rtfToPdf';
 import { epubToPdf } from './documentConversionServices/epubToPdf';
 import { pptxToPdf } from './documentConversionServices/pptxToPdf';
 import { backendToPdf } from './documentConversionServices/backendToPdf';
+import { csvToXlsx } from './documentConversionServices/csvToXlsx';
+import { xlsxToCsv } from './documentConversionServices/xlsxToCsv';
 
 const ensureFfmpegLoaded = async (ffmpeg) => {
   if (ffmpeg.loaded) return ffmpeg;
@@ -213,12 +215,36 @@ const converters = {
 const documentConverters = {
   'application/pdf:application/pdf': (f) => f, // No-op
   'text/html:application/pdf': (f) => backendToPdf(f),
+  'text/csv:application/pdf': (f) => backendToPdf(f),
   'text/plain:application/pdf': (f) => backendToPdf(f),
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document:application/pdf': (f) => backendToPdf(f),
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:application/pdf': (f) => backendToPdf(f),
   'application/rtf:application/pdf': (f) => backendToPdf(f),
   'application/epub+zip:application/pdf': (f) => backendToPdf(f),
   'application/vnd.openxmlformats-officedocument.presentationml.presentation:application/pdf': (f) => backendToPdf(f),
+
+  // CSV Conversions (Client-side)
+  'text/csv:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': (f) => csvToXlsx(f),
+
+  // XLSX Conversions (Client-side)
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:text/csv': (f) => xlsxToCsv(f),
+
+  // ODT / ODP / ODS to PDF (via backend)
+  'application/vnd.oasis.opendocument.text:application/pdf': (f) => backendToPdf(f),
+  'application/vnd.oasis.opendocument.presentation:application/pdf': (f) => backendToPdf(f),
+  'application/vnd.oasis.opendocument.spreadsheet:application/pdf': (f) => backendToPdf(f),
+  
+  // DOC / PPT / XLS to PDF (via backend)
+  'application/msword:application/pdf': (f) => backendToPdf(f),
+  'application/vnd.ms-powerpoint:application/pdf': (f) => backendToPdf(f),
+  'application/vnd.ms-excel:application/pdf': (f) => backendToPdf(f),
+  
+  // RTF alternative MIME to PDF
+  'text/rtf:application/pdf': (f) => backendToPdf(f),
+  
+  // Markdown to PDF
+  'text/markdown:application/pdf': (f) => backendToPdf(f),
+  'application/x-markdown:application/pdf': (f) => backendToPdf(f),
 };
 
 // --- MAIN EXECUTION FUNCTION ---

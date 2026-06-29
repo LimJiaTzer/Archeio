@@ -13,7 +13,7 @@ export const FILE_TYPES = {
     // data 
     label: 'Documents',
 
-    outputFormats: ['PDF'], // ['DOCX', 'TXT', 'RTF', 'EPUB', 'PPTX', 'XLSX']
+    outputFormats: ['PDF'], //'DOCX', 'TXT', 'RTF', 'EPUB', 'PPTX', 'XLSX', 'CSV'
     // if its only PDF, can lock it in the dropdown 
     formats: {
       'application/pdf': 'PDF',
@@ -28,6 +28,7 @@ export const FILE_TYPES = {
       'application/vnd.oasis.opendocument.spreadsheet': 'ODS',
       'text/plain': 'TXT',
       'text/csv': 'CSV',
+      'text/html': 'HTML',
       'text/markdown': 'MD',
       'application/x-markdown': 'MD',
       'application/rtf': 'RTF',
@@ -127,6 +128,7 @@ export const DOC_OUTPUT_TYPES = {
   // Plain text / lightweight doc
   TXT: { mime: 'text/plain', ext: 'txt' },
   CSV: { mime: 'text/csv', ext: 'csv' },
+  HTML: { mime: 'text/html', ext: 'html' },
   MD: { mime: 'text/markdown', ext: 'md' },
 
   // Rich text / ebook 
@@ -155,10 +157,15 @@ export const AUDIO_OUTPUT_TYPES = {
 };
 
 // to ensure only {file_type} && {pdf} are displayed 
-export const getDocumentCompressionOutputs = (inputFormat) => {
+export const getDocumentOutputFormats = (inputFormat) => {
   const fmt = inputFormat.toUpperCase();
 
   if (fmt === 'PDF') return ['PDF'];
+
+  // CSV and HTML can only be converted to PDF (client-side or via backend)
+  if (fmt === 'HTML') return ['PDF'];
+  if (fmt === 'CSV') return ['PDF', 'XLSX'];
+  if (fmt === 'XLSX') return ['PDF', 'CSV'];
 
   if (DOC_OUTPUT_TYPES[fmt]) {
     return [fmt, 'PDF'];
@@ -183,7 +190,7 @@ export const getFileInfo = (type) => {
 
       const outputFormats =
         category === 'documents'
-          ? getDocumentCompressionOutputs(formatKey)
+          ? getDocumentOutputFormats(formatKey)
           : data.outputFormats || [];
 
       const outputFormatsInfo = outputFormats.map((f) => {

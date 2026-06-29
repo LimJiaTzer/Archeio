@@ -49,14 +49,18 @@ export default function FilePreview({
   // Handle blob URL lifecycle for full previews.
   useEffect(() => {
     if (isPreviewOpen && (isImage || isVideo || isPdf)) {
-      const url = URL.createObjectURL(file);
-      setBlobUrl(url);
-      return () => {
-        URL.revokeObjectURL(url);
-        setBlobUrl(null);
-      };
+      if (previewUrl) {
+        setBlobUrl(previewUrl);
+      } else if (file instanceof Blob) {
+        const url = URL.createObjectURL(file);
+        setBlobUrl(url);
+        return () => {
+          URL.revokeObjectURL(url);
+          setBlobUrl(null);
+        };
+      }
     }
-  }, [isPreviewOpen, isImage, isVideo, isPdf, file]);
+  }, [isPreviewOpen, isImage, isVideo, isPdf, file, previewUrl]);
 
   const togglePreview = (e) => {
     if (e) {

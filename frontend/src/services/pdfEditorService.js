@@ -1,6 +1,24 @@
 import { PDFDocument, degrees } from 'pdf-lib';
 
 /**
+ * Helper to convert a Base64 data URL to an ArrayBuffer synchronously.
+ * This is 100% offline and bypasses any Content Security Policy (CSP) fetch restrictions.
+ * 
+ * @param {string} dataUrl 
+ * @returns {ArrayBuffer}
+ */
+const dataUrlToArrayBuffer = (dataUrl) => {
+  const base64 = dataUrl.split(',')[1];
+  const binaryString = window.atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes.buffer;
+};
+
+/**
  * Compiles a new PDF document from a list of pages with rotations and placed signatures on the client-side.
  * 
  * @param {Array} pagesList - Array of page items: { id, file, originalPageNum, rotation }
@@ -35,8 +53,14 @@ export const compilePDF = async (pagesList, placedSignatures, pageDimensions) =>
     // Embed placed signature
     const sig = placedSignatures[pageItem.id];
     if (sig) {
-      // Fetch and embed PNG image bytes
-      const sigImageBytes = await fetch(sig.img).then(res => res.arrayBuffer());
+      // Decode PNG signature bytes offline if it is a data URL (bypasses CSP restrictions)
+      let sigImageBytes;
+      if (sig.img.startsWith('data:')) {
+        sigImageBytes = dataUrlToArrayBuffer(sig.img);
+      } else {
+        sigImageBytes = await fetch(sig.img).then(res => res.arrayBuffer());
+      }
+      
       const embeddedSig = await mergedDoc.embedPng(sigImageBytes);
 
       const { width: pWidth, height: pHeight } = copiedPage.getSize();
