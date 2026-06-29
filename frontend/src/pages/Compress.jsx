@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';   // useState helps track variables 
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Archive, Sliders, CheckCircle2 } from 'lucide-react'; // icons, can change them 
+import { ArrowLeft, Archive, Sliders, CheckCircle2, ChevronDown } from 'lucide-react'; // icons, can change them 
 import { getFileInfo } from '../lib/fileTypes'; // file types
 import { compressDocument, compressImage, compressAudio, compressVideo } from '../services/compressService';
 import JSZip from 'jszip';
 import Layout from '../components/Layout';
 import FilePreview from '../components/FilePreviewAltered';
+import ImageCompressionDetails from '../components/dropdownPreview/ImageCompressionDropdown';
 
 export default function Compress() {
   // input & output file(s) state
@@ -15,12 +16,20 @@ export default function Compress() {
   const [ratio, setRatio] = useState(75);
   const [compressing, setCompressing] = useState(false);
   const [warning, setWarning] = useState('');
+  const [openSettings, setOpenSettings] = useState({});
 
 
   const handleUnsupportedCompression = (msg) => {
     setCompressing(false);
     alert(msg);
   }
+
+  const toggleImageSettings = (id) => {
+    setOpenSettings((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
 
   // Handle global paste event (Ctrl+V / Cmd+V)
   useEffect(() => {
@@ -44,6 +53,13 @@ export default function Compress() {
     };
   }, []);
 
+  // images' own slider takes precedence over global slider 
+  const getEffectiveRatio = (item) => {
+    return item.useCustomSettings && item.customRatio !== null
+      ? item.customRatio
+      : ratio;
+  };
+
   // Shared processing function for both input uploading and clipboard pasting
   const processUploadedFiles = (uploadedFiles) => {
     const newFileItems = uploadedFiles
@@ -65,15 +81,36 @@ export default function Compress() {
           fileInfo: detFileInfo,
           format: detFileInfo.format,
           previewUrl,
+
+          // compression result state
           result: null,
           downloadUrl: '',
           compressedFileName: '',
           status: 'idle',
+
+          // per-file image settings
+          useCustomSettings: false,
+          customRatio: null,
+
+          resizeEnabled: false,
+          maxWidth: '',
+          maxHeight: '',
+          maintainAspectRatio: true,
         };
       })
       .filter(Boolean);
 
     setFileItems((prev) => [...prev, ...newFileItems]);
+  };
+
+  const updateFileCompressionSettings = (id, patch) => {
+    updateFileItem(id, {
+      ...patch,
+      result: null,
+      downloadUrl: '',
+      compressedFileName: '',
+      status: 'idle',
+    });
   };
 
   // Modified file input element handler
@@ -145,11 +182,17 @@ export default function Compress() {
         compressedFileName: '',
       });
 
+      const effectiveRatio = getEffectiveRatio(item);
       const sharedArgs = {
         file: item.file,
-        ratio,
+        ratio: effectiveRatio,
         format: item.format,
         fileInfo: item.fileInfo,
+
+        resizeEnabled: item.resizeEnabled,
+        maxWidth: item.maxWidth ? Number(item.maxWidth) : null,
+        maxHeight: item.maxHeight ? Number(item.maxHeight) : null,
+        maintainAspectRatio: item.maintainAspectRatio,
 
         setDownloadUrl: (url) => {
           updateFileItem(item.id, { downloadUrl: url });
@@ -266,8 +309,10 @@ export default function Compress() {
         </div>
 
         {/* Upload / drop box */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="md:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-stone-200">
+        {/* <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="md:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-stone-200"> */}
+        <div className="grid grid-cols-1 md:grid-cols-[2.2fr_0.8fr] gap-8">
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200">
             <div className="border-2 border-dashed border-stone-300 rounded-xl p-12 text-center hover:border-orange-500 transition-colors cursor-pointer relative">
               <input 
                 type="file" 
@@ -297,63 +342,91 @@ export default function Compress() {
             {/* Display uploaded files */}
             {hasUpload && (
               <div className="mt-6 space-y-3">
-                {fileItems.map((item) => (  // for each item 
-                  <div
-                    key={item.id}
-                    className="p-4 bg-stone-100 rounded-xl flex items-center justify-between gap-4"
-                  >
-                    <FilePreview file={item.file} previewUrl={item.previewUrl} />
-                    <div className="min-w-0 flex-1">
-                      <p
-                        title={item.file.name}
-                        className="font-semibold text-stone-800 text-sm truncate"
-                      >
-                        {item.file.name}
-                      </p>
+                {fileItems.map((item) => {
+                  const isImage = item.fileInfo.category === 'images';
+                  const isOpen = openSettings[item.id];
 
-                      <p className="text-xs text-stone-500">
-                        Original Size: {(item.file.size / 1024 / 1024).toFixed(2)} MB
-                      </p>
-                    </div>
+                  return (
+                    <div key={item.id} className="rounded-xl overflow-hidden">
+                      <div className="p-4 bg-stone-100 rounded-xl flex items-center justify-between gap-4">
+                        <FilePreview file={item.file} previewUrl={item.previewUrl} />
 
-                    {/* possible format types for each item */}
-                    <div className="flex items-center gap-3">
-                      {item.fileInfo.outputFormats.length > 0 && (
-                        <>
-                          <span className="text-stone-400 text-xs font-semibold uppercase tracking-wide">
-                            Output:
-                          </span>
-                          <select
-                            value={item.format}
-                            onChange={(e) =>
-                              updateFileItem(item.id, {
-                                format: e.target.value,
-                                result: null,
-                                downloadUrl: '',
-                                compressedFileName: '',
-                              })
-                            }
-                            className="w-16 bg-white border border-stone-200 rounded-lg p-2 text-stone-800 font-medium"
+                        <div className="min-w-0 flex-1">
+                          <p
+                            title={item.file.name}
+                            className="font-semibold text-stone-800 text-sm truncate"
                           >
-                            {item.fileInfo.outputFormats.map((fmt) => (
-                              <option key={fmt} value={fmt}>
-                                {fmt}
-                              </option>
-                            ))}
-                          </select>
-                        </>
-                      )}
+                            {item.file.name}
+                          </p>
 
-                      <button
-                        onClick={() => removeFileItem(item.id)}
-                        className="text-stone-400 hover:text-stone-600 text-xs font-semibold"
-                      >
-                        Remove
-                      </button>
+                          <p className="text-xs text-stone-500">
+                            Original Size: {(item.file.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          {item.fileInfo.outputFormats.length > 0 && (
+                            <>
+                              <span className="text-stone-400 text-xs font-semibold uppercase tracking-wide">
+                                Output:
+                              </span>
+
+                              <select
+                                value={item.format}
+                                onChange={(e) =>
+                                  updateFileCompressionSettings(item.id, {
+                                    format: e.target.value,
+                                  })
+                                }
+                                className="w-16 bg-white border border-stone-200 rounded-lg p-2 text-stone-800 font-medium"
+                              >
+                                {item.fileInfo.outputFormats.map((fmt) => (
+                                  <option key={fmt} value={fmt}>
+                                    {fmt}
+                                  </option>
+                                ))}
+                              </select>
+                            </>
+                          )}
+
+                          {isImage && (
+                            <button
+                              type="button"
+                              onClick={() => toggleImageSettings(item.id)}
+                              className="text-stone-400 hover:text-orange-600 transition-colors"
+                              aria-label="Toggle image compression settings"
+                            >
+                              <ChevronDown
+                                className={`w-5 h-5 transition-transform ${
+                                  isOpen ? 'rotate-180' : ''
+                                }`}
+                              />
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => removeFileItem(item.id)}
+                            className="text-stone-400 hover:text-stone-600 text-xs font-semibold"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* EXTRA IMAGE DROPDOWN DETAILS */}
+                      {isImage && isOpen && (
+                        <div className="mt-3">
+                          <ImageCompressionDetails
+                            item={item}
+                            effectiveRatio={getEffectiveRatio(item)}
+                            updateFileItem={updateFileCompressionSettings}
+                          />
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
-              </div>
+                  );
+                })}
+              </div> 
             )}
           </div>
 
@@ -361,14 +434,14 @@ export default function Compress() {
             <div>
               <div className="flex items-center gap-2 mb-4 text-stone-900">
                 <Sliders className="w-5 h-5 text-orange-600" />
-                <h3 className="font-bold">Compression Level</h3>
+                <h6 className="font-bold">Compression Level</h6>
               </div>
               
               <div className="mt-4">
                 <div className="flex justify-between text-xs font-semibold text-stone-500 mb-2">
-                  <span>Balanced</span>
+                  <span>Min</span>
                   <span className="text-orange-600 font-bold">{ratio}% Smaller</span>
-                  <span>Maximum</span>
+                  <span>Max</span>
                 </div>
                 <input 
                   type="range" 
@@ -376,7 +449,22 @@ export default function Compress() {
                   max="90" 
                   value={ratio} 
                   onChange={(e) => {
-                    setRatio(Number(e.target.value));
+                    const newRatio = Number(e.target.value);
+                    setRatio(newRatio);
+
+                    setFileItems((prev) =>
+                      prev.map((item) => {
+                        if (item.useCustomSettings) return item;
+
+                        return {
+                          ...item,
+                          result: null,
+                          downloadUrl: '',
+                          compressedFileName: '',
+                          status: 'idle',
+                        };
+                      })
+                    );
                   }}
                   className="w-full accent-orange-600 cursor-pointer bg-stone-200 rounded-lg appearance-none h-2"
                 />
