@@ -50,61 +50,64 @@ export const compilePDF = async (pagesList, placedSignatures, pageDimensions) =>
       copiedPage.setRotation(degrees(pageItem.rotation));
     }
 
-    // Embed placed signature
-    const sig = placedSignatures[pageItem.id];
-    if (sig) {
-      // Decode PNG signature bytes offline if it is a data URL (bypasses CSP restrictions)
-      let sigImageBytes;
-      if (sig.img.startsWith('data:')) {
-        sigImageBytes = dataUrlToArrayBuffer(sig.img);
-      } else {
-        sigImageBytes = await fetch(sig.img).then(res => res.arrayBuffer());
-      }
-      
-      const embeddedSig = await mergedDoc.embedPng(sigImageBytes);
+    // Embed placed signatures (supports single objects or arrays of objects)
+    const sigs = placedSignatures[pageItem.id];
+    if (sigs) {
+      const sigList = Array.isArray(sigs) ? sigs : [sigs];
+      for (const sig of sigList) {
+        // Decode PNG signature bytes offline if it is a data URL (bypasses CSP restrictions)
+        let sigImageBytes;
+        if (sig.img.startsWith('data:')) {
+          sigImageBytes = dataUrlToArrayBuffer(sig.img);
+        } else {
+          sigImageBytes = await fetch(sig.img).then(res => res.arrayBuffer());
+        }
+        
+        const embeddedSig = await mergedDoc.embedPng(sigImageBytes);
 
-      const { width: pWidth, height: pHeight } = copiedPage.getSize();
-      
-      // Determine actual dimensions based on rotation
-      const isRotatedOrtho = pageItem.rotation === 90 || pageItem.rotation === 270;
-      const actualPDFWidth = isRotatedOrtho ? pHeight : pWidth;
-      const actualPDFHeight = isRotatedOrtho ? pWidth : pHeight;
+        const { width: pWidth, height: pHeight } = copiedPage.getSize();
+        
+        // Determine actual dimensions based on rotation
+        const isRotatedOrtho = pageItem.rotation === 90 || pageItem.rotation === 270;
+        const actualPDFWidth = isRotatedOrtho ? pHeight : pWidth;
+        const actualPDFHeight = isRotatedOrtho ? pWidth : pHeight;
 
-      // Map canvas overlay coordinates back to PDF space
-      const pdfX = (sig.x / 100) * actualPDFWidth;
-      const pdfY = actualPDFHeight - (((sig.y / 100) + (sig.height / pageDimensions.height)) * actualPDFHeight);
-      const pdfWidth = (sig.width / pageDimensions.width) * actualPDFWidth;
-      const pdfHeight = (sig.height / pageDimensions.height) * actualPDFHeight;
+        // Map canvas overlay coordinates back to PDF space
+        const pdfX = (sig.x / 100) * actualPDFWidth;
+        const pdfY = actualPDFHeight - (((sig.y / 100) + (sig.height / pageDimensions.height)) * actualPDFHeight);
+        const pdfWidth = (sig.width / pageDimensions.width) * actualPDFWidth;
+        const pdfHeight = (sig.height / pageDimensions.height) * actualPDFHeight;
 
-      // Apply rotation transformation adjustment for drawn signature overlay
-      if (pageItem.rotation === 90) {
-        copiedPage.drawImage(embeddedSig, {
-          x: actualPDFHeight - pdfY - pdfHeight,
-          y: pdfX,
-          width: pdfHeight,
-          height: pdfWidth,
-        });
-      } else if (pageItem.rotation === 180) {
-        copiedPage.drawImage(embeddedSig, {
-          x: actualPDFWidth - pdfX - pdfWidth,
-          y: actualPDFHeight - pdfY - pdfHeight,
-          width: pdfWidth,
-          height: pdfHeight,
-        });
-      } else if (pageItem.rotation === 270) {
-        copiedPage.drawImage(embeddedSig, {
-          x: pdfY,
-          y: actualPDFHeight - pdfX - pdfWidth,
-          width: pdfHeight,
-          height: pdfWidth,
-        });
-      } else {
-        copiedPage.drawImage(embeddedSig, {
-          x: pdfX,
-          y: pdfY,
-          width: pdfWidth,
-          height: pdfHeight,
-        });
+        // Apply rotation transformation adjustment for drawn signature overlay
+        if (pageItem.rotation === 90) {
+          copiedPage.drawImage(embeddedSig, {
+            x: actualPDFHeight - pdfY - pdfHeight,
+            y: pdfX,
+            width: pdfHeight,
+            height: pdfWidth,
+          });
+        } else if (pageItem.rotation === 180) {
+          copiedPage.drawImage(embeddedSig, {
+            x: actualPDFWidth - pdfX - pdfWidth,
+            y: actualPDFHeight - pdfY - pdfHeight,
+            width: pdfWidth,
+            height: pdfHeight,
+          });
+        } else if (pageItem.rotation === 270) {
+          copiedPage.drawImage(embeddedSig, {
+            x: pdfY,
+            y: actualPDFHeight - pdfX - pdfWidth,
+            width: pdfHeight,
+            height: pdfWidth,
+          });
+        } else {
+          copiedPage.drawImage(embeddedSig, {
+            x: pdfX,
+            y: pdfY,
+            width: pdfWidth,
+            height: pdfHeight,
+          });
+        }
       }
     }
 

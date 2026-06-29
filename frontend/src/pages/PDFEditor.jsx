@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft, Upload, Trash2, RotateCw, ArrowUp, ArrowDown,
-  Plus, Download, Loader2, CheckCircle2, PenTool, X, ChevronLeft, ChevronRight
+  Plus, Download, Loader2, CheckCircle2, PenTool, X, ChevronLeft, ChevronRight,
+  Brush, Eraser, Undo
 } from 'lucide-react';
 import Layout from '@/components/Layout';
 import FilePreview from '@/components/FilePreview';
@@ -80,12 +81,21 @@ export default function PdfEditor() {
   const [exportUrl,         setExportUrl]         = useState('');
   const [exportFile,        setExportFile]        = useState(null);
 
+  // Expanded sidebar & multi-select state
+  const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
+  const [selectedPageIds,   setSelectedPageIds]   = useState([]);
+
   // Drag and drop state for page thumbnails
   const [draggedIdx,        setDraggedIdx]        = useState(null);
   const [dragOverIdx,       setDragOverIdx]       = useState(null);
 
   // Position jump state
   const [moveToIndexValue,  setMoveToIndexValue]  = useState('');
+
+  // Marquee selection state
+  const [selectionBox, setSelectionBox] = useState({ startX: 0, startY: 0, currentX: 0, currentY: 0, active: false });
+  const cardRectsRef = useRef([]); // [{ id, rect }]
+  const initialSelectionRef = useRef([]);
 
   const sidebarRef = useRef(null);
   const scrollIntervalRef = useRef(null);
@@ -98,7 +108,14 @@ export default function PdfEditor() {
   const [savedSignature,    setSavedSignature]    = useState(null);
   const [sigColor,          setSigColor]          = useState('#000000');
   const sigCanvasRef = useRef(null);
+  const customColorInputRef = useRef(null);
   const [isDrawing,         setIsDrawing]         = useState(false);
+
+  // Direct Draw state
+  const directCanvasRef = useRef(null);
+  const [brushWidth, setBrushWidth] = useState(3);
+  const [brushMode, setBrushMode] = useState('draw'); // 'draw' | 'highlighter'
+  const [drawHistory, setDrawHistory] = useState({}); // Mapping of pageId -> Array of image data URLs
 
   // Derived helpers
   const activePage     = pagesList[activePageIndex];
@@ -208,66 +225,146 @@ export default function PdfEditor() {
     }
   };
 
-  /** Delete a page by ID, adjusting the active index if needed. */
-  const deletePage = (id) => {
+  /** Delete all selected pages in selectedPageIds, adjusting activeIndex and selection. */
+  const deleteSelectedPages = () => {
+    if (selectedPageIds.length === 0) return;
+
     setPagesList(prev => {
-      const filtered = prev.filter(p => p.id !== id);
+      const filtered = prev.filter(p => !selectedPageIds.includes(p.id));
+      
+      // Clear signatures for all deleted pages
       setPlacedSignatures(sigPrev => {
         const copy = { ...sigPrev };
-        delete copy[id];
+        selectedPageIds.forEach(id => {
+          delete copy[id];
+        });
         return copy;
       });
-      if (activePageIndex >= filtered.length) {
-        setActivePageIndex(Math.max(0, filtered.length - 1));
+
+      let firstDeletedIdx = prev.findIndex(p => selectedPageIds.includes(p.id));
+      if (firstDeletedIdx === -1) firstDeletedIdx = 0;
+
+      const newActive = Math.max(0, Math.min(firstDeletedIdx, filtered.length - 1));
+      setActivePageIndex(newActive);
+
+      // Select the new active page
+      if (filtered.length > 0 && filtered[newActive]) {
+        setSelectedPageIds([filtered[newActive].id]);
+      } else {
+        setSelectedPageIds([]);
       }
+
       return filtered;
     });
   };
 
   /**
-   * Move a page up (direction=-1) or down (direction=+1).
-   * Pure array swap — no re-rendering needed.
+   * Move selected pages up (direction=-1) or down (direction=+1) respectively.
    */
-  const movePage = (index, direction) => {
-    const target = index + direction;
-    if (target < 0 || target >= pagesList.length) return;
-
-    // Pre-compute new active index before touching state
-    let newActive = activePageIndex;
-    if (activePageIndex === index)  newActive = target;
-    else if (activePageIndex === target) newActive = index;
-
+  const moveSelectedPages = (direction) => {
     setPagesList(prev => {
       const copy = [...prev];
-      [copy[index], copy[target]] = [copy[target], copy[index]];
+      const selectedSet = new Set(selectedPageIds);
+      
+      if (direction === -1) {
+        // Move Up: iterate from 1 to N-1
+        for (let i = 1; i < copy.length; i++) {
+          if (selectedSet.has(copy[i].id) && !selectedSet.has(copy[i - 1].id)) {
+            // Swap
+            [copy[i], copy[i - 1]] = [copy[i - 1], copy[i]];
+          }
+        }
+      } else if (direction === 1) {
+        // Move Down: iterate from N-2 down to 0
+        for (let i = copy.length - 2; i >= 0; i--) {
+          if (selectedSet.has(copy[i].id) && !selectedSet.has(copy[i + 1].id)) {
+            // Swap
+            [copy[i], copy[i + 1]] = [copy[i + 1], copy[i]];
+          }
+        }
+      }
+      
+      // Adjust activePageIndex to follow the active page if its position shifted
+      const activePageId = prev[activePageIndex]?.id;
+      if (activePageId) {
+        const newActiveIdx = copy.findIndex(p => p.id === activePageId);
+        if (newActiveIdx !== -1) {
+          setActivePageIndex(newActiveIdx);
+        }
+      }
+      
       return copy;
     });
-    setActivePageIndex(newActive);
   };
 
   /**
-   * Reorder page within the array based on dragging.
+   * Reorder multiple pages (selectedIds) within the array, inserting as a block at targetIndex.
    */
-  const reorderPage = (draggedIndex, targetIndex) => {
-    if (draggedIndex === targetIndex) return;
+  const reorderMultiplePages = (selectedIds, targetIndex) => {
+    if (selectedIds.length === 0) return;
 
-    setPagesList(prev => {
-      const copy = [...prev];
-      const [removed] = copy.splice(draggedIndex, 1);
-      copy.splice(targetIndex, 0, removed);
-      return copy;
-    });
+    // Get selected items in their current order in pagesList
+    const selectedItems = pagesList.filter(p => selectedIds.includes(p.id));
+    if (selectedItems.length === 0) return;
 
-    if (activePageIndex === draggedIndex) {
-      setActivePageIndex(targetIndex);
-    } else if (activePageIndex > draggedIndex && activePageIndex <= targetIndex) {
-      setActivePageIndex(prev => prev - 1);
-    } else if (activePageIndex < draggedIndex && activePageIndex >= targetIndex) {
-      setActivePageIndex(prev => prev + 1);
+    // Get target item
+    const targetItem = pagesList[targetIndex];
+
+    // Filter out selected items
+    const remainingItems = pagesList.filter(p => !selectedIds.includes(p.id));
+
+    // Find the insert position
+    let insertIndex = remainingItems.indexOf(targetItem);
+    if (insertIndex === -1) {
+      insertIndex = Math.min(targetIndex, remainingItems.length);
+    }
+
+    // Insert selectedItems as a block
+    const newList = [...remainingItems];
+    newList.splice(insertIndex, 0, ...selectedItems);
+
+    setPagesList(newList);
+
+    // Update active page index to first moved item
+    const firstMovedItem = selectedItems[0];
+    const newActiveIdx = newList.indexOf(firstMovedItem);
+    if (newActiveIdx !== -1) {
+      setActivePageIndex(newActiveIdx);
+    }
+  };
+
+  const togglePageSelection = (e, pageId) => {
+    e.stopPropagation();
+    setSelectedPageIds(prev => 
+      prev.includes(pageId) ? prev.filter(id => id !== pageId) : [...prev, pageId]
+    );
+  };
+
+  const handlePageClick = (e, index, pageId) => {
+    if (e.shiftKey) {
+      // Shift select range
+      const start = Math.min(activePageIndex, index);
+      const end = Math.max(activePageIndex, index);
+      const rangeIds = pagesList.slice(start, end + 1).map(p => p.id);
+      setSelectedPageIds(Array.from(new Set([...selectedPageIds, ...rangeIds])));
+    } else if (e.metaKey || e.ctrlKey) {
+      // Cmd / Ctrl toggle selection
+      setSelectedPageIds(prev => 
+        prev.includes(pageId) ? prev.filter(id => id !== pageId) : [...prev, pageId]
+      );
+    } else {
+      // Normal click sets active page and resets selection to just this one
+      setActivePageIndex(index);
+      setSelectedPageIds([pageId]);
     }
   };
 
   const handleDragStart = (e, index) => {
+    const pageId = pagesList[index].id;
+    if (!selectedPageIds.includes(pageId)) {
+      setSelectedPageIds([pageId]);
+      setActivePageIndex(index);
+    }
     setDraggedIdx(index);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', index.toString());
@@ -287,7 +384,12 @@ export default function PdfEditor() {
   const handleDrop = (e, index) => {
     e.preventDefault();
     if (draggedIdx !== null && draggedIdx !== index) {
-      reorderPage(draggedIdx, index);
+      const pageId = pagesList[draggedIdx].id;
+      let currentSelection = selectedPageIds;
+      if (!selectedPageIds.includes(pageId)) {
+        currentSelection = [pageId];
+      }
+      reorderMultiplePages(currentSelection, index);
     }
     setDraggedIdx(null);
     setDragOverIdx(null);
@@ -349,9 +451,7 @@ export default function PdfEditor() {
       return;
     }
     const targetIdx = pageNum - 1;
-    if (targetIdx === activePageIndex) return;
-
-    reorderPage(activePageIndex, targetIdx);
+    reorderMultiplePages(selectedPageIds, targetIdx);
     setMoveToIndexValue('');
   };
 
@@ -360,6 +460,93 @@ export default function PdfEditor() {
     setDragOverIdx(null);
     handleSidebarDragLeaveOrEnd();
   };
+
+  // ─── MARQUEE MULTI-SELECT ──────────────────────────────────────────────────
+  const handleContainerMouseDown = (e) => {
+    // Only select on left click and when clicked directly on the background
+    if (e.button !== 0 || e.target !== sidebarRef.current) return;
+    e.preventDefault();
+
+    const containerRect = sidebarRef.current.getBoundingClientRect();
+    const startX = e.clientX - containerRect.left + sidebarRef.current.scrollLeft;
+    const startY = e.clientY - containerRect.top + sidebarRef.current.scrollTop;
+
+    // Cache the bounding boxes of all card elements
+    const cards = sidebarRef.current.querySelectorAll('[data-page-card]');
+    cardRectsRef.current = Array.from(cards).map(card => ({
+      id: card.getAttribute('data-page-id'),
+      rect: card.getBoundingClientRect()
+    }));
+
+    const isAppending = e.shiftKey || e.metaKey || e.ctrlKey;
+    initialSelectionRef.current = isAppending ? [...selectedPageIds] : [];
+
+    if (!isAppending) {
+      setSelectedPageIds([]);
+    }
+
+    setSelectionBox({
+      startX,
+      startY,
+      currentX: startX,
+      currentY: startY,
+      active: true
+    });
+  };
+
+  useEffect(() => {
+    if (!selectionBox.active) return;
+
+    const handleMouseMove = (mv) => {
+      const container = sidebarRef.current;
+      if (!container) return;
+
+      const containerRect = container.getBoundingClientRect();
+      const currentX = mv.clientX - containerRect.left + container.scrollLeft;
+      const currentY = mv.clientY - containerRect.top + container.scrollTop;
+
+      setSelectionBox(prev => ({ ...prev, currentX, currentY }));
+
+      // Compute absolute screen/viewport bounds of the selection box to check overlap with cached card rects
+      const marqueeRect = {
+        left:   Math.min(selectionBox.startX, currentX) + containerRect.left - container.scrollLeft,
+        right:  Math.max(selectionBox.startX, currentX) + containerRect.left - container.scrollLeft,
+        top:    Math.min(selectionBox.startY, currentY) + containerRect.top - container.scrollTop,
+        bottom: Math.max(selectionBox.startY, currentY) + containerRect.top - container.scrollTop,
+      };
+
+      const newlySelected = cardRectsRef.current
+        .filter(card => {
+          return !(
+            card.rect.left   > marqueeRect.right ||
+            card.rect.right  < marqueeRect.left  ||
+            card.rect.top    > marqueeRect.bottom ||
+            card.rect.bottom < marqueeRect.top
+          );
+        })
+        .map(card => card.id);
+
+      setSelectedPageIds(() => {
+        const isAppending = mv.shiftKey || mv.metaKey || mv.ctrlKey;
+        if (isAppending) {
+          return Array.from(new Set([...initialSelectionRef.current, ...newlySelected]));
+        } else {
+          return newlySelected;
+        }
+      });
+    };
+
+    const handleMouseUp = () => {
+      setSelectionBox(prev => ({ ...prev, active: false }));
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup',   handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup',   handleMouseUp);
+    };
+  }, [selectionBox.active, selectionBox.startX, selectionBox.startY]);
 
   // ─── 3. SIGNATURE DRAWING ─────────────────────────────────────────────────
   const startDrawing = (e) => {
@@ -422,27 +609,268 @@ export default function PdfEditor() {
     setSavedSignature(canvas.toDataURL());
   };
 
+  // ─── 3.1 DIRECT PDF ANNOTATION DRAWING ─────────────────────────────────────
+  const startDirectDrawing = (e) => {
+    const canvas = directCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    
+    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+    const cy = e.touches ? e.touches[0].clientY : e.clientY;
+    
+    const x = ((cx - rect.left) / rect.width) * canvas.width;
+    const y = ((cy - rect.top) / rect.height) * canvas.height;
+
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineWidth = brushWidth;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    
+    if (brushMode === 'erase') {
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.globalAlpha = 1.0;
+    } else {
+      ctx.globalCompositeOperation = 'source-over';
+      if (brushMode === 'highlighter') {
+        ctx.globalAlpha = 0.45;
+        ctx.strokeStyle = sigColor;
+      } else {
+        ctx.globalAlpha = 1.0;
+        ctx.strokeStyle = sigColor;
+      }
+    }
+    
+    setIsDrawing(true);
+  };
+
+  const drawDirect = (e) => {
+    if (!isDrawing) return;
+    const canvas = directCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+    
+    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+    const cy = e.touches ? e.touches[0].clientY : e.clientY;
+    
+    const x = ((cx - rect.left) / rect.width) * canvas.width;
+    const y = ((cy - rect.top) / rect.height) * canvas.height;
+
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  };
+
+  const stopDirectDrawing = () => {
+    if (!isDrawing) return;
+    setIsDrawing(false);
+    
+    const canvas = directCanvasRef.current;
+    if (canvas) {
+      const currentImg = canvas.toDataURL('image/png');
+      setDrawHistory(prev => {
+        const pageHistory = prev[activePage.id] || [];
+        return {
+          ...prev,
+          [activePage.id]: [...pageHistory, currentImg]
+        };
+      });
+    }
+    
+    saveDirectDrawLayer();
+  };
+
+  const clearDirectDraw = () => {
+    const canvas = directCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Clear history completely for this page
+    setDrawHistory(prev => ({
+      ...prev,
+      [activePage.id]: []
+    }));
+    
+    saveDirectDrawLayer();
+  };
+
+  const handleUndoDirectDraw = () => {
+    if (!activePage) return;
+    const history = drawHistory[activePage.id] || [];
+    if (history.length === 0) return;
+
+    const newHistory = history.slice(0, -1);
+    setDrawHistory(prev => ({
+      ...prev,
+      [activePage.id]: newHistory
+    }));
+
+    const canvas = directCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (newHistory.length > 0) {
+      const prevImgUrl = newHistory[newHistory.length - 1];
+      const img = new Image();
+      img.onload = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        // Save the updated draw layer back to annotations
+        saveDirectDrawLayer(prevImgUrl);
+      };
+      img.src = prevImgUrl;
+    } else {
+      // If history is now empty, remove the draw annotation completely
+      saveDirectDrawLayer(null);
+    }
+  };
+
+  const saveDirectDrawLayer = (overrideImgUrl = undefined) => {
+    const canvas = directCanvasRef.current;
+    if (!canvas) return;
+
+    let imgUrl = overrideImgUrl;
+    let isBlank = false;
+    
+    if (imgUrl === undefined) {
+      imgUrl = canvas.toDataURL('image/png');
+      const blank = document.createElement('canvas');
+      blank.width = canvas.width; blank.height = canvas.height;
+      isBlank = imgUrl === blank.toDataURL();
+    } else {
+      isBlank = !imgUrl;
+    }
+    
+    setPlacedSignatures(prev => {
+      const currentSigs = Array.isArray(prev[activePage.id]) 
+        ? prev[activePage.id] 
+        : (prev[activePage.id] ? [prev[activePage.id]] : []);
+        
+      const drawSigId = `draw-${activePage.id}`;
+      const filtered = currentSigs.filter(s => s.id !== drawSigId);
+      
+      if (isBlank) {
+        const copy = { ...prev };
+        if (filtered.length === 0) {
+          delete copy[activePage.id];
+        } else {
+          copy[activePage.id] = filtered;
+        }
+        return copy;
+      } else {
+        const newDrawAnnotation = {
+          id: drawSigId,
+          isDrawLayer: true,
+          img: imgUrl,
+          x: 0,
+          y: 0,
+          width: pageDimensions.width,
+          height: pageDimensions.height
+        };
+        return {
+          ...prev,
+          [activePage.id]: [...filtered, newDrawAnnotation]
+        };
+      }
+    });
+  };
+
+  // Sync direct canvas with existing drawings on page or tool change
+  useEffect(() => {
+    if (activeTool !== 'draw' || !activePage) return;
+    const canvas = directCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    const pageSigs = placedSignatures[activePage.id] || [];
+    const drawSig = pageSigs.find(s => s.id === `draw-${activePage.id}`);
+    if (drawSig && drawSig.img) {
+      const img = new Image();
+      img.onload = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      };
+      img.src = drawSig.img;
+
+      // Initialize draw history if empty
+      Promise.resolve().then(() => {
+        setDrawHistory(prev => {
+          if (!prev[activePage.id] || prev[activePage.id].length === 0) {
+            return {
+              ...prev,
+              [activePage.id]: [drawSig.img]
+            };
+          }
+          return prev;
+        });
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePageIndex, activeTool, activePage?.id]);
+
+  // Keyboard shortcut for Undo (Cmd+Z / Ctrl+Z)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (activeTool !== 'draw' || !activePage) return;
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        handleUndoDirectDraw();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTool, activePage?.id, drawHistory]);
+
   // ─── 4. SIGNATURE OVERLAY ─────────────────────────────────────────────────
   const placeSignatureOnActivePage = () => {
     if (!savedSignature || !activePage) return;
+    const newAnnotation = {
+      id: Math.random().toString(36).substring(2, 9),
+      img: savedSignature,
+      x: 35,
+      y: 45,
+      width: 150,
+      height: 60
+    };
     setPlacedSignatures(prev => ({
       ...prev,
-      [activePage.id]: { img: savedSignature, x: 35, y: 45, width: 150, height: 60 }
+      [activePage.id]: [...(Array.isArray(prev[activePage.id]) ? prev[activePage.id] : (prev[activePage.id] ? [prev[activePage.id]] : [])), newAnnotation]
     }));
   };
 
-  const removePlacedSignature = (pageId) => {
+  const removePlacedSignature = (pageId, sigId) => {
     setPlacedSignatures(prev => {
+      const pageSigs = Array.isArray(prev[pageId]) ? prev[pageId] : (prev[pageId] ? [prev[pageId]] : []);
+      const filtered = pageSigs.filter(s => s.id !== sigId);
       const copy = { ...prev };
-      delete copy[pageId];
+      if (filtered.length === 0) {
+        delete copy[pageId];
+      } else {
+        copy[pageId] = filtered;
+      }
       return copy;
     });
   };
 
-  const handleSigDragStart = (e) => {
+  const handleSigDragStart = (e, sigId) => {
     e.preventDefault();
     if (!activePage || !placedSignatures[activePage.id]) return;
-    const sig       = placedSignatures[activePage.id];
+    
+    const pageSigs = Array.isArray(placedSignatures[activePage.id]) 
+      ? placedSignatures[activePage.id] 
+      : [placedSignatures[activePage.id]];
+      
+    const sig = pageSigs.find(s => s.id === sigId || !sigId);
+    if (!sig) return;
+    
     const container = containerRef.current.getBoundingClientRect();
     const startX    = e.clientX;
     const startY    = e.clientY;
@@ -454,19 +882,74 @@ export default function PdfEditor() {
       const dy = ((mv.clientY - startY) / container.height) * 100;
       const wPct = (sig.width  / container.width)  * 100;
       const hPct = (sig.height / container.height) * 100;
-      setPlacedSignatures(prev => ({
-        ...prev,
-        [activePage.id]: {
-          ...prev[activePage.id],
+      setPlacedSignatures(prev => {
+        const currentSigs = Array.isArray(prev[activePage.id]) 
+          ? prev[activePage.id] 
+          : (prev[activePage.id] ? [prev[activePage.id]] : []);
+          
+        const updated = currentSigs.map(s => s.id === sig.id ? {
+          ...s,
           x: Math.max(0, Math.min(100 - wPct, startLeft + dx)),
           y: Math.max(0, Math.min(100 - hPct, startTop  + dy)),
-        }
-      }));
+        } : s);
+        return {
+          ...prev,
+          [activePage.id]: updated
+        };
+      });
     };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup',   onUp);
     };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup',   onUp);
+  };
+
+  const handleSigResizeStart = (e, sigId) => {
+    e.stopPropagation(); // Avoid triggering drag on the signature container
+    e.preventDefault();
+    if (!activePage || !placedSignatures[activePage.id]) return;
+
+    const pageSigs = Array.isArray(placedSignatures[activePage.id]) 
+      ? placedSignatures[activePage.id] 
+      : [placedSignatures[activePage.id]];
+      
+    const sig = pageSigs.find(s => s.id === sigId) || pageSigs[0];
+    if (!sig) return;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startWidth = sig.width;
+    const startHeight = sig.height;
+
+    const onMove = (mv) => {
+      const dx = mv.clientX - startX;
+      const dy = mv.clientY - startY;
+
+      setPlacedSignatures(prev => {
+        const currentSigs = Array.isArray(prev[activePage.id]) 
+          ? prev[activePage.id] 
+          : (prev[activePage.id] ? [prev[activePage.id]] : []);
+
+        const updated = currentSigs.map(s => s.id === sig.id ? {
+          ...s,
+          width: Math.max(30, startWidth + dx),
+          height: Math.max(20, startHeight + dy),
+        } : s);
+
+        return {
+          ...prev,
+          [activePage.id]: updated
+        };
+      });
+    };
+
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup',   onUp);
+    };
+
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup',   onUp);
   };
@@ -544,13 +1027,34 @@ export default function PdfEditor() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
 
             {/* ── COLUMN 1: Thumbnail Sidebar ───────────────────────────── */}
-            <div className="bg-white rounded-2xl p-4 border border-stone-200 lg:col-span-3 flex flex-col max-h-[700px] overflow-hidden">
+            <div className={`bg-white rounded-2xl p-4 border border-stone-200 flex flex-col max-h-[700px] overflow-hidden transition-all duration-300 ${
+              isSidebarExpanded ? 'lg:col-span-6' : 'lg:col-span-3'
+            }`}>
                 <div className="flex items-center justify-between mb-4 border-b pb-2">
-                <span className="font-bold text-stone-800 text-sm">
-                    {pagesList.length <= 1 ? "Page" : "Pages"} ({pagesList.length})
-                </span>
+                <div className="flex flex-col items-start min-w-0">
+                  <span className="font-bold text-stone-800 text-sm leading-tight">
+                    {pagesList.length <= 1 ? "Page" : "Pages"} ({pagesList.length}) 
+                  </span>
+                  {selectedPageIds.length > 0 && (
+                    <span className="text-[10px] text-stone-500 font-semibold leading-tight mt-0.5">
+                      ({selectedPageIds.length} selected)
+                    </span>
+                  )}
+                </div>
                 
                 <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
+                      className="p-1.5 border border-stone-200 hover:bg-stone-50 rounded-lg text-stone-600 transition-colors"
+                      title={isSidebarExpanded ? "Collapse Sidebar" : "Expand Sidebar"}
+                    >
+                      {isSidebarExpanded ? (
+                        <ChevronLeft className="w-4 h-4" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4" />
+                      )}
+                    </button>
+
                     <div className="relative cursor-pointer bg-[#FAF0E1] hover:bg-[#EADCC3] text-[#E08E19] rounded-lg p-1.5 transition-colors">
                     <input
                         type="file"
@@ -576,56 +1080,121 @@ export default function PdfEditor() {
                 onDragOver={handleSidebarDragOver}
                 onDragLeave={handleSidebarDragLeaveOrEnd}
                 onDrop={handleSidebarDragLeaveOrEnd}
-                className="flex-1 overflow-y-auto space-y-3 pr-1"
+                onMouseDown={handleContainerMouseDown}
+                className={`flex-1 overflow-y-auto pr-1 relative ${
+                  isSidebarExpanded 
+                    ? 'grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-4 pl-3 pr-2 py-2 content-start' 
+                    : 'space-y-3'
+                }`}
               >
-                {pagesList.map((pageItem, idx) => (
-                  <div
-                    key={pageItem.id}
-                    onClick={() => setActivePageIndex(idx)}
-                    draggable="true"
-                    onDragStart={(e) => handleDragStart(e, idx)}
-                    onDragOver={(e) => handleDragOver(e, idx)}
-                    onDragLeave={handleDragLeave}
-                    onDrop={(e) => handleDrop(e, idx)}
-                    onDragEnd={handleDragEnd}
-                    className={`p-2 border rounded-xl cursor-grab active:cursor-grabbing transition-all flex items-center gap-3 group relative ${
-                      draggedIdx === idx ? 'opacity-40 border-dashed border-stone-300 bg-stone-100/30' : ''
-                    } ${
-                      dragOverIdx === idx ? 'border-[#E08E19] bg-[#FAF0E1]/80 scale-[1.02]' : ''
-                    } ${
-                      activePageIndex === idx && dragOverIdx !== idx
-                        ? 'border-[#E08E19] bg-[#FAF0E1]/50 shadow-sm'
-                        : (draggedIdx !== idx && dragOverIdx !== idx ? 'border-stone-100 hover:border-stone-300 bg-stone-50/50' : '')
-                    }`}
-                  >
-                    {/* Thumbnail image */}
-                    <div className="w-14 h-16 bg-stone-100 border border-stone-200 overflow-hidden flex-shrink-0 flex items-center justify-center rounded select-none pointer-events-none">
-                      {pageItem.isRendering || !pageItem.thumbnailUrl ? (
-                        <Loader2 className="w-4 h-4 text-stone-400 animate-spin" />
-                      ) : (
-                        <img
-                          src={pageItem.thumbnailUrl}
-                          alt={`Page ${pageItem.originalPageNum} thumbnail`}
-                          className="w-full h-full object-contain"
-                        />
+                {pagesList.map((pageItem, idx) => {
+                  const isSelected = selectedPageIds.includes(pageItem.id);
+                  return (
+                    <div
+                      key={pageItem.id}
+                      data-page-card
+                      data-page-id={pageItem.id}
+                      onClick={(e) => handlePageClick(e, idx, pageItem.id)}
+                      draggable="true"
+                      onDragStart={(e) => handleDragStart(e, idx)}
+                      onDragOver={(e) => handleDragOver(e, idx)}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(e) => handleDrop(e, idx)}
+                      onDragEnd={handleDragEnd}
+                      className={`border rounded-xl cursor-grab active:cursor-grabbing transition-all relative ${
+                        isSidebarExpanded 
+                          ? 'flex flex-col items-center p-3 text-center gap-2' 
+                          : 'p-2 flex items-center gap-3'
+                      } group ${
+                        draggedIdx === idx ? 'opacity-40 border-dashed border-stone-300 bg-stone-100/30' : ''
+                      } ${
+                        dragOverIdx === idx ? 'border-[#E08E19] bg-[#FAF0E1]/80 scale-[1.02]' : ''
+                      } ${
+                        isSelected && dragOverIdx !== idx
+                          ? 'border-[#E08E19] bg-[#FAF0E1]/60 shadow-sm ring-1 ring-[#E08E19]/30'
+                          : (activePageIndex === idx && dragOverIdx !== idx
+                             ? 'border-[#E08E19]/50 bg-[#FAF0E1]/20'
+                             : (draggedIdx !== idx && dragOverIdx !== idx ? 'border-stone-100 hover:border-stone-300 bg-stone-50/50' : ''))
+                      }`}
+                    >
+                      {/* Drag insertion indicator */}
+                      {dragOverIdx === idx && draggedIdx !== idx && (
+                        isSidebarExpanded ? (
+                          <div className="absolute -left-[10px] top-0 bottom-0 w-0 z-30 pointer-events-none">
+                            <div className="h-full border-l-2 border-dashed border-[#E08E19]" />
+                          </div>
+                        ) : (
+                          <div className="absolute left-0 right-0 -top-[7px] h-0 z-30 pointer-events-none">
+                            <div className="w-full border-t-2 border-dashed border-[#E08E19]" />
+                          </div>
+                        )
                       )}
-                    </div>
 
-                    <div className="min-w-0 flex-1 select-none pointer-events-none">
-                      <p className="text-[11px] font-bold text-stone-800 truncate" title={pageItem.file.name}>
-                        {pageItem.file.name}
-                      </p>
-                      <p className="text-[10px] text-stone-400 font-semibold mt-1">
-                        Page {idx + 1}
-                      </p>
+                      {/* Checkbox selector */}
+                      {isSidebarExpanded ? (
+                        <div className="absolute top-2 left-2 z-10" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => togglePageSelection(e, pageItem.id)}
+                            className="w-3.5 h-3.5 rounded border-stone-300 text-[#E08E19] focus:ring-[#E08E19] cursor-pointer"
+                          />
+                        </div>
+                      ) : (
+                        <div onClick={(e) => e.stopPropagation()} className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => togglePageSelection(e, pageItem.id)}
+                            className="w-3.5 h-3.5 rounded border-stone-300 text-[#E08E19] focus:ring-[#E08E19] cursor-pointer"
+                          />
+                        </div>
+                      )}
+
+                      {/* Thumbnail image */}
+                      <div className="w-14 h-16 bg-stone-100 border border-stone-200 overflow-hidden flex-shrink-0 flex items-center justify-center rounded select-none pointer-events-none">
+                        {pageItem.isRendering || !pageItem.thumbnailUrl ? (
+                          <Loader2 className="w-4 h-4 text-stone-400 animate-spin" />
+                        ) : (
+                          <img
+                            src={pageItem.thumbnailUrl}
+                            alt={`Page ${pageItem.originalPageNum} thumbnail`}
+                            className="w-full h-full object-contain"
+                          />
+                        )}
+                      </div>
+
+                      <div className={`min-w-0 select-none pointer-events-none ${isSidebarExpanded ? 'w-full' : 'flex-1'}`}>
+                        <p className="text-[11px] font-bold text-stone-800 truncate max-w-full" title={pageItem.file.name}>
+                          {pageItem.file.name}
+                        </p>
+                        <p className="text-[10px] text-stone-400 font-semibold mt-1">
+                          Page {idx + 1}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
+
+                {/* Marquee Selection Rectangle */}
+                {selectionBox.active && (
+                  <div
+                    className="absolute border-2 border-[#E08E19] bg-[#FAF0E1]/30 rounded-lg pointer-events-none z-50"
+                    style={{
+                      left: Math.min(selectionBox.startX, selectionBox.currentX),
+                      top: Math.min(selectionBox.startY, selectionBox.currentY),
+                      width: Math.abs(selectionBox.startX - selectionBox.currentX),
+                      height: Math.abs(selectionBox.startY - selectionBox.currentY),
+                    }}
+                  />
+                )}
               </div>
             </div>
 
             {/* ── COLUMN 2: Main Canvas ─────────────────────────────────── */}
-            <div className="bg-stone-50 border border-stone-200 rounded-2xl lg:col-span-6 flex flex-col items-center justify-center p-6 min-h-[500px] max-h-[700px] overflow-hidden">
+            <div className={`bg-stone-50 border border-stone-200 rounded-2xl flex flex-col items-center justify-center p-6 min-h-[500px] max-h-[700px] overflow-hidden transition-all duration-300 ${
+              isSidebarExpanded ? 'lg:col-span-3' : 'lg:col-span-6'
+            }`}>
 
               {/* Pagination */}
               <div className="flex items-center gap-4 mb-4 select-none">
@@ -670,37 +1239,72 @@ export default function PdfEditor() {
                   )
                 )}
 
-                {/* Placed signature overlay */}
+                {/* Direct Annotate drawing overlay canvas */}
+                {activeTool === 'draw' && activePage && !activePage.isRendering && activePage.previewUrl && (
+                  <canvas
+                    ref={directCanvasRef}
+                    width={pageDimensions.width}
+                    height={pageDimensions.height}
+                    onMouseDown={startDirectDrawing}
+                    onMouseMove={drawDirect}
+                    onMouseUp={stopDirectDrawing}
+                    onMouseLeave={stopDirectDrawing}
+                    onTouchStart={startDirectDrawing}
+                    onTouchMove={drawDirect}
+                    onTouchEnd={stopDirectDrawing}
+                    className="absolute inset-0 cursor-crosshair z-30 touch-none"
+                  />
+                )}
+
+                {/* Placed signature/draw overlays */}
                 {activePage && placedSignatures[activePage.id] && (
-                  <div
-                    style={{
-                      position:        'absolute',
-                      left:            `${placedSignatures[activePage.id].x}%`,
-                      top:             `${placedSignatures[activePage.id].y}%`,
-                      width:           `${placedSignatures[activePage.id].width}px`,
-                      height:          `${placedSignatures[activePage.id].height}px`,
-                      border:          '1.5px dashed #4f46e5',
-                      backgroundColor: 'rgba(79, 70, 229, 0.08)',
-                      cursor:          'move',
-                      display:         'flex',
-                      alignItems:      'center',
-                      justifyContent:  'center',
-                    }}
-                    onMouseDown={handleSigDragStart}
-                    className="group"
-                  >
-                    <img
-                      src={placedSignatures[activePage.id].img}
-                      alt="signature overlay"
-                      className="w-full h-full object-contain pointer-events-none"
-                    />
-                    <button
-                      onClick={() => removePlacedSignature(activePage.id)}
-                      className="absolute -top-2.5 -right-2.5 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
+                  (Array.isArray(placedSignatures[activePage.id]) ? placedSignatures[activePage.id] : [placedSignatures[activePage.id]]).map(sig => {
+                    const isDraw = sig.isDrawLayer;
+                    return (
+                      <div
+                        key={sig.id || 'default'}
+                        style={{
+                          position:        'absolute',
+                          left:            `${sig.x}%`,
+                          top:             `${sig.y}%`,
+                          width:           isDraw ? '100%' : `${sig.width}px`,
+                          height:          isDraw ? '100%' : `${sig.height}px`,
+                          border:          isDraw ? 'none' : '1.5px dashed #4f46e5',
+                          backgroundColor: isDraw ? 'transparent' : 'rgba(79, 70, 229, 0.08)',
+                          cursor:          isDraw ? 'default' : 'move',
+                          display:         'flex',
+                          alignItems:      'center',
+                          justifyContent:  'center',
+                          pointerEvents:   isDraw ? 'none' : 'auto',
+                        }}
+                        onMouseDown={isDraw ? null : (e) => handleSigDragStart(e, sig.id)}
+                        className={isDraw ? '' : 'group'}
+                      >
+                        <img
+                          src={sig.img}
+                          alt="overlay annotation"
+                          className="w-full h-full object-contain pointer-events-none"
+                        />
+                        {!isDraw && (
+                          <>
+                            <button
+                              onClick={() => removePlacedSignature(activePage.id, sig.id)}
+                              className="absolute -top-2.5 -right-2.5 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+
+                            {/* Resize handle */}
+                            <div
+                              onMouseDown={(e) => handleSigResizeStart(e, sig.id)}
+                              className="absolute bottom-0 right-0 w-3 h-3 bg-[#4f46e5] border border-white rounded-full cursor-se-resize shadow-sm opacity-0 group-hover:opacity-100 transition-opacity z-20"
+                              style={{ transform: 'translate(50%, 50%)' }}
+                            />
+                          </>
+                        )}
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -711,7 +1315,7 @@ export default function PdfEditor() {
               {/* Tool toggle */}
               <div className="flex-1 overflow-y-auto pr-1 mb-4">
                 <div className="flex gap-1 bg-stone-100 p-1 rounded-xl mb-6">
-                    {['organize', 'sign'].map(tool => (
+                    {['organize', 'sign', 'draw'].map(tool => (
                     <button
                         key={tool}
                         onClick={() => setActiveTool(tool)}
@@ -721,7 +1325,7 @@ export default function PdfEditor() {
                             : 'text-stone-600 hover:bg-white/50'
                         }`}
                     >
-                        {tool === 'organize' ? 'Organize' : 'Sign PDF'}
+                        {tool === 'organize' ? 'Organize' : tool === 'sign' ? 'Sign PDF' : 'Draw PDF'}
                     </button>
                     ))}
                 </div>
@@ -744,11 +1348,13 @@ export default function PdfEditor() {
                         <span className="text-[10px] font-bold">Rotate 90°</span>
                         </button>
                         <button
-                        onClick={() => deletePage(activePage.id)}
+                        onClick={deleteSelectedPages}
                         className="flex flex-col items-center justify-center p-3 border border-stone-200 hover:border-red-500 rounded-xl transition-all gap-2 group text-stone-700"
                         >
                         <Trash2 className="w-5 h-5 text-stone-400 group-hover:text-red-500 transition-colors" />
-                        <span className="text-[10px] font-bold">Delete Page</span>
+                        <span className="text-[10px] font-bold">
+                          {selectedPageIds.length > 1 ? `Delete Selected (${selectedPageIds.length})` : 'Delete Page'}
+                        </span>
                         </button>
                     </div>
 
@@ -756,15 +1362,15 @@ export default function PdfEditor() {
                         <h4 className="text-xs font-black uppercase text-stone-400 tracking-wider mb-3">Arrangement</h4>
                         <div className="flex gap-2 mb-3">
                         <button
-                            onClick={() => movePage(activePageIndex, -1)}
-                            disabled={activePageIndex === 0}
+                            onClick={() => moveSelectedPages(-1)}
+                            disabled={selectedPageIds.length === 0 || selectedPageIds.includes(pagesList[0]?.id)}
                             className="flex-1 py-2 border rounded-lg text-xs font-bold flex items-center justify-center gap-1 hover:bg-stone-50 disabled:opacity-40"
                         >
                             <ArrowUp className="w-3.5 h-3.5" /> Move Up
                         </button>
                         <button
-                            onClick={() => movePage(activePageIndex, 1)}
-                            disabled={activePageIndex === pagesList.length - 1}
+                            onClick={() => moveSelectedPages(1)}
+                            disabled={selectedPageIds.length === 0 || selectedPageIds.includes(pagesList[pagesList.length - 1]?.id)}
                             className="flex-1 py-2 border rounded-lg text-xs font-bold flex items-center justify-center gap-1 hover:bg-stone-50 disabled:opacity-40"
                         >
                             <ArrowDown className="w-3.5 h-3.5" /> Move Down
@@ -798,7 +1404,7 @@ export default function PdfEditor() {
                 {activeTool === 'sign' && (
                     <div className="space-y-6 flex-1 flex flex-col">
                     <div>
-                        <h4 className="text-xs font-black uppercase text-stone-400 tracking-wider mb-2">Draw Signature</h4>
+                        <h4 className="text-xs font-black uppercase text-stone-400 tracking-wider mb-2">Add Annotations</h4>
                         <p className="text-xs text-stone-500">Sign with mouse, trackpad, or touchscreen.</p>
                     </div>
 
@@ -817,15 +1423,41 @@ export default function PdfEditor() {
                         className="cursor-crosshair bg-white w-full h-[120px]"
                         />
                         <div className="p-2 border-t flex items-center justify-between bg-stone-50">
-                        <div className="flex gap-1.5">
+                        <div className="flex gap-1.5 items-center">
                             {['#000000', '#0000ff', '#ff0000'].map(color => (
                             <button
                                 key={color}
+                                type="button"
                                 onClick={() => setSigColor(color)}
-                                className={`w-4 h-4 rounded-full border ${sigColor === color ? 'ring-2 ring-[#E08E19] scale-110' : ''}`}
+                                className={`w-4 h-4 rounded-full border border-stone-300 transition-all ${sigColor === color ? 'ring-2 ring-[#E08E19] scale-110' : 'hover:scale-105'}`}
                                 style={{ backgroundColor: color }}
                             />
                             ))}
+                            {/* Custom Color Picker Button with overlaid transparent input for precise browser dialog alignment */}
+                            <div
+                                className={`w-4 h-4 rounded-full border border-stone-300 relative flex items-center justify-center overflow-hidden transition-all ${
+                                !['#000000', '#0000ff', '#ff0000'].includes(sigColor)
+                                    ? 'ring-2 ring-[#E08E19] scale-110'
+                                    : 'hover:scale-105'
+                                }`}
+                                style={{
+                                background: !['#000000', '#0000ff', '#ff0000'].includes(sigColor)
+                                    ? sigColor
+                                    : 'conic-gradient(from 0deg, red, yellow, green, cyan, blue, magenta, red)'
+                                }}
+                                title="Custom Color Picker"
+                            >
+                                <input
+                                    type="color"
+                                    ref={customColorInputRef}
+                                    value={['#000000', '#0000ff', '#ff0000'].includes(sigColor) ? '#000000' : sigColor}
+                                    onChange={(e) => setSigColor(e.target.value)}
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                />
+                                {!['#000000', '#0000ff', '#ff0000'].includes(sigColor) && (
+                                <span className="w-1 h-1 bg-white rounded-full shadow-sm pointer-events-none" />
+                                )}
+                            </div>
                         </div>
                         <button onClick={clearCanvas} className="text-[10px] font-bold text-stone-500 hover:text-stone-800">
                             Clear
@@ -842,7 +1474,7 @@ export default function PdfEditor() {
 
                     {savedSignature && (
                         <div className="border-t pt-4 space-y-3">
-                        <h5 className="text-[10px] font-black uppercase text-stone-400">Captured Signature</h5>
+                        <h5 className="text-[10px] font-black uppercase text-stone-400">Captured Annotations</h5>
                         <div className="border border-[#EADCC3] bg-[#FAF0E1]/10 rounded-xl p-3 flex items-center justify-center max-h-[80px] overflow-hidden">
                             <img src={savedSignature} alt="saved signature" className="max-h-[60px] object-contain" />
                         </div>
@@ -854,6 +1486,124 @@ export default function PdfEditor() {
                         </button>
                         </div>
                     )}
+                    </div>
+                )}
+
+                {/* DIRECT DRAW */}
+                {activeTool === 'draw' && (
+                    <div className="space-y-6 flex-1 flex flex-col">
+                    <div>
+                        <h4 className="text-xs font-black uppercase text-stone-400 tracking-wider mb-2">Direct PDF Draw</h4>
+                        <p className="text-xs text-stone-500">Draw directly on the active PDF preview on the left. Changes autosave instantly.</p>
+                    </div>
+
+                    {/* Mode Toggle */}
+                    <div className="flex gap-1 bg-stone-100 p-1 rounded-xl">
+                      <button
+                        type="button"
+                        onClick={() => setBrushMode('draw')}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                          brushMode === 'draw' ? 'bg-white text-[#E08E19] shadow-xs' : 'text-stone-600 hover:bg-white/30'
+                        }`}
+                      >
+                        <Brush className="w-3.5 h-3.5" /> Pen
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBrushMode('highlighter')}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                          brushMode === 'highlighter' ? 'bg-white text-[#E08E19] shadow-xs' : 'text-stone-600 hover:bg-white/30'
+                        }`}
+                      >
+                        <Brush className="w-3.5 h-3.5 opacity-60" /> Highlighter
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBrushMode('erase')}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                          brushMode === 'erase' ? 'bg-white text-[#E08E19] shadow-xs' : 'text-stone-600 hover:bg-white/30'
+                        }`}
+                      >
+                        <Eraser className="w-3.5 h-3.5" /> Eraser
+                      </button>
+                    </div>
+
+                    {/* Color selection */}
+                    <div className="space-y-2">
+                      <h5 className="text-[10px] font-black uppercase text-stone-400 tracking-wider">Stroke Color</h5>
+                      <div className="flex gap-1.5 items-center bg-stone-50 p-2.5 border rounded-xl">
+                          {['#000000', '#0000ff', '#ff0000'].map(color => (
+                          <button
+                              key={color}
+                              type="button"
+                              onClick={() => setSigColor(color)}
+                              className={`w-4 h-4 rounded-full border border-stone-300 transition-all ${sigColor === color ? 'ring-2 ring-[#E08E19] scale-110' : 'hover:scale-105'}`}
+                              style={{ backgroundColor: color }}
+                          />
+                          ))}
+                          {/* Custom Color Picker Button */}
+                          <div
+                              className={`w-4 h-4 rounded-full border border-stone-300 relative flex items-center justify-center overflow-hidden transition-all ${
+                              !['#000000', '#0000ff', '#ff0000'].includes(sigColor)
+                                  ? 'ring-2 ring-[#E08E19] scale-110'
+                                  : 'hover:scale-105'
+                              }`}
+                              style={{
+                              background: !['#000000', '#0000ff', '#ff0000'].includes(sigColor)
+                                  ? sigColor
+                                  : 'conic-gradient(from 0deg, red, yellow, green, cyan, blue, magenta, red)'
+                              }}
+                              title="Custom Color Picker"
+                          >
+                              <input
+                                  type="color"
+                                  ref={customColorInputRef}
+                                  value={['#000000', '#0000ff', '#ff0000'].includes(sigColor) ? '#000000' : sigColor}
+                                  onChange={(e) => setSigColor(e.target.value)}
+                                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                              />
+                              {!['#000000', '#0000ff', '#ff0000'].includes(sigColor) && (
+                              <span className="w-1 h-1 bg-white rounded-full shadow-sm pointer-events-none" />
+                              )}
+                          </div>
+                      </div>
+                    </div>
+
+                    {/* Width slider */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <h5 className="text-[10px] font-black uppercase text-stone-400 tracking-wider">Stroke Width</h5>
+                        <span className="text-[10px] font-black text-stone-600 bg-stone-100 px-1.5 py-0.5 rounded">{brushWidth}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="1"
+                        max="12"
+                        value={brushWidth}
+                        onChange={(e) => setBrushWidth(parseInt(e.target.value, 10))}
+                        className="w-full h-1.5 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-[#E08E19]"
+                      />
+                    </div>
+
+                    {/* Clear actions */}
+                    <div className="pt-2 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={handleUndoDirectDraw}
+                        disabled={!(drawHistory[activePage?.id] && drawHistory[activePage.id].length > 0)}
+                        className="flex-1 py-2.5 bg-white hover:bg-stone-50 disabled:hover:bg-white text-stone-600 disabled:opacity-40 rounded-xl text-xs font-bold border border-stone-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-not-allowed"
+                        title="Undo latest stroke (Ctrl+Z)"
+                      >
+                        <Undo className="w-4 h-4" /> Undo Stroke
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearDirectDraw}
+                        className="flex-1 py-2.5 bg-white hover:bg-red-50 text-stone-600 hover:text-red-600 rounded-xl text-xs font-bold border border-stone-200 hover:border-red-200 transition-colors flex items-center justify-center gap-1.5"
+                      >
+                        <Eraser className="w-4 h-4" /> Clear Page
+                      </button>
+                    </div>
                     </div>
                 )}
               </div>
