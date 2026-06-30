@@ -8,6 +8,33 @@ import Layout from '../components/Layout';
 import FilePreview from '../components/FilePreviewAltered';
 import ImageCompressionDetails from '../components/dropdownPreview/ImageCompressionDropdown';
 
+const getImageDimensions = (file) => { // for image resizing 
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+
+    img.onload = () => {
+      resolve({
+        width: img.naturalWidth,
+        height: img.naturalHeight,
+      });
+
+      URL.revokeObjectURL(url);
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Could not read image dimensions'));
+    };
+
+    img.src = url;
+  });
+};
+
+const getVideoDimensions = () => {
+  return null;
+}
+
 export default function Compress() {
   // input & output file(s) state
   const [fileItems, setFileItems] = useState([]); // id, file, fileInfo, format, result, downloadURL, compressedFileName, warning, status
@@ -67,15 +94,20 @@ export default function Compress() {
   };
 
   // Shared processing function for both input uploading and clipboard pasting
-  const processUploadedFiles = (uploadedFiles) => {
-    const newFileItems = uploadedFiles
-      .map((uploadedFile) => { 
+  const processUploadedFiles = async (uploadedFiles) => {
+    const newFileItems = await Promise.all(
+      uploadedFiles.map(async (uploadedFile) => {
         const detFileInfo = getFileInfo(uploadedFile.type);
 
         if (!detFileInfo) {
           alert(`${uploadedFile.name} is not supported`);
           return null;
         }
+
+        const dimensions =
+          detFileInfo.category === 'images'
+            ? await getImageDimensions(uploadedFile).catch(() => null)
+            : null;
 
         const previewUrl = uploadedFile.type.startsWith('image/')
           ? URL.createObjectURL(uploadedFile)
@@ -84,26 +116,27 @@ export default function Compress() {
         return {
           id: crypto.randomUUID(),
           file: uploadedFile,
-          fileInfo: detFileInfo,
+          fileInfo: {
+            ...detFileInfo,
+            width: dimensions?.width ?? null,
+            height: dimensions?.height ?? null,
+          },
           format: detFileInfo.format,
           previewUrl,
 
-          // compression result state
           result: null,
           downloadUrl: '',
           compressedFileName: '',
           status: 'idle',
 
-          // per-file image settings
           useCustomSettings: false,
           customRatio: null,
 
           resizeEnabled: false,
-          maxWidth: '',
-          maxHeight: '',
+          maxWidth: dimensions?.width ?? '',
+          maxHeight: dimensions?.height ?? '',
           maintainAspectRatio: true,
 
-          // preview image 
           compressedPreviewUrl: '',
           estimatedSize: null,
           previewWidth: null,
@@ -111,9 +144,9 @@ export default function Compress() {
           previewLoading: false,
         };
       })
-      .filter(Boolean);
+    );
 
-    setFileItems((prev) => [...prev, ...newFileItems]);
+    setFileItems((prev) => [...prev, ...newFileItems.filter(Boolean)]);
   };
 
   const updateFileCompressionSettings = (id, patch) => {
@@ -508,6 +541,10 @@ export default function Compress() {
                   }}
                   className="w-full accent-orange-600 cursor-pointer bg-stone-200 rounded-lg appearance-none h-2"
                 />
+                <div className="mt-1 flex justify-between text-xs text-stone-500">
+                  <span>↑ quality</span>
+                  <span>↓ size</span>
+                </div>
               </div>
             </div>
 
