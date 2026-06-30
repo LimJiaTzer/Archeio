@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import BeforeAfterImageSlider from './BeforeAfterImageSlider';
+import { createImageCompressionPreview } from './ImagePreviewService';
 
 const formatBytes = (bytes) => {
   if (!bytes && bytes !== 0) return '';
@@ -11,7 +13,78 @@ const ImageCompressionDetails = ({
   item,
   effectiveRatio,
   updateFileItem,
+  updatePreviewItem,
 }) => {
+
+  useEffect(() => {
+    if (!item.file || item.fileInfo.category !== 'images') return;
+
+    let cancelled = false;
+    let generatedUrl = '';
+
+    updatePreviewItem(item.id, {
+      previewLoading: true,
+    });
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        const preview = await createImageCompressionPreview({
+          file: item.file,
+          ratio: effectiveRatio,
+          format: item.format,
+          resizeEnabled: item.resizeEnabled,
+          maxWidth: item.maxWidth ? Number(item.maxWidth) : null,
+          maxHeight: item.maxHeight ? Number(item.maxHeight) : null,
+          maintainAspectRatio: item.maintainAspectRatio,
+        });
+
+        if (cancelled) {
+          URL.revokeObjectURL(preview.previewUrl);
+          return;
+        }
+
+        generatedUrl = preview.previewUrl;
+
+        if (item.compressedPreviewUrl) {
+          URL.revokeObjectURL(item.compressedPreviewUrl);
+        }
+
+        updatePreviewItem(item.id, {
+          compressedPreviewUrl: preview.previewUrl,
+          estimatedSize: preview.sizeBytes,
+          previewWidth: preview.width,
+          previewHeight: preview.height,
+          previewLoading: false,
+        });
+      } catch (error) {
+        if (!cancelled) {
+          updatePreviewItem(item.id, {
+            previewLoading: false,
+          });
+        }
+      }
+    }, 300); // 300ms lagtime so it doesnt recompress every slider movement 
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+
+      if (generatedUrl) {
+        URL.revokeObjectURL(generatedUrl);
+      }
+    };
+  }, [
+    item.id,
+    item.file,
+    item.fileInfo.category,
+    item.format,
+    effectiveRatio,
+    item.resizeEnabled,
+    item.maxWidth,
+    item.maxHeight,
+    item.maintainAspectRatio,
+  ]);
+
   const compressedSize =
     item.result?.compressedSizeBytes || item.result?.compressedSize;
 
@@ -20,16 +93,26 @@ const ImageCompressionDetails = ({
       <div className="grid grid-cols-1 gap-5 md:grid-cols-[1.4fr_1fr]">
         <BeforeAfterImageSlider
           originalUrl={item.previewUrl}
-          compressedUrl={item.downloadUrl || item.previewUrl}
+          compressedUrl={
+            item.downloadUrl || item.compressedPreviewUrl || item.previewUrl
+          }
           originalSize={formatBytes(item.file?.size)}
-          compressedSize={compressedSize || 'Preview'}
+          compressedSize={
+            item.previewLoading
+              ? 'Generating preview...'
+              : item.downloadUrl
+                ? item.result?.compressedSize
+                : item.estimatedSize
+                  ? formatBytes(item.estimatedSize)
+                  : 'Preview pending'
+          }
         />
 
         <div className="space-y-5 rounded-xl border border-stone-200 p-4">
           <div>
             <div className="mb-2 flex items-center justify-between">
               <label className="text-sm font-bold text-stone-800">
-                Quality
+                Compresison 
               </label>
 
               <span className="text-sm font-bold text-orange-600">
@@ -52,8 +135,8 @@ const ImageCompressionDetails = ({
             />
 
             <div className="mt-1 flex justify-between text-xs text-stone-500">
-              <span>Smaller size</span>
               <span>Better quality</span>
+              <span>Smaller size</span>
             </div>
 
             {item.useCustomSettings && (
