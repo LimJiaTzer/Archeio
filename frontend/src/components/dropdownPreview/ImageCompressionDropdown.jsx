@@ -16,6 +16,54 @@ const ImageCompressionDetails = ({
   updatePreviewItem,
 }) => {
 
+  const originalWidth = item.fileInfo?.width;
+  const originalHeight = item.fileInfo?.height;
+
+  const aspectRatio =
+    originalWidth && originalHeight
+      ? originalWidth / originalHeight
+      : null;
+  
+  // handle resets in case you mess up aspect ratio 
+  const resetToOriginalDimensions = () => {
+    updateFileItem(item.id, {
+      maxWidth: originalWidth ?? '',
+      maxHeight: originalHeight ?? '',
+    });
+  };
+
+  const handleMaxWidthChange = (e) => {
+    const maxWidth = e.target.value;
+
+    if (!item.maintainAspectRatio || !aspectRatio || maxWidth === '') {
+      updateFileItem(item.id, {
+        maxWidth,
+      });
+      return;
+    }
+
+    updateFileItem(item.id, {
+      maxWidth,
+      maxHeight: Math.round(Number(maxWidth) / aspectRatio),
+    });
+  };
+
+  const handleMaxHeightChange = (e) => {
+    const maxHeight = e.target.value;
+
+    if (!item.maintainAspectRatio || !aspectRatio || maxHeight === '') {
+      updateFileItem(item.id, {
+        maxHeight,
+      });
+      return;
+    }
+
+    updateFileItem(item.id, {
+      maxHeight,
+      maxWidth: Math.round(Number(maxHeight) * aspectRatio),
+    });
+  };
+
   useEffect(() => {
     if (!item.file || item.fileInfo.category !== 'images') return;
 
@@ -85,8 +133,13 @@ const ImageCompressionDetails = ({
     item.maintainAspectRatio,
   ]);
 
-  const compressedSize =
-    item.result?.compressedSizeBytes || item.result?.compressedSize;
+  const compressedSizeText = item.downloadUrl
+    ? item.result?.compressedSize
+    : item.previewLoading
+      ? 'Generating preview...'
+      : item.estimatedSize
+        ? formatBytes(item.estimatedSize)
+        : 'Preview pending';
 
   return (
     <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
@@ -112,7 +165,7 @@ const ImageCompressionDetails = ({
           <div>
             <div className="mb-2 flex items-center justify-between">
               <label className="text-sm font-bold text-stone-800">
-                Compresison 
+                Compression 
               </label>
 
               <span className="text-sm font-bold text-orange-600">
@@ -135,8 +188,8 @@ const ImageCompressionDetails = ({
             />
 
             <div className="mt-1 flex justify-between text-xs text-stone-500">
-              <span>Better quality</span>
-              <span>Smaller size</span>
+              <span>↑ quality</span>
+              <span>↓ size</span>
             </div>
 
             {item.useCustomSettings && (
@@ -163,11 +216,16 @@ const ImageCompressionDetails = ({
 
               <button
                 type="button"
-                onClick={() =>
+                onClick={() => {
+                  const nextResizeEnabled = !item.resizeEnabled;
+
                   updateFileItem(item.id, {
-                    resizeEnabled: !item.resizeEnabled,
-                  })
-                }
+                    resizeEnabled: nextResizeEnabled,
+                    maintainAspectRatio: true,
+                    maxWidth: originalWidth ?? '',
+                    maxHeight: originalHeight ?? '',
+                  });
+                }}
                 className={`h-6 w-11 rounded-full p-1 transition ${
                   item.resizeEnabled ? 'bg-orange-500' : 'bg-stone-300'
                 }`}
@@ -190,14 +248,10 @@ const ImageCompressionDetails = ({
                     <input
                       type="number"
                       value={item.maxWidth ?? ''}
-                      onChange={(e) =>
-                        updateFileItem(item.id, {
-                          maxWidth: e.target.value,
-                        })
-                      }
+                      onChange={handleMaxWidthChange}
                       placeholder="1920"
                       className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-orange-500"
-                    />
+                    />  
                   </div>
 
                   <div>
@@ -207,11 +261,7 @@ const ImageCompressionDetails = ({
                     <input
                       type="number"
                       value={item.maxHeight ?? ''}
-                      onChange={(e) =>
-                        updateFileItem(item.id, {
-                          maxHeight: e.target.value,
-                        })
-                      }
+                      onChange={handleMaxHeightChange}
                       placeholder="1080"
                       className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-orange-500"
                     />
@@ -222,11 +272,23 @@ const ImageCompressionDetails = ({
                   <input
                     type="checkbox"
                     checked={item.maintainAspectRatio ?? true}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+
+                      if (!checked || !aspectRatio) {
+                        updateFileItem(item.id, {
+                          maintainAspectRatio: checked,
+                        });
+                        return;
+                      }
+
                       updateFileItem(item.id, {
-                        maintainAspectRatio: e.target.checked,
-                      })
-                    }
+                        maintainAspectRatio: true,
+                        maxHeight: item.maxWidth
+                          ? Math.round(Number(item.maxWidth) / aspectRatio)
+                          : originalHeight ?? '',
+                      });
+                    }}
                     className="accent-orange-600"
                   />
                   Maintain aspect ratio
@@ -238,7 +300,7 @@ const ImageCompressionDetails = ({
           <div className="rounded-lg bg-orange-50 p-3 text-sm font-bold text-stone-800">
             Estimated size:{' '}
             <span className="text-orange-600">
-              {compressedSize || 'After compression'}
+              {compressedSizeText}
             </span>
           </div>
         </div>
