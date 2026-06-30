@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';   // useState helps track variables 
+import React, { useState, useEffect, useRef } from 'react';   // useState helps track variables 
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Archive, Sliders, CheckCircle2, ChevronDown } from 'lucide-react'; // icons, can change them 
 import { getFileInfo } from '../lib/fileTypes'; // file types
@@ -30,6 +30,12 @@ export default function Compress() {
       [id]: !prev[id],
     }));
   };
+
+  const fileItemsRef = useRef([]);
+
+  useEffect(() => {
+    fileItemsRef.current = fileItems;
+  }, [fileItems]);
 
   // Handle global paste event (Ctrl+V / Cmd+V)
   useEffect(() => {
@@ -96,6 +102,13 @@ export default function Compress() {
           maxWidth: '',
           maxHeight: '',
           maintainAspectRatio: true,
+
+          // preview image 
+          compressedPreviewUrl: '',
+          estimatedSize: null,
+          previewWidth: null,
+          previewHeight: null,
+          previewLoading: false,
         };
       })
       .filter(Boolean);
@@ -139,6 +152,15 @@ export default function Compress() {
           if (item.previewUrl) {
             URL.revokeObjectURL(item.previewUrl);
           }
+
+          if (item.compressedPreviewUrl) {
+            URL.revokeObjectURL(item.compressedPreviewUrl);
+          }
+
+          if (item.downloadUrl) {
+            URL.revokeObjectURL(item.downloadUrl);
+          }
+
           return false;
         }
 
@@ -152,20 +174,37 @@ export default function Compress() {
       if (item.previewUrl) {
         URL.revokeObjectURL(item.previewUrl);
       }
+
+      if (item.compressedPreviewUrl) {
+        URL.revokeObjectURL(item.compressedPreviewUrl);
+      }
+
+      if (item.downloadUrl) {
+        URL.revokeObjectURL(item.downloadUrl);
+      }
     });
 
     setFileItems([]);
   };
 
-  useEffect(() => { // clean up when compress page is closed 
+  // clean up when compress page is closed 
+  useEffect(() => {
     return () => {
-      fileItems.forEach((item) => {
+      fileItemsRef.current.forEach((item) => {
         if (item.previewUrl) {
           URL.revokeObjectURL(item.previewUrl);
         }
+
+        if (item.compressedPreviewUrl) {
+          URL.revokeObjectURL(item.compressedPreviewUrl);
+        }
+
+        if (item.downloadUrl) {
+          URL.revokeObjectURL(item.downloadUrl);
+        }
       });
     };
-  }, [fileItems]);
+  }, []);
 
   // Compression (Ive got a feeling this doesnt follow Tell Don't Ask Principle)
   const startCompression = async () => {
@@ -420,6 +459,7 @@ export default function Compress() {
                             item={item}
                             effectiveRatio={getEffectiveRatio(item)}
                             updateFileItem={updateFileCompressionSettings}
+                            updatePreviewItem={updateFileItem}
                           />
                         </div>
                       )}
