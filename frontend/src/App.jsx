@@ -15,6 +15,7 @@ import Compress from './pages/Compress';
 import ZipCompression from './pages/ZipCompression';
 import Manipulation from './pages/Manipulation';
 import PDFEditor from './pages/PDFEditor';
+import QRCodeCreator from './pages/QRCodeCreator';
 
 // Grouped helpers 
 import FeatureCard from './components/FeatureCard';
@@ -133,6 +134,7 @@ function App() {
         <Route path="/manipulation" element={<Manipulation />} />
         <Route path="/zip-compression" element={<ZipCompression />} />
         <Route path='/pdfEditor' element={<PDFEditor />} />
+        <Route path='/QRCodeCreator' element={<QRCodeCreator />} />
 
       </Routes>
     </BrowserRouter>

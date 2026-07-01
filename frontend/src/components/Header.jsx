@@ -156,6 +156,12 @@ export const navMenus = [
         { label: 'Trim Video', href: '#' },
       ],
     },
+    {
+      title: 'QR Code generator',
+      options: [
+        { label: 'Generator QR code', href: '/QRCodeGenerator'}
+      ],
+    },
   ],
 },
 ];
