@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft, Upload, Trash2, RotateCw, ArrowUp, ArrowDown,
-  Plus, Download, Loader2, CheckCircle2, PenTool, X, ChevronLeft, ChevronRight,
+  Plus, Download, Loader2, CheckCircle2, X, ChevronLeft, ChevronRight,
   Brush, Eraser, Undo
 } from 'lucide-react';
 import Layout from '@/components/Layout';
@@ -105,11 +105,17 @@ export default function PdfEditor() {
 
   // Signature state
   const [placedSignatures,  setPlacedSignatures]  = useState({});
-  const [savedSignature,    setSavedSignature]    = useState(null);
   const [sigColor,          setSigColor]          = useState('#000000');
   const sigCanvasRef = useRef(null);
   const customColorInputRef = useRef(null);
   const [isDrawing,         setIsDrawing]         = useState(false);
+
+  // Text annotation state
+  const [textInput,         setTextInput]         = useState('');
+  const [textSize,          setTextSize]          = useState(24);
+  const [textFont,          setTextFont]          = useState('Arial');
+  const [textColor,         setTextColor]         = useState('#000000');
+  const customTextColorInputRef = useRef(null);
 
   // Direct Draw state
   const directCanvasRef = useRef(null);
@@ -594,19 +600,6 @@ export default function PdfEditor() {
     const canvas = sigCanvasRef.current;
     if (!canvas) return;
     canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-    setSavedSignature(null);
-  };
-
-  const saveSignature = () => {
-    const canvas = sigCanvasRef.current;
-    if (!canvas) return;
-    const blank = document.createElement('canvas');
-    blank.width = canvas.width; blank.height = canvas.height;
-    if (canvas.toDataURL() === blank.toDataURL()) {
-      alert('Please draw your signature first.');
-      return;
-    }
-    setSavedSignature(canvas.toDataURL());
   };
 
   // ─── 3.1 DIRECT PDF ANNOTATION DRAWING ─────────────────────────────────────
@@ -830,11 +823,21 @@ export default function PdfEditor() {
   }, [activeTool, activePage?.id, drawHistory]);
 
   // ─── 4. SIGNATURE OVERLAY ─────────────────────────────────────────────────
-  const placeSignatureOnActivePage = () => {
-    if (!savedSignature || !activePage) return;
+  const addSignatureToPdf = () => {
+    const canvas = sigCanvasRef.current;
+    if (!canvas) return;
+    const blank = document.createElement('canvas');
+    blank.width = canvas.width; blank.height = canvas.height;
+    if (canvas.toDataURL() === blank.toDataURL()) {
+      alert('Please draw your signature first.');
+      return;
+    }
+    const sigData = canvas.toDataURL();
+
+    if (!activePage) return;
     const newAnnotation = {
       id: Math.random().toString(36).substring(2, 9),
-      img: savedSignature,
+      img: sigData,
       x: 35,
       y: 45,
       width: 150,
@@ -844,6 +847,67 @@ export default function PdfEditor() {
       ...prev,
       [activePage.id]: [...(Array.isArray(prev[activePage.id]) ? prev[activePage.id] : (prev[activePage.id] ? [prev[activePage.id]] : [])), newAnnotation]
     }));
+
+    // Clear signature canvas after adding to PDF
+    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+  };
+
+  const generateTextImage = (text, size, font, color) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Scale up for crisp high-dpi text rendering
+    const scale = 3;
+    const scaledSize = size * scale;
+    
+    ctx.font = `${scaledSize}px "${font}", sans-serif`;
+    const metrics = ctx.measureText(text);
+    
+    const textWidth = Math.ceil(metrics.width) || 100;
+    const padding = 10 * scale;
+    const canvasWidth = textWidth + padding * 2;
+    const canvasHeight = Math.ceil(scaledSize * 1.3) + padding * 2;
+    
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+    
+    ctx.font = `${scaledSize}px "${font}", sans-serif`;
+    ctx.fillStyle = color;
+    ctx.textBaseline = 'middle';
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillText(text, padding, canvasHeight / 2);
+    
+    return {
+      img: canvas.toDataURL('image/png'),
+      width: canvasWidth / scale,
+      height: canvasHeight / scale
+    };
+  };
+
+  const addTextToPdf = () => {
+    if (!textInput.trim()) {
+      alert('Please enter some text first.');
+      return;
+    }
+    if (!activePage) return;
+
+    const { img, width, height } = generateTextImage(textInput, textSize, textFont, textColor);
+
+    const newAnnotation = {
+      id: Math.random().toString(36).substring(2, 9),
+      img: img,
+      x: 35,
+      y: 45,
+      width: width,
+      height: height
+    };
+
+    setPlacedSignatures(prev => ({
+      ...prev,
+      [activePage.id]: [...(Array.isArray(prev[activePage.id]) ? prev[activePage.id] : (prev[activePage.id] ? [prev[activePage.id]] : [])), newAnnotation]
+    }));
+
+    setTextInput('');
   };
 
   const removePlacedSignature = (pageId, sigId) => {
@@ -1325,7 +1389,7 @@ export default function PdfEditor() {
                             : 'text-stone-600 hover:bg-white/50'
                         }`}
                     >
-                        {tool === 'organize' ? 'Organize' : tool === 'sign' ? 'Sign PDF' : 'Draw PDF'}
+                        {tool === 'organize' ? 'Organize' : tool === 'sign' ? 'Annotate' : 'Draw'}
                     </button>
                     ))}
                 </div>
@@ -1466,26 +1530,115 @@ export default function PdfEditor() {
                     </div>
 
                     <button
-                        onClick={saveSignature}
+                        onClick={addSignatureToPdf}
                         className="w-full py-2 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-bold transition-colors"
                     >
-                        Save &amp; Preview Signature
+                        Add to PDF
                     </button>
 
-                    {savedSignature && (
-                        <div className="border-t pt-4 space-y-3">
-                        <h5 className="text-[10px] font-black uppercase text-stone-400">Captured Annotations</h5>
-                        <div className="border border-[#EADCC3] bg-[#FAF0E1]/10 rounded-xl p-3 flex items-center justify-center max-h-[80px] overflow-hidden">
-                            <img src={savedSignature} alt="saved signature" className="max-h-[60px] object-contain" />
+                    {/* Add Text Subsection */}
+                    <div className="border-t pt-5 space-y-4">
+                      <div>
+                        <h4 className="text-xs font-black uppercase text-stone-400 tracking-wider mb-2">Add Text to PDF</h4>
+                        <p className="text-xs text-stone-500">Type text and add it anywhere on the page.</p>
+                      </div>
+
+                      {/* Text Input */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-stone-500 uppercase">Text</label>
+                        <input
+                          type="text"
+                          value={textInput}
+                          onChange={(e) => setTextInput(e.target.value)}
+                          placeholder="Type your text here..."
+                          className="w-full px-3 py-2 border border-stone-200 rounded-xl text-xs text-stone-800 placeholder-stone-400 focus:outline-hidden focus:border-[#E08E19] font-medium"
+                        />
+                      </div>
+
+                      {/* Font Family and Font Size Row */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-stone-500 uppercase">Font</label>
+                          <select
+                            value={textFont}
+                            onChange={(e) => setTextFont(e.target.value)}
+                            className="w-full px-2 py-1.5 border border-stone-200 rounded-xl text-xs text-stone-700 bg-white focus:outline-hidden focus:border-[#E08E19]"
+                          >
+                            <option value="Arial">Arial</option>
+                            <option value="Times New Roman">Times New Roman</option>
+                            <option value="Courier New">Courier New</option>
+                            <option value="Georgia">Georgia</option>
+                            <option value="Impact">Impact</option>
+                            <option value="Comic Sans MS">Comic Sans MS</option>
+                            <option value="Verdana">Verdana</option>
+                          </select>
                         </div>
-                        <button
-                            onClick={placeSignatureOnActivePage}
-                            className="w-full py-2.5 bg-[#E08E19] hover:bg-[#C87C11] text-white rounded-xl text-xs font-bold shadow flex items-center justify-center gap-1.5 active:scale-95 transition-all"
-                        >
-                            <PenTool className="w-3.5 h-3.5" /> Place on Active Page
-                        </button>
+
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-stone-500 uppercase">Size</label>
+                          <select
+                            value={textSize}
+                            onChange={(e) => setTextSize(Number(e.target.value))}
+                            className="w-full px-2 py-1.5 border border-stone-200 rounded-xl text-xs text-stone-700 bg-white focus:outline-hidden focus:border-[#E08E19]"
+                          >
+                            {[12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 64, 72].map(sz => (
+                              <option key={sz} value={sz}>{sz}px</option>
+                            ))}
+                          </select>
                         </div>
-                    )}
+                      </div>
+
+                      {/* Color Options block */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-stone-500 uppercase block mb-0.5">Text Color</label>
+                        <div className="flex items-center justify-between">
+                          <div className="flex gap-1.5 items-center ml-1">
+                            {['#000000', '#0000ff', '#ff0000'].map(color => (
+                              <button
+                                key={color}
+                                type="button"
+                                onClick={() => setTextColor(color)}
+                                className={`w-4 h-4 rounded-full border border-stone-300 transition-all ${textColor === color ? 'ring-2 ring-[#E08E19] scale-110' : 'hover:scale-105'}`}
+                                style={{ backgroundColor: color }}
+                              />
+                            ))}
+                            {/* Custom Color Picker Button */}
+                            <div
+                              className={`w-4 h-4 rounded-full border border-stone-300 relative flex items-center justify-center overflow-hidden transition-all ${
+                                !['#000000', '#0000ff', '#ff0000'].includes(textColor)
+                                  ? 'ring-2 ring-[#E08E19] scale-110'
+                                  : 'hover:scale-105'
+                              }`}
+                              style={{
+                                background: !['#000000', '#0000ff', '#ff0000'].includes(textColor)
+                                  ? textColor
+                                  : 'conic-gradient(from 0deg, red, yellow, green, cyan, blue, magenta, red)'
+                              }}
+                              title="Custom Color Picker"
+                            >
+                              <input
+                                type="color"
+                                ref={customTextColorInputRef}
+                                value={['#000000', '#0000ff', '#ff0000'].includes(textColor) ? '#000000' : textColor}
+                                onChange={(e) => setTextColor(e.target.value)}
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                              />
+                              {!['#000000', '#0000ff', '#ff0000'].includes(textColor) && (
+                                <span className="w-1 h-1 bg-white rounded-full shadow-sm pointer-events-none" />
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Add Text Button */}
+                      <button
+                        onClick={addTextToPdf}
+                        className="w-full py-2 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-bold transition-colors"
+                      >
+                        Add Text to PDF
+                      </button>
+                    </div>
                     </div>
                 )}
 
