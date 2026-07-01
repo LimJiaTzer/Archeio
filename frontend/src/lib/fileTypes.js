@@ -42,7 +42,7 @@ export const FILE_TYPES = {
     canCrop: true,
     canResize: true,
     // conversion service handles the jpg to jpeg and ico naming variation
-    outputFormats: ['PNG', 'JPG', 'JPEG', 'WEBP', 'GIF', 'SVG', 'ICO', 'HEIC'],
+    outputFormats: ['PNG', 'JPG', 'JPEG', 'WEBP', 'GIF', 'SVG', 'ICO', 'HEIC', 'AVIF'],
     formats: {
       'image/png': 'PNG',
       'image/jpg': 'JPG',
@@ -52,6 +52,7 @@ export const FILE_TYPES = {
       'image/svg+xml': 'SVG',
       'image/heic': 'HEIC',
       'image/heif': 'HEIC',
+      'image/avif': 'AVIF',
       'image/x-icon': 'ICO',
       'image/vnd.microsoft.icon': 'ICO',
     },
@@ -102,6 +103,7 @@ export const IMAGE_OUTPUT_TYPES = {
   GIF: { mime: 'image/gif', ext: 'gif' },
   SVG: { mime: 'image/svg+xml', ext: 'svg' },
   HEIC: { mime: 'image/heic', ext: 'heic' },
+  AVIF: { mime: 'image/avif', ext: 'avif' },
   ICO: { mime: 'image/x-icon', ext: 'ico' },
 };
 

@@ -13,3 +13,34 @@ body {
 .playfair {
   font-family: 'Playfair Display', serif;
 }
+
+.archeio-crop {
+  display: inline-block !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+}
+
+.archeio-crop img {
+  display: block !important;
+  max-width: 100% !important;
+  max-height: calc(90vh - 300px) !important;
+  object-fit: contain !important;
+}
+
+.archeio-crop .ReactCrop__crop-selection {
+  border: 2px solid white !important;
+  background-image: none !important;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35) !important;
+}
+
+.archeio-crop .ReactCrop__drag-handle {
+  width: 10px !important;
+  height: 10px !important;
+  background-color: white !important;
+  border: 1px solid rgba(0, 0, 0, 0.35) !important;
+}
+
+.archeio-crop .ReactCrop__rule-of-thirds-vt,
+.archeio-crop .ReactCrop__rule-of-thirds-hz {
+  border-color: rgba(255, 255, 255, 0.45) !important;
+}

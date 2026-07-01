@@ -12,6 +12,7 @@ import { rasterToGif } from './imageConversionServices/rasterToGif';
 import { pngToIco } from './imageConversionServices/pngToIco';
 import { normalizeImageForCompression, compressRasterWithCanvas } from './compressionHelpers/imageCompressionHelper';
 import { convertDocument } from './conversionService';
+import { rasterToAvif } from './compressionHelpers/rasterToAvif';
 
 // Helps with Audio and Video compression 
 const ffmpeg = new FFmpeg();
@@ -157,7 +158,8 @@ export const compressImage = async ({
     const needsSpecialOutput =
       outputType.mime === 'image/gif' ||
       outputType.mime === 'image/x-icon' ||
-      outputType.mime === 'image/vnd.microsoft.icon';
+      outputType.mime === 'image/vnd.microsoft.icon' ||
+      outputType.mime === 'image/avif';
 
     const canvasOutputMime = needsSpecialOutput
       ? 'image/png'
@@ -181,6 +183,10 @@ export const compressImage = async ({
       outputType.mime === 'image/vnd.microsoft.icon'
     ) {
       finalBlob = await pngToIco(compressedRasterBlob);
+    }
+
+    if (outputType.mime === 'image/avif') {
+      finalBlob = await rasterToAvif(compressedRasterBlob, ratio);
     }
 
     const actualCompressedBytes = finalBlob.size;
