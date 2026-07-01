@@ -1,7 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import cors from 'cors';
-import { execFile } from 'child_process';
+import { execFile, spawn } from 'child_process'; 
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -321,6 +321,40 @@ app.post('/convert-to-heic', upload.single('file'), (req, res) => {
       });
     }
   );
+});
+
+app.post('/convert-to-avif', upload.single('file'), async (req, res) => {
+  try {
+    const inputPath = req.file.path;
+    const outputPath = `${inputPath}.avif`;
+
+    const ratio = Number(req.body.ratio || 75);
+
+    // ratio high = more compression = lower quality
+    const quality = Math.round(85 - ((ratio - 20) / (90 - 20)) * 55);
+    const safeQuality = Math.max(30, Math.min(85, quality));
+
+    const python = spawn('python3', [
+      'anyToAVIF.py',
+      inputPath,
+      outputPath,
+      String(safeQuality),
+    ]);
+
+    python.on('close', (code) => {
+      if (code !== 0) {
+        return res.status(500).send('AVIF conversion failed');
+      }
+
+      res.sendFile(path.resolve(outputPath), () => {
+        fs.unlinkSync(inputPath);
+        fs.unlinkSync(outputPath);
+      });
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('AVIF conversion failed');
+  }
 });
 
 app.post('/convert-to-pdf', upload.single('file'), (req, res) => {

@@ -381,11 +381,9 @@ export default function Compress() {
         </div>
 
         {/* Upload / drop box */}
-        {/* <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="md:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-stone-200"> */}
-        <div className="grid grid-cols-1 md:grid-cols-[2.2fr_0.8fr] gap-8">
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200">
-            <div className="border-2 border-dashed border-stone-300 rounded-xl p-12 text-center hover:border-orange-500 transition-colors cursor-pointer relative">
+        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,2.2fr)_minmax(0,0.8fr)] gap-8">
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200 min-w-0">
+            <div className="border-2 border-dashed border-stone-300 rounded-xl h-56 flex flex-col items-center justify-center text-center hover:border-orange-500 transition-colors cursor-pointer relative">
               <input 
                 type="file" 
                 multiple
@@ -397,36 +395,25 @@ export default function Compress() {
               <p className="text-xs text-stone-500 mt-1">Supports PDF, JPG, PNG, DOCX, ZIP (Max 100MB)</p>
             </div>
 
-            {/* {file && (
-              <div className="mt-6 p-4 bg-stone-100 rounded-xl flex items-center justify-between">
-                <div>
-                  <p className="font-semibold text-stone-800 text-sm truncate max-w-xs">{file.name}</p>
-                  <p className="text-xs text-stone-500">Original Size: {(file.size / 1024 / 1024).toFixed(2)} MB</p>
-                </div>
-                <button 
-                  onClick={handleReset}
-                  className="text-stone-400 hover:text-stone-600 text-xs font-semibold"
-                >
-                  Remove
-                </button>
-              </div>
-            )} */}
+
             {/* Display uploaded files */}
             {hasUpload && (
-              <div className="mt-6 space-y-3">
+              <div className="mt-6 space-y-3 min-w-0"> 
                 {fileItems.map((item) => {
                   const isImage = item.fileInfo.category === 'images';
                   const isOpen = openSettings[item.id];
 
                   return (
-                    <div key={item.id} className="rounded-xl overflow-hidden">
-                      <div className="p-4 bg-stone-100 rounded-xl flex items-center justify-between gap-4">
-                        <FilePreview file={item.file} previewUrl={item.previewUrl} />
+                    <div key={item.id} className="rounded-xl overflow-hidden min-w-0">
+                      <div className="p-4 bg-stone-100 rounded-xl flex items-center gap-4 min-w-0">
+                        <div className="shrink-0">
+                          <FilePreview file={item.file} previewUrl={item.previewUrl} />
+                        </div>
 
                         <div className="min-w-0 flex-1">
                           <p
                             title={item.file.name}
-                            className="font-semibold text-stone-800 text-sm truncate"
+                            className="block w-full truncate font-semibold text-stone-800 text-sm"
                           >
                             {item.file.name}
                           </p>
@@ -436,7 +423,7 @@ export default function Compress() {
                           </p>
                         </div>
 
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 shrink-0">
                           {item.fileInfo.outputFormats.length > 0 && (
                             <>
                               <span className="text-stone-400 text-xs font-semibold uppercase tracking-wide">
@@ -487,7 +474,7 @@ export default function Compress() {
 
                       {/* EXTRA IMAGE DROPDOWN DETAILS */}
                       {isImage && isOpen && (
-                        <div className="mt-3">
+                        <div className="mt-3 min-w-0">
                           <ImageCompressionDetails
                             item={item}
                             effectiveRatio={getEffectiveRatio(item)}
@@ -503,7 +490,7 @@ export default function Compress() {
             )}
           </div>
 
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200 flex flex-col justify-between">
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200 flex flex-col justify-between min-w-0">
             <div>
               <div className="flex items-center gap-2 mb-4 text-stone-900">
                 <Sliders className="w-5 h-5 text-orange-600" />

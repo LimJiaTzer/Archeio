@@ -1,0 +1,453 @@
+import { useEffect, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { applyImageQuickAction, applyImageCrop } from '../../services/imageEditingServices/imageEditService';
+import { AnimatePresence, motion } from 'framer-motion';
+import ReactCrop from 'react-image-crop';
+import 'react-image-crop/dist/ReactCrop.css';
+import {
+  X,
+  Undo2,
+  Redo2,
+  Crop,
+  WandSparkles,
+  Pencil,
+  Type,
+  Square,
+  SlidersHorizontal,
+  Check,
+  RotateCcw,
+  RotateCw,
+  FlipHorizontal,
+  FlipVertical,
+} from 'lucide-react';
+
+export default function ImageEditorModal({
+  isOpen,
+  onClose,
+  item,
+  previewUrl,
+  compressedPreviewUrl,
+  onApply,
+}) {
+  const [editedFile, setEditedFile] = useState(null);
+  const [editedPreviewUrl, setEditedPreviewUrl] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+
+  // for cropping 
+  const imageRef = useRef(null);
+
+  const [activeTool, setActiveTool] = useState(null);
+  const [crop, setCrop] = useState(null);
+  const [completedCrop, setCompletedCrop] = useState(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
+  useEffect(() => {
+    return () => {
+        if (editedPreviewUrl) {
+        URL.revokeObjectURL(editedPreviewUrl);
+        }
+    };
+    }, [editedPreviewUrl]);
+
+  const handleQuickAction = async (action) => {
+    try {
+        setIsEditing(true);
+
+        const sourceFile = editedFile || item.file;
+
+        const result = await applyImageQuickAction({
+        file: sourceFile,
+        action,
+        outputType: item.file.type || 'image/png',
+        });
+
+        if (editedPreviewUrl) {
+        URL.revokeObjectURL(editedPreviewUrl);
+        }
+
+        setEditedFile(result.file);
+        setEditedPreviewUrl(result.previewUrl);
+    } catch (error) {
+        console.error(`${action} failed:`, error);
+    } finally {
+        setIsEditing(false);
+    }
+  };
+
+  const handleCropComplete = (_, croppedAreaPixels) => {
+  setCroppedAreaPixels(croppedAreaPixels);
+  };
+
+  const handleApplyCrop = async () => {
+  try {
+    setIsEditing(true);
+
+    const sourceFile = editedFile || item.file;
+
+    const result = await applyImageCrop({
+      file: sourceFile,
+      imageElement: imageRef.current,
+      crop: completedCrop,
+      outputType: item.file.type || 'image/png',
+    });
+
+    if (editedPreviewUrl) {
+      URL.revokeObjectURL(editedPreviewUrl);
+    }
+
+    setEditedFile(result.file);
+    setEditedPreviewUrl(result.previewUrl);
+
+    setActiveTool(null);
+    setCrop(null);
+    setCompletedCrop(null);
+  } catch (error) {
+    console.error('Crop failed:', error);
+  } finally {
+    setIsEditing(false);
+  }
+  };
+
+  const handleCropImageLoad = (e) => {
+  const image = e.currentTarget;
+
+  imageRef.current = image;
+
+  setCrop({
+    unit: '%',
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 100,
+  });
+
+  setCompletedCrop({
+    unit: 'px',
+    x: 0,
+    y: 0,
+    width: image.naturalWidth,
+    height: image.naturalHeight,
+  });
+  };
+
+  if (typeof document === 'undefined') return null;
+
+  const imageUrl = editedPreviewUrl || compressedPreviewUrl || previewUrl;
+
+  return createPortal(
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          key="image-editor-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-stone-950/90 backdrop-blur-2xl p-4 md:p-8"
+          onClick={onClose}
+        >
+          <motion.div
+            key="image-editor-container"
+            initial={{ scale: 0.96, opacity: 0, y: 12 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.96, opacity: 0, y: 12 }}
+            transition={{ duration: 0.18 }}
+            onClick={(e) => e.stopPropagation()}
+            className="relative flex h-[90vh] w-full max-w-7xl flex-col overflow-hidden rounded-[32px] bg-white shadow-2xl"
+          >
+            {/* Top bar */}
+            <div className="flex items-center justify-between border-b border-stone-200 bg-white px-5 py-4">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold text-stone-900">
+                  Edit image
+                </p>
+                <p className="truncate text-xs font-medium text-stone-400">
+                  {item?.file?.name}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex h-10 w-10 items-center justify-center rounded-full text-stone-500 transition hover:bg-stone-100 hover:text-stone-900"
+                aria-label="Close image editor"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Toolbar */}
+            <div className="flex items-center justify-center gap-3 border-b border-stone-200 bg-white px-4 py-3">
+              <button
+                type="button"
+                onClick={() => null}
+                className="flex h-10 w-10 items-center justify-center rounded-full text-stone-600 transition hover:bg-stone-100 hover:text-stone-950"
+                aria-label="Undo"
+              >
+                <Undo2 className="h-5 w-5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => null}
+                className="flex h-10 w-10 items-center justify-center rounded-full text-stone-600 transition hover:bg-stone-100 hover:text-stone-950"
+                aria-label="Redo"
+              >
+                <Redo2 className="h-5 w-5" />
+              </button>
+
+              <div className="mx-2 h-8 w-px bg-stone-200" />
+
+            <button
+            type="button"
+            onClick={() => {
+                const nextTool = activeTool === 'crop' ? null : 'crop';
+
+                setActiveTool(nextTool);
+
+                if (nextTool === 'crop') {
+                setCrop({
+                    unit: '%',
+                    x: 0,
+                    y: 0,
+                    width: 100,
+                    height: 100,
+                });
+                setCompletedCrop(null);
+                }
+            }}
+            className={`flex h-10 w-10 items-center justify-center rounded-full transition ${
+                activeTool === 'crop'
+                ? 'bg-stone-100 text-stone-950'
+                : 'text-stone-600 hover:bg-stone-100 hover:text-stone-950'
+            }`}
+            aria-label="Crop"
+            >
+            <Crop className="h-5 w-5" />
+            </button>
+
+              <button
+                type="button"
+                onClick={() => null}
+                className="flex h-10 w-10 items-center justify-center rounded-full text-stone-600 transition hover:bg-stone-100 hover:text-stone-950"
+                aria-label="Filter"
+              >
+                <WandSparkles className="h-5 w-5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => null}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-stone-100 text-stone-900 transition hover:bg-stone-200"
+                aria-label="Draw"
+              >
+                <Pencil className="h-5 w-5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => null}
+                className="flex h-10 w-10 items-center justify-center rounded-full text-stone-600 transition hover:bg-stone-100 hover:text-stone-950"
+                aria-label="Add text"
+              >
+                <Type className="h-5 w-5" />
+              </button>
+
+              {/* <button
+                type="button"
+                onClick={() => null}
+                className="flex h-10 w-10 items-center justify-center rounded-full text-stone-600 transition hover:bg-stone-100 hover:text-stone-950"
+                aria-label="Shape"
+              >
+                <Square className="h-5 w-5" />
+              </button> */}
+            </div>
+
+            {/* Main editor body */}
+            <div className="grid min-h-0 flex-1 grid-cols-1 bg-stone-50 md:grid-cols-[minmax(0,1fr)_320px]">
+            {/* Image canvas area */}
+            <div className="flex min-h-0 items-center justify-center overflow-hidden p-4">
+            <div className="relative flex h-full max-h-full w-full max-w-full items-center justify-center rounded-2xl bg-white p-4 shadow-xl">
+                {imageUrl ? (
+                activeTool === 'crop' ? (
+                    <div className="flex h-full w-full items-center justify-center overflow-hidden">
+                    <ReactCrop
+                        crop={crop}
+                        onChange={(newCrop) => setCrop(newCrop)}
+                        onComplete={(newCompletedCrop) => setCompletedCrop(newCompletedCrop)}
+                        minWidth={30}
+                        minHeight={30}
+                        keepSelection
+                        className="archeio-crop max-h-full max-w-full"
+                    >
+                        <img
+                        ref={imageRef}
+                        src={imageUrl}
+                        alt={item?.file?.name || 'Image being edited'}
+                        onLoad={handleCropImageLoad}
+                        className="block max-h-[calc(90vh-300px)] max-w-full object-contain"
+                        />
+                    </ReactCrop>
+                    </div>
+                ) : (
+                    <img
+                    src={imageUrl}
+                    alt={item?.file?.name || 'Image being edited'}
+                    className="block max-h-full max-w-full rounded-xl object-contain"
+                    />
+                )
+                ) : (
+                <div className="flex h-[400px] w-[600px] max-w-full items-center justify-center rounded-xl bg-stone-100 text-sm font-semibold text-stone-400">
+                    Image preview unavailable
+                </div>
+                )}
+            </div>
+            </div>
+
+              {/* Right settings panel */}
+              <div className="border-t border-stone-200 bg-white p-5 md:border-l md:border-t-0">
+                <div className="mb-5 flex items-center gap-2">
+                  <SlidersHorizontal className="h-5 w-5 text-orange-600" />
+                  <h3 className="text-sm font-bold text-stone-900">
+                    Editing tools
+                  </h3>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-stone-200 p-4">
+                    <p className="mb-2 text-sm font-bold text-stone-800">
+                      Quick actions
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-2">
+                    <button
+                        type="button"
+                        onClick={() => handleQuickAction('rotate-left')}
+                        className="flex items-center justify-center gap-2 rounded-xl bg-stone-100 px-3 py-2 text-xs font-bold text-stone-600 transition hover:bg-stone-200 hover:text-stone-950"
+                    >
+                        <RotateCcw className="h-4 w-4" />
+                        Rotate left
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => handleQuickAction('rotate-right')}
+                        className="flex items-center justify-center gap-2 rounded-xl bg-stone-100 px-3 py-2 text-xs font-bold text-stone-600 transition hover:bg-stone-200 hover:text-stone-950"
+                    >
+                        <RotateCw className="h-4 w-4" />
+                        Rotate right
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => handleQuickAction('flip-horizontal')}
+                        className="flex items-center justify-center gap-2 rounded-xl bg-stone-100 px-3 py-2 text-xs font-bold text-stone-600 transition hover:bg-stone-200 hover:text-stone-950"
+                    >
+                        <FlipHorizontal className="h-4 w-4" />
+                        Flip H
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => handleQuickAction('flip-vertical')}
+                        className="flex items-center justify-center gap-2 rounded-xl bg-stone-100 px-3 py-2 text-xs font-bold text-stone-600 transition hover:bg-stone-200 hover:text-stone-950"
+                    >
+                        <FlipVertical className="h-4 w-4" />
+                        Flip V
+                    </button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-stone-200 p-4">
+                    <p className="mb-2 text-sm font-bold text-stone-800">
+                        Current mode
+                    </p>
+
+                    {activeTool === 'crop' ? (
+                    <div className="space-y-4">
+                        <p className="text-xs leading-relaxed text-stone-500">
+                        Drag the corners or edges to choose the area you want to keep.
+                        </p>
+
+                        <div className="grid grid-cols-2 gap-2">
+                        <button
+                            type="button"
+                            onClick={() => {
+                            setActiveTool(null);
+                            setCrop(null);
+                            setCompletedCrop(null);
+                            }}
+                            className="rounded-xl bg-stone-100 px-3 py-2 text-xs font-bold text-stone-600 transition hover:bg-stone-200 hover:text-stone-950"
+                        >
+                            Cancel crop
+                        </button>
+
+                        <button
+                            type="button"
+                            disabled={!completedCrop || isEditing}
+                            onClick={handleApplyCrop}
+                            className="rounded-xl bg-orange-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            Apply crop
+                        </button>
+                        </div>
+                    </div>
+                    ) : (
+                    <p className="text-xs leading-relaxed text-stone-500">
+                        Choose crop, filter, draw, or text from the toolbar.
+                    </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom action bar */}
+            <div className="flex items-center justify-between border-t border-stone-200 bg-white px-5 py-4">
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className="rounded-xl px-4 py-2 text-sm font-bold text-stone-500 transition hover:bg-stone-100 hover:text-stone-900"
+                >
+                    Cancel
+                </button>
+
+                <button
+                    type="button"
+                    onClick={() => {
+                        if (editedFile && editedPreviewUrl) {
+                        onApply({
+                            file: editedFile,
+                            previewUrl: editedPreviewUrl,
+                        });
+                        return;
+                    }
+                    onClose();
+                }}
+                className="flex items-center gap-2 rounded-xl bg-orange-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-orange-700 active:scale-[0.98]"
+                >
+                <Check className="h-4 w-4" />
+                Apply changes
+                </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body
+  );
+}

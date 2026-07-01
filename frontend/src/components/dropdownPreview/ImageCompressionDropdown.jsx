@@ -1,6 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { Pencil } from 'lucide-react';
 import BeforeAfterImageSlider from './BeforeAfterImageSlider';
 import { createImageCompressionPreview } from './ImagePreviewService';
+import ImageEditorModal from './ImageEditingPopUp'; 
 
 const formatBytes = (bytes) => {
   if (!bytes && bytes !== 0) return '';
@@ -15,6 +17,7 @@ const ImageCompressionDetails = ({
   updateFileItem,
   updatePreviewItem,
 }) => {
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
 
   const originalWidth = item.fileInfo?.width;
   const originalHeight = item.fileInfo?.height;
@@ -142,27 +145,50 @@ const ImageCompressionDetails = ({
         : 'Preview pending';
 
   return (
-    <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-[1.4fr_1fr]">
-        <BeforeAfterImageSlider
-          originalUrl={item.previewUrl}
-          compressedUrl={
-            item.downloadUrl || item.compressedPreviewUrl || item.previewUrl
-          }
-          originalSize={formatBytes(item.file?.size)}
-          compressedSize={
-            item.previewLoading
-              ? 'Generating preview...'
-              : item.downloadUrl
-                ? item.result?.compressedSize
-                : item.estimatedSize
-                  ? formatBytes(item.estimatedSize)
-                  : 'Preview pending'
-          }
-        />
+    <>
+      <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+          
+          {/* Component one : img preview */}
+          <div className="md:col-span-2">
+            <BeforeAfterImageSlider
+              originalUrl={item.previewUrl}
+              compressedUrl={
+                item.downloadUrl || item.compressedPreviewUrl || item.previewUrl
+              }
+              originalSize={formatBytes(item.file?.size)}
+              compressedSize={
+                item.previewLoading
+                  ? 'Generating preview...'
+                  : item.downloadUrl
+                    ? item.result?.compressedSize
+                    : item.estimatedSize
+                      ? formatBytes(item.estimatedSize)
+                      : 'Preview pending'
+              }
+            />
+          </div>
 
-        <div className="space-y-5 rounded-xl border border-stone-200 p-4">
-          <div>
+          {/* Component two : compression lvl + edit button */}
+          <div className="rounded-xl border border-stone-200 p-4">
+            <div className="mb-2 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsEditorOpen(true)}
+                className="flex h-10 w-10 items-center justify-center rounded-xl bg-stone-100 text-stone-600 transition hover:bg-stone-200 hover:text-stone-950 active:scale-[0.98]"
+              >
+                <Pencil className="h-5 w-5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsEditorOpen(true)}
+                className="flex h-10 items-center text-sm font-semibold text-stone-500 transition hover:text-stone-800"
+              >
+                Edit image
+              </button>
+            </div>
+
             <div className="mb-2 flex items-center justify-between">
               <label className="text-sm font-bold text-stone-800">
                 Compression 
@@ -208,7 +234,8 @@ const ImageCompressionDetails = ({
             )}
           </div>
 
-          <div>
+          {/* Component three : resize */}
+          <div className="rounded-xl border border-stone-200 p-4">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-sm font-bold text-stone-800">
                 Resize optional
@@ -295,17 +322,49 @@ const ImageCompressionDetails = ({
                 </label>
               </>
             )}
-          </div>
 
-          <div className="rounded-lg bg-orange-50 p-3 text-sm font-bold text-stone-800">
-            Estimated size:{' '}
-            <span className="text-orange-600">
-              {compressedSizeText}
-            </span>
+            <div className="rounded-lg bg-orange-50 p-3 text-sm font-bold text-stone-800">
+              Estimated size:{' '}
+              <span className="text-orange-600">
+                {compressedSizeText}
+              </span>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      <ImageEditorModal
+        isOpen={isEditorOpen}
+        onClose={() => setIsEditorOpen(false)}
+        item={item}
+        previewUrl={item.previewUrl}
+        compressedPreviewUrl={item.compressedPreviewUrl}
+        onApply={({ file, previewUrl }) => {
+          if (item.previewUrl) {
+            URL.revokeObjectURL(item.previewUrl);
+          }
+
+          updatePreviewItem(item.id, {
+            file,
+            previewUrl,
+            result: null,
+            downloadUrl: '',
+            compressedFileName: '',
+            compressedPreviewUrl: '',
+            estimatedSize: null,
+            previewLoading: false,
+            fileInfo: {
+              ...item.fileInfo,
+              width: null,
+              height: null,
+            },
+            status: 'idle',
+          });
+
+          setIsEditorOpen(false);
+        }}
+      />
+    </>
   );
 };
 
