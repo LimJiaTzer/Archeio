@@ -112,6 +112,64 @@ export const applyImageCrop = async ({
   };
 };
 
+export const applyImageFilter = async ({
+  file,
+  filter,
+  outputType = 'image/png',
+}) => {
+  const imageUrl = URL.createObjectURL(file);
+
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const img = new Image();
+
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+
+      img.src = imageUrl;
+    });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+
+    const ctx = canvas.getContext('2d');
+
+    const cssFilterMap = {
+      none: 'none',
+      pop: 'saturate(1.35) contrast(1.12) brightness(1.04)',
+      bw: 'grayscale(1) contrast(1.18)',
+      cool: 'saturate(1.08) contrast(1.08) hue-rotate(190deg) brightness(0.98)',
+      chrome: 'saturate(1.55) contrast(1.2) brightness(1.06)',
+      film: 'sepia(0.22) contrast(0.92) brightness(1.06) saturate(0.95)',
+    };
+
+    ctx.filter = cssFilterMap[filter] || 'none';
+    ctx.drawImage(image, 0, 0);
+
+    const blob = await new Promise((resolve) => {
+      canvas.toBlob(resolve, outputType, 0.95);
+    });
+
+    if (!blob) {
+      throw new Error('Could not apply image filter');
+    }
+
+    const filteredFile = new File([blob], file.name, {
+      type: outputType,
+      lastModified: Date.now(),
+    });
+
+    return {
+      file: filteredFile,
+      previewUrl: URL.createObjectURL(blob),
+    };
+  } finally {
+    URL.revokeObjectURL(imageUrl);
+  }
+};
+
+
 const loadImage = (src) => {
   return new Promise((resolve, reject) => {
     const image = new Image();

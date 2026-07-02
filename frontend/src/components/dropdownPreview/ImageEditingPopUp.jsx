@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { applyImageQuickAction, applyImageCrop } from '../../services/imageEditingServices/imageEditService';
+import { applyImageQuickAction, applyImageCrop, applyImageFilter } from '../../services/imageEditingServices/imageEditService';
 import { AnimatePresence, motion } from 'framer-motion';
 import ReactCrop from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
@@ -49,6 +49,7 @@ export default function ImageEditorModal({
   const [completedPercentCrop, setCompletedPercentCrop] = useState(null);
   const [appliedCropPercent, setAppliedCropPercent] = useState(null);
   const [resetToOriginalPending, setResetToOriginalPending] = useState(false);
+  const [selectedFilter, setSelectedFilter] = useState('none');
 
   const getFullCrop = () => ({
     unit: '%',
@@ -97,6 +98,7 @@ export default function ImageEditorModal({
     setCompletedPercentCrop(null);
     setAppliedCropPercent(initialCrop || null);
     setResetToOriginalPending(false);
+    setSelectedFilter('none');
 
     handedOffPreviewUrlRef.current = null;
   }, [isOpen, item.file, item.editedFile, previewUrl, initialCrop]);
@@ -180,6 +182,75 @@ export default function ImageEditorModal({
       resetToOriginal: false,
     };
   };
+
+  // filter 
+  const filterOptions = [
+    {
+      id: 'none',
+      label: 'None',
+      css: 'none',
+    },
+    {
+      id: 'pop',
+      label: 'Pop',
+      css: 'saturate(1.35) contrast(1.12) brightness(1.04)',
+    },
+    {
+      id: 'bw',
+      label: 'Greyscale',
+      css: 'grayscale(1) contrast(1.18)',
+    },
+    {
+      id: 'cool',
+      label: 'Cool',
+      css: 'saturate(1.08) contrast(1.08) hue-rotate(190deg) brightness(0.98)',
+    },
+    {
+      id: 'chrome',
+      label: 'Chrome',
+      css: 'saturate(1.55) contrast(1.2) brightness(1.06)',
+    },
+    {
+      id: 'film',
+      label: 'Film',
+      css: 'sepia(0.22) contrast(0.92) brightness(1.06) saturate(0.95)',
+    },
+  ];
+
+  const commitFilter = async () => {
+    if (selectedFilter === 'none') {
+      return null;
+    }
+
+    const sourceFile =
+      editedFile ||
+      (resetToOriginalPending ? originalFile : baseFile) ||
+      item.file;
+
+    const result = await applyImageFilter({
+      file: sourceFile,
+      filter: selectedFilter,
+      outputType: item.file.type || 'image/png',
+    });
+
+    if (
+      editedPreviewUrl &&
+      editedPreviewUrl !== handedOffPreviewUrlRef.current
+    ) {
+      URL.revokeObjectURL(editedPreviewUrl);
+    }
+
+    setEditedFile(result.file);
+    setEditedPreviewUrl(result.previewUrl);
+    setSelectedFilter('none');
+    setResetToOriginalPending(false);
+
+    return result;
+  };
+
+const getFilterCss = (filterId) => {
+  return filterOptions.find((filter) => filter.id === filterId)?.css || 'none';
+};
 
   const handleQuickAction = async (action) => {
     try {
@@ -338,7 +409,7 @@ export default function ImageEditorModal({
               <button
                 type="button"
                 onClick={() => null}
-                className="flex h-10 w-10 items-center justify-center rounded-full text-stone-600 transition hover:bg-stone-100 hover:text-stone-950"
+                className="flex h-10 w-10 items-center justify-center rounded-full text-stone-600 transition hover:bg-stone-200 hover:text-stone-950"
                 aria-label="Undo"
               >
                 <Undo2 className="h-5 w-5" />
@@ -347,7 +418,7 @@ export default function ImageEditorModal({
               <button
                 type="button"
                 onClick={() => null}
-                className="flex h-10 w-10 items-center justify-center rounded-full text-stone-600 transition hover:bg-stone-100 hover:text-stone-950"
+                className="flex h-10 w-10 items-center justify-center rounded-full text-stone-600 transition hover:bg-stone-200 hover:text-stone-950"
                 aria-label="Redo"
               >
                 <Redo2 className="h-5 w-5" />
@@ -373,7 +444,7 @@ export default function ImageEditorModal({
                 className={`flex h-10 w-10 items-center justify-center rounded-full transition ${
                   activeTool === 'crop'
                     ? 'bg-stone-100 text-stone-950'
-                    : 'text-stone-600 hover:bg-stone-100 hover:text-stone-950'
+                    : 'text-stone-600 hover:bg-stone-200 hover:text-stone-950'
                 }`}
                 aria-label="Crop"
               >
@@ -382,8 +453,14 @@ export default function ImageEditorModal({
 
               <button
                 type="button"
-                onClick={() => null}
-                className="flex h-10 w-10 items-center justify-center rounded-full text-stone-600 transition hover:bg-stone-100 hover:text-stone-950"
+                onClick={() => {
+                  setActiveTool(activeTool === 'filter' ? null : 'filter');
+                }}
+                className={`flex h-10 w-10 items-center justify-center rounded-full transition ${
+                  activeTool === 'filter'
+                    ? 'bg-stone-100 text-stone-950'
+                    : 'text-stone-600 hover:bg-stone-100 hover:text-stone-950'
+                }`}
                 aria-label="Filter"
               >
                 <WandSparkles className="h-5 w-5" />
@@ -392,7 +469,7 @@ export default function ImageEditorModal({
               <button
                 type="button"
                 onClick={() => null}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-stone-100 text-stone-900 transition hover:bg-stone-200"
+                className="flex h-10 w-10 items-center justify-center rounded-full text-stone-900 transition hover:bg-stone-200"
                 aria-label="Draw"
               >
                 <Pencil className="h-5 w-5" />
@@ -401,7 +478,7 @@ export default function ImageEditorModal({
               <button
                 type="button"
                 onClick={() => null}
-                className="flex h-10 w-10 items-center justify-center rounded-full text-stone-600 transition hover:bg-stone-100 hover:text-stone-950"
+                className="flex h-10 w-10 items-center justify-center rounded-full text-stone-600 transition hover:bg-stone-200 hover:text-stone-950"
                 aria-label="Add text"
               >
                 <Type className="h-5 w-5" />
@@ -421,6 +498,58 @@ export default function ImageEditorModal({
             <div className="grid min-h-0 flex-1 grid-cols-1 bg-stone-50 md:grid-cols-[minmax(0,1fr)_320px]">
               {/* Image canvas area */}
               <div className="flex min-h-0 h-full flex-col items-center justify-center overflow-hidden p-4">
+                {activeTool === 'filter' && (
+                  <div className="mb-4 flex w-full justify-center overflow-x-auto px-2">
+                    <div className="flex items-center gap-5">
+                      {filterOptions.map((filter) => {
+                        const isSelected = selectedFilter === filter.id;
+                        const filterPreviewUrl = normalImageUrl;
+
+                        return (
+                          <button
+                            key={filter.id}
+                            type="button"
+                            onClick={() => setSelectedFilter(filter.id)}
+                            className="flex shrink-0 flex-col items-center gap-2"
+                          >
+                            <div
+                              className={`relative h-16 w-16 overflow-hidden rounded-xl border-2 transition ${
+                                isSelected
+                                  ? 'border-emerald-600'
+                                  : 'border-transparent'
+                              }`}
+                            >
+                              {filterPreviewUrl ? (
+                                <img
+                                  src={filterPreviewUrl}
+                                  alt={`${filter.label} filter preview`}
+                                  className="h-full w-full object-cover"
+                                  style={{ filter: filter.css }}
+                                />
+                              ) : (
+                                <div className="h-full w-full bg-stone-100" />
+                              )}
+
+                              {isSelected && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-emerald-700/45 text-white">
+                                  <Check className="h-7 w-7" />
+                                </div>
+                              )}
+                            </div>
+
+                            <span
+                              className={`text-sm font-bold ${
+                                isSelected ? 'text-emerald-700' : 'text-stone-500'
+                              }`}
+                            >
+                              {filter.label}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 <div className="relative flex min-h-0 max-h-full w-full max-w-full flex-1 items-center justify-center rounded-2xl bg-white p-4 shadow-xl">
                   {imageUrl ? (
                     activeTool === 'crop' ? (
@@ -453,6 +582,9 @@ export default function ImageEditorModal({
                         src={imageUrl}
                         alt={item?.file?.name || 'Image being edited'}
                         className="block max-h-full max-w-full rounded-xl object-contain"
+                        style={{
+                          filter: activeTool === 'filter' ? getFilterCss(selectedFilter) : 'none',
+                        }}
                       />
                     )
                   ) : (
@@ -562,6 +694,10 @@ export default function ImageEditorModal({
                       <p className="text-xs leading-relaxed text-stone-500">
                         Drag the corners or edges to choose the area you want to keep. 
                       </p>
+                    ) : activeTool === 'filter' ? (
+                      <p className="text-xs leading-relaxed text-stone-500">
+                        Choose a filter above the image. 
+                      </p>
                     ) : (
                       <p className="text-xs leading-relaxed text-stone-500">
                         Choose crop, filter, draw, or text from the toolbar.
@@ -602,6 +738,22 @@ export default function ImageEditorModal({
                           previewUrl: cropResult.previewUrl,
                           cropPercent: cropResult.cropPercent,
                           resetToOriginal: cropResult.resetToOriginal,
+                        });
+                        return;
+                      }
+                    }
+
+                    if (activeTool === 'filter' && selectedFilter !== 'none') {
+                      const filterResult = await commitFilter();
+
+                      if (filterResult) {
+                        handedOffPreviewUrlRef.current = filterResult.previewUrl;
+
+                        onApply({
+                          file: filterResult.file,
+                          previewUrl: filterResult.previewUrl,
+                          cropPercent: appliedCropPercent || initialCrop,
+                          resetToOriginal: false,
                         });
                         return;
                       }
