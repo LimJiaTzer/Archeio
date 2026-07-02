@@ -159,7 +159,7 @@ export const navMenus = [
     {
       title: 'QR Code generator',
       options: [
-        { label: 'Generator QR code', href: '/QRCodeGenerator'}
+        { label: 'Generator QR code', href: '/QRCodeCreator'}
       ],
     },
   ],
