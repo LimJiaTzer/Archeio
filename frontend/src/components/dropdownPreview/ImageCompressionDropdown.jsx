@@ -26,6 +26,9 @@ const ImageCompressionDetails = ({
     originalWidth && originalHeight
       ? originalWidth / originalHeight
       : null;
+
+  const sourceFile = item.editedFile || item.file;
+  const sourcePreviewUrl = item.editedPreviewUrl || item.previewUrl;
   
   // handle resets in case you mess up aspect ratio 
   const resetToOriginalDimensions = () => {
@@ -68,7 +71,7 @@ const ImageCompressionDetails = ({
   };
 
   useEffect(() => {
-    if (!item.file || item.fileInfo.category !== 'images') return;
+    if (!(item.editedFile || item.file) || item.fileInfo.category !== 'images') return;
 
     let cancelled = false;
     let generatedUrl = '';
@@ -80,7 +83,7 @@ const ImageCompressionDetails = ({
     const timeoutId = setTimeout(async () => {
       try {
         const preview = await createImageCompressionPreview({
-          file: item.file,
+          file: sourceFile,
           ratio: effectiveRatio,
           format: item.format,
           resizeEnabled: item.resizeEnabled,
@@ -127,6 +130,7 @@ const ImageCompressionDetails = ({
   }, [
     item.id,
     item.file,
+    item.editedFile,
     item.fileInfo.category,
     item.format,
     effectiveRatio,
@@ -152,11 +156,13 @@ const ImageCompressionDetails = ({
           {/* Component one : img preview */}
           <div className="md:col-span-2">
             <BeforeAfterImageSlider
-              originalUrl={item.previewUrl}
+              originalUrl={sourcePreviewUrl}
               compressedUrl={
-                item.downloadUrl || item.compressedPreviewUrl || item.previewUrl
+                item.downloadUrl ||
+                item.compressedPreviewUrl ||
+                sourcePreviewUrl
               }
-              originalSize={formatBytes(item.file?.size)}
+              originalSize={formatBytes(sourceFile?.size)}
               compressedSize={
                 item.previewLoading
                   ? 'Generating preview...'
@@ -337,27 +343,46 @@ const ImageCompressionDetails = ({
         isOpen={isEditorOpen}
         onClose={() => setIsEditorOpen(false)}
         item={item}
-        previewUrl={item.previewUrl}
+        previewUrl={item.editedPreviewUrl || item.previewUrl}
+        originalPreviewUrl={item.previewUrl}
+        originalFile={item.file}
+        initialCrop={item.editedCrop}
         compressedPreviewUrl={item.compressedPreviewUrl}
-        onApply={({ file, previewUrl }) => {
-          if (item.previewUrl) {
-            URL.revokeObjectURL(item.previewUrl);
+        onApply={({ file, previewUrl, cropPercent, resetToOriginal }) => {
+          if (item.editedPreviewUrl) {
+            URL.revokeObjectURL(item.editedPreviewUrl);
+          }
+
+          if (resetToOriginal) {
+            updatePreviewItem(item.id, {
+              editedFile: null,
+              editedPreviewUrl: '',
+              editedCrop: null,
+
+              result: null,
+              downloadUrl: '',
+              compressedFileName: '',
+              compressedPreviewUrl: '',
+              estimatedSize: null,
+              previewLoading: false,
+              status: 'idle',
+            });
+
+            setIsEditorOpen(false);
+            return;
           }
 
           updatePreviewItem(item.id, {
-            file,
-            previewUrl,
+            editedFile: file,
+            editedPreviewUrl: previewUrl,
+            editedCrop: cropPercent ?? item.editedCrop,
+
             result: null,
             downloadUrl: '',
             compressedFileName: '',
             compressedPreviewUrl: '',
             estimatedSize: null,
             previewLoading: false,
-            fileInfo: {
-              ...item.fileInfo,
-              width: null,
-              height: null,
-            },
             status: 'idle',
           });
 

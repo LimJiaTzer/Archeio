@@ -26,19 +26,45 @@ export default function ImageEditorModal({
   onClose,
   item,
   previewUrl,
+  originalPreviewUrl,
+  originalFile,
+  initialCrop,
   compressedPreviewUrl,
   onApply,
 }) {
+  const [baseFile, setBaseFile] = useState(null);
+  const [basePreviewUrl, setBasePreviewUrl] = useState(null);
+
   const [editedFile, setEditedFile] = useState(null);
   const [editedPreviewUrl, setEditedPreviewUrl] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
 
   // for cropping 
   const imageRef = useRef(null);
+  const handedOffPreviewUrlRef = useRef(null); 
 
   const [activeTool, setActiveTool] = useState(null);
   const [crop, setCrop] = useState(null);
   const [completedCrop, setCompletedCrop] = useState(null);
+  const [completedPercentCrop, setCompletedPercentCrop] = useState(null);
+  const [appliedCropPercent, setAppliedCropPercent] = useState(null);
+  const [resetToOriginalPending, setResetToOriginalPending] = useState(false);
+
+  const getFullCrop = () => ({
+    unit: '%',
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 100,
+  });
+
+  const percentCropToPixelCrop = (percentCrop, image) => ({
+    unit: 'px',
+    x: (image.width * percentCrop.x) / 100,
+    y: (image.height * percentCrop.y) / 100,
+    width: (image.width * percentCrop.width) / 100,
+    height: (image.height * percentCrop.height) / 100,
+  });
 
   useEffect(() => {
     if (!isOpen) return;
@@ -57,47 +83,72 @@ export default function ImageEditorModal({
   }, [isOpen, onClose]);
 
   useEffect(() => {
-    return () => {
-        if (editedPreviewUrl) {
-        URL.revokeObjectURL(editedPreviewUrl);
-        }
-    };
-    }, [editedPreviewUrl]);
+    if (!isOpen) return;
 
-  const handleQuickAction = async (action) => {
-    try {
-        setIsEditing(true);
+    setBaseFile(item.editedFile || item.file);
+    setBasePreviewUrl(previewUrl);
 
-        const sourceFile = editedFile || item.file;
+    setEditedFile(null);
+    setEditedPreviewUrl(null);
 
-        const result = await applyImageQuickAction({
-        file: sourceFile,
-        action,
-        outputType: item.file.type || 'image/png',
-        });
+    setActiveTool(null);
+    setCrop(null);
+    setCompletedCrop(null);
+    setCompletedPercentCrop(null);
+    setAppliedCropPercent(initialCrop || null);
+    setResetToOriginalPending(false);
 
-        if (editedPreviewUrl) {
-        URL.revokeObjectURL(editedPreviewUrl);
-        }
+    handedOffPreviewUrlRef.current = null;
+  }, [isOpen, item.file, item.editedFile, previewUrl, initialCrop]);
 
-        setEditedFile(result.file);
-        setEditedPreviewUrl(result.previewUrl);
-    } catch (error) {
-        console.error(`${action} failed:`, error);
-    } finally {
-        setIsEditing(false);
+  const isFullImageCrop = () => {
+    const percentCrop = completedPercentCrop || crop;
+
+    if (!percentCrop) return false;
+
+    return (
+      Math.round(percentCrop.x) === 0 &&
+      Math.round(percentCrop.y) === 0 &&
+      Math.round(percentCrop.width) === 100 &&
+      Math.round(percentCrop.height) === 100
+    );
+  };
+
+  const commitCrop = async () => {
+    if (!completedCrop || !imageRef.current) {
+      return null;
     }
-  };
 
-  const handleCropComplete = (_, croppedAreaPixels) => {
-  setCroppedAreaPixels(croppedAreaPixels);
-  };
+    if (isFullImageCrop()) {
+      if (
+        editedPreviewUrl &&
+        editedPreviewUrl !== handedOffPreviewUrlRef.current
+      ) {
+        URL.revokeObjectURL(editedPreviewUrl);
+      }
 
-  const handleApplyCrop = async () => {
-  try {
-    setIsEditing(true);
+      const fullCrop = getFullCrop();
 
-    const sourceFile = editedFile || item.file;
+      setEditedFile(null);
+      setEditedPreviewUrl(null);
+      setAppliedCropPercent(fullCrop);
+      setResetToOriginalPending(true);
+
+      setActiveTool(null);
+      setCrop(null);
+      setCompletedCrop(null);
+      setCompletedPercentCrop(null);
+
+      return {
+        file: originalFile || item.file,
+        previewUrl: originalPreviewUrl || item.previewUrl || previewUrl,
+        cropPercent: fullCrop,
+        resetToOriginal: true,
+      };
+    }
+
+    const sourceFile = originalFile || item.file;
+    const cropPercentToSave = completedPercentCrop || crop;
 
     const result = await applyImageCrop({
       file: sourceFile,
@@ -106,48 +157,140 @@ export default function ImageEditorModal({
       outputType: item.file.type || 'image/png',
     });
 
-    if (editedPreviewUrl) {
+    if (
+      editedPreviewUrl &&
+      editedPreviewUrl !== handedOffPreviewUrlRef.current
+    ) {
       URL.revokeObjectURL(editedPreviewUrl);
     }
 
     setEditedFile(result.file);
     setEditedPreviewUrl(result.previewUrl);
+    setAppliedCropPercent(cropPercentToSave);
+    setResetToOriginalPending(false);
 
     setActiveTool(null);
     setCrop(null);
     setCompletedCrop(null);
-  } catch (error) {
-    console.error('Crop failed:', error);
-  } finally {
-    setIsEditing(false);
-  }
+    setCompletedPercentCrop(null);
+
+    return {
+      ...result,
+      cropPercent: cropPercentToSave,
+      resetToOriginal: false,
+    };
+  };
+
+  const handleQuickAction = async (action) => {
+    try {
+      setIsEditing(true);
+
+      const sourceFile =
+        editedFile ||
+        (resetToOriginalPending ? originalFile : baseFile) ||
+        item.file;
+
+      const result = await applyImageQuickAction({
+        file: sourceFile,
+        action,
+        outputType: item.file.type || 'image/png',
+      });
+
+      if (
+        editedPreviewUrl &&
+        editedPreviewUrl !== handedOffPreviewUrlRef.current
+      ) {
+        URL.revokeObjectURL(editedPreviewUrl);
+      }
+
+      setEditedFile(result.file);
+      setEditedPreviewUrl(result.previewUrl);
+      setResetToOriginalPending(false);
+    } catch (error) {
+      console.error(`${action} failed:`, error);
+    } finally {
+      setIsEditing(false);
+    }
+  };
+
+  const handleResetImageToOriginal = () => {
+    if (
+      editedPreviewUrl &&
+      editedPreviewUrl !== handedOffPreviewUrlRef.current
+    ) {
+      URL.revokeObjectURL(editedPreviewUrl);
+    }
+
+    const fullCrop = getFullCrop();
+
+    setEditedFile(null);
+    setEditedPreviewUrl(null);
+    setAppliedCropPercent(fullCrop);
+    setResetToOriginalPending(true);
+
+    setCrop(fullCrop);
+    setCompletedPercentCrop(fullCrop);
+
+    if (imageRef.current) {
+      setCompletedCrop(percentCropToPixelCrop(fullCrop, imageRef.current));
+    } else {
+      setCompletedCrop(null);
+    }
+  };
+
+  const handleApplyCrop = async () => {
+    try {
+      setIsEditing(true);
+      await commitCrop();
+    } catch (error) {
+      console.error('Crop failed:', error);
+    } finally {
+      setIsEditing(false);
+    }
   };
 
   const handleCropImageLoad = (e) => {
-  const image = e.currentTarget;
+    const image = e.currentTarget;
 
-  imageRef.current = image;
+    imageRef.current = image;
 
-  setCrop({
-    unit: '%',
-    x: 0,
-    y: 0,
-    width: 100,
-    height: 100,
-  });
+    const nextCrop = crop || appliedCropPercent || initialCrop || getFullCrop();
 
-  setCompletedCrop({
-    unit: 'px',
-    x: 0,
-    y: 0,
-    width: image.naturalWidth,
-    height: image.naturalHeight,
-  });
+    setCrop(nextCrop);
+    setCompletedPercentCrop(nextCrop);
+    setCompletedCrop(percentCropToPixelCrop(nextCrop, image));
+  };
+
+  // for restting crop 
+  const handleResetEdits = () => {
+    if (
+      editedPreviewUrl &&
+      editedPreviewUrl !== handedOffPreviewUrlRef.current
+    ) {
+      URL.revokeObjectURL(editedPreviewUrl);
+    }
+
+    setEditedFile(null);
+    setEditedPreviewUrl(null);
+
+    setActiveTool(null);
+    setCrop(null);
+    setCompletedCrop(null);
+    setCompletedPercentCrop(null);
+    setResetToOriginalPending(false);
   };
 
   if (typeof document === 'undefined') return null;
 
-  const imageUrl = editedPreviewUrl || compressedPreviewUrl || previewUrl;
+  const normalImageUrl = resetToOriginalPending
+    ? originalPreviewUrl || item.previewUrl || previewUrl
+    : editedPreviewUrl || basePreviewUrl || previewUrl;
+
+  const cropImageUrl = originalPreviewUrl || item.previewUrl || previewUrl;
+
+  const imageUrl = activeTool === 'crop'
+    ? cropImageUrl
+    : normalImageUrl;
 
   return createPortal(
     <AnimatePresence>
@@ -212,33 +355,30 @@ export default function ImageEditorModal({
 
               <div className="mx-2 h-8 w-px bg-stone-200" />
 
-            <button
-            type="button"
-            onClick={() => {
-                const nextTool = activeTool === 'crop' ? null : 'crop';
+              <button
+                type="button"
+                onClick={() => {
+                  const nextTool = activeTool === 'crop' ? null : 'crop';
 
-                setActiveTool(nextTool);
+                  setActiveTool(nextTool);
 
-                if (nextTool === 'crop') {
-                setCrop({
-                    unit: '%',
-                    x: 0,
-                    y: 0,
-                    width: 100,
-                    height: 100,
-                });
-                setCompletedCrop(null);
-                }
-            }}
-            className={`flex h-10 w-10 items-center justify-center rounded-full transition ${
-                activeTool === 'crop'
-                ? 'bg-stone-100 text-stone-950'
-                : 'text-stone-600 hover:bg-stone-100 hover:text-stone-950'
-            }`}
-            aria-label="Crop"
-            >
-            <Crop className="h-5 w-5" />
-            </button>
+                  if (nextTool === 'crop') {
+                    const nextCrop = appliedCropPercent || initialCrop || getFullCrop();
+
+                    setCrop(nextCrop);
+                    setCompletedCrop(null);
+                    setCompletedPercentCrop(null);
+                  }
+                }}
+                className={`flex h-10 w-10 items-center justify-center rounded-full transition ${
+                  activeTool === 'crop'
+                    ? 'bg-stone-100 text-stone-950'
+                    : 'text-stone-600 hover:bg-stone-100 hover:text-stone-950'
+                }`}
+                aria-label="Crop"
+              >
+                <Crop className="h-5 w-5" />
+              </button>
 
               <button
                 type="button"
@@ -279,44 +419,85 @@ export default function ImageEditorModal({
 
             {/* Main editor body */}
             <div className="grid min-h-0 flex-1 grid-cols-1 bg-stone-50 md:grid-cols-[minmax(0,1fr)_320px]">
-            {/* Image canvas area */}
-            <div className="flex min-h-0 items-center justify-center overflow-hidden p-4">
-            <div className="relative flex h-full max-h-full w-full max-w-full items-center justify-center rounded-2xl bg-white p-4 shadow-xl">
-                {imageUrl ? (
-                activeTool === 'crop' ? (
-                    <div className="flex h-full w-full items-center justify-center overflow-hidden">
-                    <ReactCrop
-                        crop={crop}
-                        onChange={(newCrop) => setCrop(newCrop)}
-                        onComplete={(newCompletedCrop) => setCompletedCrop(newCompletedCrop)}
-                        minWidth={30}
-                        minHeight={30}
-                        keepSelection
-                        className="archeio-crop max-h-full max-w-full"
-                    >
-                        <img
-                        ref={imageRef}
+              {/* Image canvas area */}
+              <div className="flex min-h-0 h-full flex-col items-center justify-center overflow-hidden p-4">
+                <div className="relative flex min-h-0 max-h-full w-full max-w-full flex-1 items-center justify-center rounded-2xl bg-white p-4 shadow-xl">
+                  {imageUrl ? (
+                    activeTool === 'crop' ? (
+                      <div className="flex h-full w-full items-center justify-center overflow-hidden">
+                        <ReactCrop
+                          crop={crop}
+                          onChange={(newCrop, newPercentCrop) => {
+                            setCrop(newPercentCrop);
+                          }}
+                          onComplete={(newCompletedCrop, newPercentCrop) => {
+                            setCompletedCrop(newCompletedCrop);
+                            setCompletedPercentCrop(newPercentCrop);
+                          }}
+                          minWidth={30}
+                          minHeight={30}
+                          keepSelection
+                          className="archeio-crop max-h-full max-w-full"
+                        >
+                          <img
+                            ref={imageRef}
+                            src={imageUrl}
+                            alt={item?.file?.name || 'Image being edited'}
+                            onLoad={handleCropImageLoad}
+                            className="block max-h-[calc(90vh-360px)] max-w-full object-contain"
+                          />
+                        </ReactCrop>
+                      </div>
+                    ) : (
+                      <img
                         src={imageUrl}
                         alt={item?.file?.name || 'Image being edited'}
-                        onLoad={handleCropImageLoad}
-                        className="block max-h-[calc(90vh-300px)] max-w-full object-contain"
-                        />
-                    </ReactCrop>
+                        className="block max-h-full max-w-full rounded-xl object-contain"
+                      />
+                    )
+                  ) : (
+                    <div className="flex h-[400px] w-[600px] max-w-full items-center justify-center rounded-xl bg-stone-100 text-sm font-semibold text-stone-400">
+                      Image preview unavailable
                     </div>
-                ) : (
-                    <img
-                    src={imageUrl}
-                    alt={item?.file?.name || 'Image being edited'}
-                    className="block max-h-full max-w-full rounded-xl object-contain"
-                    />
-                )
-                ) : (
-                <div className="flex h-[400px] w-[600px] max-w-full items-center justify-center rounded-xl bg-stone-100 text-sm font-semibold text-stone-400">
-                    Image preview unavailable
+                  )}
                 </div>
+
+                {activeTool === 'crop' && (
+                  <div className="mt-4 flex items-center justify-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTool(null);
+                        setCrop(null);
+                        setCompletedCrop(null);
+                        setCompletedPercentCrop(null);
+                      }}
+                      className="flex h-11 w-11 items-center justify-center rounded-full bg-stone-100 text-stone-600 transition hover:bg-stone-200 hover:text-stone-950 active:scale-[0.98]"
+                      aria-label="Cancel crop"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleResetImageToOriginal}
+                      className="rounded-full bg-stone-100 px-5 py-2.5 text-sm font-bold text-stone-600 transition hover:bg-stone-200 hover:text-stone-950 active:scale-[0.98]"
+                    >
+                      Reset
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={!completedCrop || isEditing}
+                      onClick={handleApplyCrop}
+                      className="flex h-11 w-11 items-center justify-center rounded-full bg-orange-600 text-white transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98]"
+                      aria-label="Apply crop"
+                    >
+                      <Check className="h-5 w-5" />
+                    </button>
+                  </div>
                 )}
-            </div>
-            </div>
+              </div>
 
               {/* Right settings panel */}
               <div className="border-t border-stone-200 bg-white p-5 md:border-l md:border-t-0">
@@ -334,82 +515,57 @@ export default function ImageEditorModal({
                     </p>
 
                     <div className="grid grid-cols-2 gap-2">
-                    <button
+                      <button
                         type="button"
                         onClick={() => handleQuickAction('rotate-left')}
                         className="flex items-center justify-center gap-2 rounded-xl bg-stone-100 px-3 py-2 text-xs font-bold text-stone-600 transition hover:bg-stone-200 hover:text-stone-950"
-                    >
+                      >
                         <RotateCcw className="h-4 w-4" />
                         Rotate left
-                    </button>
+                      </button>
 
-                    <button
+                      <button
                         type="button"
                         onClick={() => handleQuickAction('rotate-right')}
                         className="flex items-center justify-center gap-2 rounded-xl bg-stone-100 px-3 py-2 text-xs font-bold text-stone-600 transition hover:bg-stone-200 hover:text-stone-950"
-                    >
+                      >
                         <RotateCw className="h-4 w-4" />
                         Rotate right
-                    </button>
+                      </button>
 
-                    <button
+                      <button
                         type="button"
                         onClick={() => handleQuickAction('flip-horizontal')}
                         className="flex items-center justify-center gap-2 rounded-xl bg-stone-100 px-3 py-2 text-xs font-bold text-stone-600 transition hover:bg-stone-200 hover:text-stone-950"
-                    >
+                      >
                         <FlipHorizontal className="h-4 w-4" />
                         Flip H
-                    </button>
+                      </button>
 
-                    <button
+                      <button
                         type="button"
                         onClick={() => handleQuickAction('flip-vertical')}
                         className="flex items-center justify-center gap-2 rounded-xl bg-stone-100 px-3 py-2 text-xs font-bold text-stone-600 transition hover:bg-stone-200 hover:text-stone-950"
-                    >
+                      >
                         <FlipVertical className="h-4 w-4" />
                         Flip V
-                    </button>
+                      </button>
                     </div>
                   </div>
 
                   <div className="rounded-2xl border border-stone-200 p-4">
                     <p className="mb-2 text-sm font-bold text-stone-800">
-                        Current mode
+                      Current mode
                     </p>
 
                     {activeTool === 'crop' ? (
-                    <div className="space-y-4">
-                        <p className="text-xs leading-relaxed text-stone-500">
-                        Drag the corners or edges to choose the area you want to keep.
-                        </p>
-
-                        <div className="grid grid-cols-2 gap-2">
-                        <button
-                            type="button"
-                            onClick={() => {
-                            setActiveTool(null);
-                            setCrop(null);
-                            setCompletedCrop(null);
-                            }}
-                            className="rounded-xl bg-stone-100 px-3 py-2 text-xs font-bold text-stone-600 transition hover:bg-stone-200 hover:text-stone-950"
-                        >
-                            Cancel crop
-                        </button>
-
-                        <button
-                            type="button"
-                            disabled={!completedCrop || isEditing}
-                            onClick={handleApplyCrop}
-                            className="rounded-xl bg-orange-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            Apply crop
-                        </button>
-                        </div>
-                    </div>
+                      <p className="text-xs leading-relaxed text-stone-500">
+                        Drag the corners or edges to choose the area you want to keep. 
+                      </p>
                     ) : (
-                    <p className="text-xs leading-relaxed text-stone-500">
+                      <p className="text-xs leading-relaxed text-stone-500">
                         Choose crop, filter, draw, or text from the toolbar.
-                    </p>
+                      </p>
                     )}
                   </div>
                 </div>
@@ -418,31 +574,73 @@ export default function ImageEditorModal({
 
             {/* Bottom action bar */}
             <div className="flex items-center justify-between border-t border-stone-200 bg-white px-5 py-4">
-                <button
-                    type="button"
-                    onClick={onClose}
-                    className="rounded-xl px-4 py-2 text-sm font-bold text-stone-500 transition hover:bg-stone-100 hover:text-stone-900"
-                >
-                    Cancel
-                </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-xl px-4 py-2 text-sm font-bold text-stone-500 transition hover:bg-stone-100 hover:text-stone-900"
+              >
+                Cancel
+              </button>
 
-                <button
-                    type="button"
-                    onClick={() => {
-                        if (editedFile && editedPreviewUrl) {
+              <button
+                type="button"
+                disabled={isEditing}
+                onClick={async () => {
+                  try {
+                    setIsEditing(true);
+
+                    if (activeTool === 'crop' && completedCrop) {
+                      const cropResult = await commitCrop();
+
+                      if (cropResult) {
+                        if (!cropResult.resetToOriginal) {
+                          handedOffPreviewUrlRef.current = cropResult.previewUrl;
+                        }
+
                         onApply({
-                            file: editedFile,
-                            previewUrl: editedPreviewUrl,
+                          file: cropResult.file,
+                          previewUrl: cropResult.previewUrl,
+                          cropPercent: cropResult.cropPercent,
+                          resetToOriginal: cropResult.resetToOriginal,
                         });
                         return;
+                      }
                     }
+
+                    if (resetToOriginalPending) {
+                      onApply({
+                        file: originalFile || item.file,
+                        previewUrl: originalPreviewUrl || item.previewUrl || previewUrl,
+                        cropPercent: getFullCrop(),
+                        resetToOriginal: true,
+                      });
+                      return;
+                    }
+
+                    if (editedFile && editedPreviewUrl) {
+                      handedOffPreviewUrlRef.current = editedPreviewUrl;
+
+                      onApply({
+                        file: editedFile,
+                        previewUrl: editedPreviewUrl,
+                        cropPercent: appliedCropPercent || initialCrop,
+                        resetToOriginal: false,
+                      });
+                      return;
+                    }
+
                     onClose();
+                  } catch (error) {
+                    console.error('Apply changes failed:', error);
+                  } finally {
+                    setIsEditing(false);
+                  }
                 }}
-                className="flex items-center gap-2 rounded-xl bg-orange-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-orange-700 active:scale-[0.98]"
-                >
+                className="flex items-center gap-2 rounded-xl bg-orange-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98]"
+              >
                 <Check className="h-4 w-4" />
                 Apply changes
-                </button>
+              </button>
             </div>
           </motion.div>
         </motion.div>
