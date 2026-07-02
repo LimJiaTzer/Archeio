@@ -124,6 +124,10 @@ export default function Compress() {
           format: detFileInfo.format,
           previewUrl,
 
+          editedFile: null,
+          editedPreviewUrl: '',
+          editedCrop: null,
+
           result: null,
           downloadUrl: '',
           compressedFileName: '',
@@ -194,6 +198,10 @@ export default function Compress() {
             URL.revokeObjectURL(item.downloadUrl);
           }
 
+          if (item.editedPreviewUrl) {
+            URL.revokeObjectURL(item.editedPreviewUrl);
+          }
+
           return false;
         }
 
@@ -215,6 +223,10 @@ export default function Compress() {
       if (item.downloadUrl) {
         URL.revokeObjectURL(item.downloadUrl);
       }
+
+      if (item.editedPreviewUrl) {
+        URL.revokeObjectURL(item.editedPreviewUrl);
+      }
     });
 
     setFileItems([]);
@@ -234,6 +246,10 @@ export default function Compress() {
 
         if (item.downloadUrl) {
           URL.revokeObjectURL(item.downloadUrl);
+        }
+
+        if (item.editedPreviewUrl) {
+          URL.revokeObjectURL(item.editedPreviewUrl);
         }
       });
     };
@@ -255,8 +271,10 @@ export default function Compress() {
       });
 
       const effectiveRatio = getEffectiveRatio(item);
+      const sourceFile = item.editedFile || item.file;
+
       const sharedArgs = {
-        file: item.file,
+        file: sourceFile,
         ratio: effectiveRatio,
         format: item.format,
         fileInfo: item.fileInfo,
