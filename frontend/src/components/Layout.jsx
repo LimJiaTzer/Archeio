@@ -4,9 +4,10 @@ import { DottedGlowBackground } from './ui/dotted-glow-background';
 
 export default function Layout({ children }) {
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-800 font-sans selection:bg-stone-300 selection:text-stone-900 relative overflow-hidden">
+    <div className="min-h-screen bg-stone-50 text-stone-800 font-sans selection:bg-stone-300 selection:text-stone-900 relative">
 
-      <div className="absolute inset-0 z-0 pointer-events-none">
+      {/* Background Layer: Confined overflow to prevent horizontal scrolling without affecting page scroll */}
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
         <DottedGlowBackground
           className="absolute inset-0"
           gap={14}
@@ -17,10 +18,9 @@ export default function Layout({ children }) {
           glowColor="rgba(249, 115, 22, 0.5)"
           speedScale={0.75}
         />
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-100/50 rounded-full blur-[100px] z-[1] mix-blend-multiply pointer-events-none" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-amber-100/50 rounded-full blur-[100px] z-[1] mix-blend-multiply pointer-events-none" />
       </div>
-
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-100/50 rounded-full blur-[100px] z-[1] mix-blend-multiply pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-amber-100/50 rounded-full blur-[100px] z-[1] mix-blend-multiply pointer-events-none" />
 
       <Header />
 

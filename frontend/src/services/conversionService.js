@@ -9,6 +9,7 @@ import { rasterToGif } from './imageConversionServices/rasterToGif';
 import { rasterToSvg } from './imageConversionServices/rasterToSvg';
 import { extractGifFrames, extractIcoFrames } from './imageConversionServices/extractFrames';
 import { anyToHeic } from './imageConversionServices/anyToHeic';
+import { rasterToAvif } from './compressionHelpers/rasterToAvif'; // Import AVIF helper
 
 // Document conversion services
 import { htmlToPdf } from './documentConversionServices/htmlToPdf';
@@ -138,6 +139,7 @@ const converters = {
     'image/png:image/svg+xml': (f) => rasterToSvg(f),
     'image/png:image/x-icon':  (f) => rasterToRaster(f, 'image/png').then(pngBlob => pngToIco(pngBlob)),
     'image/png:image/heic':    (f) => anyToHeic(f),
+    'image/png:image/avif':    (f) => rasterToRaster(f, 'image/png').then(pngBlob => rasterToAvif(pngBlob)),
 
     // --- FROM JPEG ---
     'image/jpeg:image/png':     (f) => rasterToRaster(f, 'image/png'),
@@ -147,6 +149,7 @@ const converters = {
     'image/jpeg:image/svg+xml': (f) => rasterToSvg(f),
     'image/jpeg:image/x-icon':  (f) => rasterToRaster(f, 'image/png').then(pngBlob => pngToIco(pngBlob)),
     'image/jpeg:image/heic':    (f) => anyToHeic(f),
+    'image/jpeg:image/avif':    (f) => rasterToRaster(f, 'image/jpeg').then(jpegBlob => rasterToAvif(jpegBlob)),
 
     // --- FROM WEBP ---
     'image/webp:image/png':     (f) => rasterToRaster(f, 'image/png'),
@@ -156,6 +159,7 @@ const converters = {
     'image/webp:image/svg+xml': (f) => rasterToSvg(f),
     'image/webp:image/x-icon':  (f) => rasterToRaster(f, 'image/png').then(pngBlob => pngToIco(pngBlob)),
     'image/webp:image/heic':    (f) => anyToHeic(f),
+    'image/webp:image/avif':    (f) => rasterToRaster(f, 'image/png').then(pngBlob => rasterToAvif(pngBlob)),
 
     // --- FROM BMP ---
     'image/bmp:image/png':     (f) => rasterToRaster(f, 'image/png'),
@@ -165,6 +169,7 @@ const converters = {
     'image/bmp:image/svg+xml': (f) => rasterToSvg(f),
     'image/bmp:image/x-icon':  (f) => rasterToRaster(f, 'image/png').then(pngBlob => pngToIco(pngBlob)),
     'image/bmp:image/heic':    (f) => anyToHeic(f),
+    'image/bmp:image/avif':    (f) => rasterToRaster(f, 'image/png').then(pngBlob => rasterToAvif(pngBlob)),
 
   // ==========================================
   // SVG
@@ -180,6 +185,9 @@ const converters = {
   // To ICO
   'image/svg+xml:image/x-icon': (f) => svgToRaster(f, 'image/png').then(pngBlob => pngToIco(pngBlob)),
 
+  // To AVIF
+  'image/svg+xml:image/avif': (f) => svgToRaster(f, 'image/png').then(pngBlob => rasterToAvif(pngBlob)),
+
 
   // ==========================================
   // HEIC / HEIF
@@ -193,6 +201,22 @@ const converters = {
   // From HEIC to ICO (heic2any + ico)
   'image/heic:image/x-icon': (f) => heicToAny(f, 'image/png').then(png => pngToIco(png)),
 
+  // From HEIC to AVIF
+  'image/heic:image/avif': (f) => heicToAny(f, 'image/png').then(png => rasterToAvif(png)),
+
+  // ==========================================
+  // AVIF
+  // ==========================================
+  // AVIF natively loads in modern browser canvases, so rasterToRaster works as a bridge.
+  'image/avif:image/png':     (f) => rasterToRaster(f, 'image/png'),
+  'image/avif:image/jpeg':    (f) => rasterToRaster(f, 'image/jpeg'),
+  'image/avif:image/webp':    (f) => rasterToRaster(f, 'image/webp'),
+  'image/avif:image/gif':     (f) => rasterToGif(f),
+  'image/avif:image/svg+xml': (f) => rasterToSvg(f),
+  'image/avif:image/x-icon':  (f) => rasterToRaster(f, 'image/png').then(pngBlob => pngToIco(pngBlob)),
+  'image/avif:image/heic':    (f) => anyToHeic(f),
+  'image/avif:image/avif':    (f) => f, // No-op for AVIF to AVIF
+
   // ==========================================
   // GIF (Direct conversion defaults to first frame)
   // ==========================================
@@ -201,6 +225,7 @@ const converters = {
   'image/gif:image/webp': (f) => extractGifFrames(f).then(frames => rasterToRaster(frames[0], 'image/webp')),
   'image/gif:image/svg+xml': (f) => extractGifFrames(f).then(frames => rasterToSvg(frames[0])),
   'image/gif:image/x-icon': (f) => extractGifFrames(f).then(frames => pngToIco(frames[0])),
+  'image/gif:image/avif': (f) => extractGifFrames(f).then(frames => rasterToAvif(frames[0])),
 
   // ==========================================
   // ICO (Direct conversion defaults to first/primary image)
@@ -210,6 +235,7 @@ const converters = {
   'image/x-icon:image/webp': (f) => extractIcoFrames(f).then(frames => rasterToRaster(frames[0], 'image/webp')),
   'image/x-icon:image/gif':  (f) => extractIcoFrames(f).then(frames => rasterToGif(frames[0])),
   'image/x-icon:image/svg+xml': (f) => extractIcoFrames(f).then(frames => rasterToSvg(frames[0])),
+  'image/x-icon:image/avif': (f) => extractIcoFrames(f).then(frames => rasterToAvif(frames[0])),
 };
 
 const documentConverters = {
