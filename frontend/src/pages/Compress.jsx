@@ -7,6 +7,7 @@ import JSZip from 'jszip';
 import Layout from '../components/Layout';
 import FilePreview from '../components/FilePreviewAltered';
 import ImageCompressionDetails from '../components/dropdownPreview/ImageCompressionDropdown';
+import { renderImageWithOverlays } from '../services/imageEditingServices/imageEditService';
 
 const getImageDimensions = (file) => { // for image resizing 
   return new Promise((resolve, reject) => {
@@ -127,6 +128,8 @@ export default function Compress() {
           editedFile: null,
           editedPreviewUrl: '',
           editedCrop: null,
+          textLayers: [],
+          annotationStrokes: [],
 
           result: null,
           downloadUrl: '',
@@ -271,7 +274,23 @@ export default function Compress() {
       });
 
       const effectiveRatio = getEffectiveRatio(item);
-      const sourceFile = item.editedFile || item.file;
+      let sourceFile = item.editedFile || item.file;
+      let overlayRenderResult = null;
+
+      const hasOverlays =
+        (item.textLayers?.length ?? 0) > 0 ||
+        (item.annotationStrokes?.length ?? 0) > 0;
+
+      if (hasOverlays) {
+        overlayRenderResult = await renderImageWithOverlays({
+          file: sourceFile,
+          textLayers: item.textLayers || [],
+          annotationStrokes: item.annotationStrokes || [],
+          outputType: item.file.type || 'image/png',
+        });
+
+        sourceFile = overlayRenderResult.file;
+      }
 
       const sharedArgs = {
         file: sourceFile,
@@ -336,6 +355,10 @@ export default function Compress() {
           alert(`${item.file.name} is not supported`);
           updateFileItem(item.id, { status: 'error' });
           continue;
+      }
+
+      if (overlayRenderResult?.previewUrl) {
+        URL.revokeObjectURL(overlayRenderResult.previewUrl);
       }
 
       updateFileItem(item.id, { status: 'done' });

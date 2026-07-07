@@ -169,6 +169,84 @@ export const applyImageFilter = async ({
   }
 };
 
+export const renderImageWithOverlays = async ({
+  file,
+  textLayers = [],
+  annotationStrokes = [],
+  outputType = 'image/png',
+}) => {
+  if (!file) {
+    throw new Error('No image file provided');
+  }
+
+  const imageUrl = URL.createObjectURL(file);
+
+  try {
+    const image = await loadImage(imageUrl);
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+
+    ctx.drawImage(image, 0, 0);
+
+    annotationStrokes.forEach((stroke) => {
+      if (!stroke.points || stroke.points.length < 2) return;
+
+      ctx.save();
+      ctx.strokeStyle = stroke.color || '#f97316';
+      ctx.lineWidth = stroke.size || Math.max(4, canvas.width * 0.006);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      ctx.beginPath();
+      ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+
+      stroke.points.slice(1).forEach((point) => {
+        ctx.lineTo(point.x, point.y);
+      });
+
+      ctx.stroke();
+      ctx.restore();
+    });
+
+    textLayers.forEach((layer) => {
+      if (!layer.text?.trim()) return;
+
+      const fontSize = layer.fontSize || Math.round(canvas.width * 0.06);
+
+      ctx.save();
+      ctx.font = `700 ${fontSize}px ${layer.fontFamily || 'Arial, sans-serif'}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      ctx.lineWidth = Math.max(2, fontSize * 0.08);
+      ctx.strokeStyle = layer.strokeColor || 'rgba(0, 0, 0, 0.55)';
+      ctx.fillStyle = layer.color || '#ffffff';
+
+      ctx.strokeText(layer.text, layer.x, layer.y);
+      ctx.fillText(layer.text, layer.x, layer.y);
+
+      ctx.restore();
+    });
+
+    const blob = await canvasToBlob(canvas, outputType);
+
+    return {
+      blob,
+      file: new File([blob], file.name, { type: blob.type }),
+      previewUrl: URL.createObjectURL(blob),
+      width: canvas.width,
+      height: canvas.height,
+      sizeBytes: blob.size,
+    };
+  } finally {
+    URL.revokeObjectURL(imageUrl);
+  }
+};
+
 
 const loadImage = (src) => {
   return new Promise((resolve, reject) => {

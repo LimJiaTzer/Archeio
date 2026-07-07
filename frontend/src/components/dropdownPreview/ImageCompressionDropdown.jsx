@@ -347,9 +347,18 @@ const ImageCompressionDetails = ({
         originalPreviewUrl={item.previewUrl}
         originalFile={item.file}
         initialCrop={item.editedCrop}
+        initialTextLayers={item.textLayers || []}
+        initialAnnotationStrokes={item.annotationStrokes || []}
         compressedPreviewUrl={item.compressedPreviewUrl}
-        onApply={({ file, previewUrl, cropPercent, resetToOriginal }) => {
-          if (item.editedPreviewUrl) {
+        onApply={({
+          file,
+          previewUrl,
+          cropPercent,
+          resetToOriginal,
+          textLayers,
+          annotationStrokes,
+        }) => {
+          if (previewUrl && item.editedPreviewUrl && item.editedPreviewUrl !== previewUrl) {
             URL.revokeObjectURL(item.editedPreviewUrl);
           }
 
@@ -358,6 +367,9 @@ const ImageCompressionDetails = ({
               editedFile: null,
               editedPreviewUrl: '',
               editedCrop: null,
+
+              textLayers: textLayers ?? item.textLayers ?? [],
+              annotationStrokes: annotationStrokes ?? item.annotationStrokes ?? [],
 
               result: null,
               downloadUrl: '',
@@ -373,9 +385,17 @@ const ImageCompressionDetails = ({
           }
 
           updatePreviewItem(item.id, {
-            editedFile: file,
-            editedPreviewUrl: previewUrl,
+            ...(file && previewUrl
+              ? {
+                  editedFile: file,
+                  editedPreviewUrl: previewUrl,
+                }
+              : {}),
+
             editedCrop: cropPercent ?? item.editedCrop,
+
+            textLayers: textLayers ?? item.textLayers ?? [],
+            annotationStrokes: annotationStrokes ?? item.annotationStrokes ?? [],
 
             result: null,
             downloadUrl: '',
