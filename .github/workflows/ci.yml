@@ -1,0 +1,50 @@
+name: Archeio CI Pipeline
+
+# 1. When should this pipeline run?
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+# 2. What jobs should it do?
+jobs:
+  frontend-build-and-test:
+    name: Frontend Tests & Build
+    runs-on: ubuntu-latest
+    
+    # Define the default folder for these commands
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      # Step 1: Download your code onto the temporary GitHub server
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Step 2: Install Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: './frontend/package-lock.json'
+
+      # Step 3: Install all dependencies (like running 'npm install' locally)
+      - name: Install Dependencies
+        run: npm ci
+
+      # Step 4: Run the automated Vitest unit tests we just wrote!
+      - name: Run Unit Tests
+        run: npm run test -- --run
+
+      # Step 5: Check if the application actually builds successfully
+      - name: Build Application
+        run: npm run build
+
+      # Note: We are deliberately skipping `npm run lint` here for now
+      # because there are pre-existing linting errors that would cause 
+      # the pipeline to immediately fail. Once those are fixed, we can add:
+      # - name: Run Linter
+      #   run: npm run lint
