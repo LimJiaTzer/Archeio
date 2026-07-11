@@ -3,11 +3,12 @@ import Layout from '../components/Layout';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft, Upload, Trash2, Download, AlertTriangle, ShieldCheck, X,
-  Link as LinkIcon, Type, Wifi, Phone, Mail
+  Link as LinkIcon, Type, Wifi, Phone, Mail, Loader2
 } from 'lucide-react';
 import QRCodeStyling from 'qr-code-styling';
 import jsQR from 'jsqr';
 import { toPng, toJpeg, toSvg } from 'html-to-image';
+import { convertImage } from '../services/conversionService';
 
 const downloadBlob = (blob, fileName) => {
     const objectUrl = URL.createObjectURL(blob);
@@ -70,8 +71,13 @@ export default function QRCodeCreator() {
     const qrRef = useRef(null);
     const frameContainerRef = useRef(null);
     const qrCodeInstanceRef = useRef(null);
-    const formats = ["PNG", "JPEG", "SVG"];
+    
+    // Expanded formats array using convertImage
+    const extendedFormats = ["WEBP", "GIF", "ICO", "AVIF", "BMP", "HEIC"];
+    const formats = ["PNG", "JPEG", "SVG", ...extendedFormats];
+    
     const [isScannable, setIsScannable] = useState(true);
+    const [isConverting, setIsConverting] = useState(false);
     
     const [activeTab, setActiveTab] = useState('frame'); 
 
@@ -250,13 +256,19 @@ export default function QRCodeCreator() {
     };
 
     const handleDownload = async () => {
-        if (!qrCodeInstanceRef.current) return;
+        if (!qrCodeInstanceRef.current || isConverting) return;
+        setIsConverting(true);
         
         const fileName = `custom-qrcode.${fmt.toLowerCase()}`;
+        const isExtendedFormat = extendedFormats.includes(fmt);
+        const captureFmt = isExtendedFormat ? "PNG" : fmt;
         
-        if (options.frameStyle !== 'none') {
-            if (!frameContainerRef.current) return;
-            try {
+        let rawBlob = null;
+        
+        try {
+            if (options.frameStyle !== 'none') {
+                if (!frameContainerRef.current) throw new Error("Frame container missing");
+                
                 const scale = 3;
                 const node = frameContainerRef.current;
                 const param = {
@@ -273,42 +285,44 @@ export default function QRCodeCreator() {
                 };
 
                 let dataUrl;
-                if (fmt === "PNG") dataUrl = await toPng(node, param);
-                else if (fmt === "JPEG") dataUrl = await toJpeg(node, param);
-                else if (fmt === "SVG") dataUrl = await toSvg(node, param);
+                if (captureFmt === "PNG") dataUrl = await toPng(node, param);
+                else if (captureFmt === "JPEG") dataUrl = await toJpeg(node, param);
+                else if (captureFmt === "SVG") dataUrl = await toSvg(node, param);
 
-                const link = document.createElement('a');
-                link.download = fileName;
-                link.href = dataUrl;
-                link.click();
-            } catch (e) {
-                console.error("Failed to export custom frame", e);
-            }
-            return;
-        }
-
-        try {
-            if (fmt === 'PNG' && options.bgTransparent) {
-                const svgBlob = await qrCodeInstanceRef.current.getRawData('svg');
-
-                if (!svgBlob) {
-                    throw new Error('Failed to export QR code.');
+                rawBlob = await (await fetch(dataUrl)).blob();
+            } else {
+                if (captureFmt === 'PNG' && options.bgTransparent) {
+                    const svgBlob = await qrCodeInstanceRef.current.getRawData('svg');
+                    if (!svgBlob) throw new Error('Failed to export raw SVG for transparency.');
+                    rawBlob = await svgBlobToPngBlob(svgBlob);
+                } else {
+                    rawBlob = await qrCodeInstanceRef.current.getRawData(captureFmt.toLowerCase());
+                    if (!rawBlob) throw new Error('Failed to export raw QR code.');
                 }
-
-                const pngBlob = await svgBlobToPngBlob(svgBlob);
-                downloadBlob(pngBlob, fileName);
-                return;
             }
 
-            const rawBlob = await qrCodeInstanceRef.current.getRawData(fmt.toLowerCase());
+            if (!rawBlob) throw new Error("Failed to generate raw QR code blob.");
 
-            if (!rawBlob) {
-                throw new Error('Failed to export QR code.');
+            if (isExtendedFormat) {
+                // Convert intermediate PNG to requested format
+                const file = new File([rawBlob], "base-qrcode.png", { type: "image/png" });
+                const converted = await convertImage(file, fmt);
+                
+                const link = document.createElement('a');
+                link.href = converted.downloadUrl;
+                link.download = fileName;
+                link.click();
+                setTimeout(() => URL.revokeObjectURL(converted.downloadUrl), 1000);
+            } else {
+                // Natively supported format download
+                downloadBlob(rawBlob, fileName);
             }
 
-            downloadBlob(rawBlob, fileName);
         } catch (e) {
             console.error("Failed to export QR code", e);
+            alert(`Failed to export QR code as ${fmt}. Check console for details.`);
+        } finally {
+            setIsConverting(false);
         }
     };
 
