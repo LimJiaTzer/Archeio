@@ -12,7 +12,7 @@ jobs:
   frontend-build-and-test:
     name: Frontend Tests & Build
     runs-on: ubuntu-latest
-    
+
     # Define the default folder for these commands
     defaults:
       run:
@@ -31,7 +31,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: './frontend/package-lock.json'
 
-      # Step 3: Install all dependencies (like running 'npm install' locally)
+      # Step 3: Strictly install dependencies using the lockfile
       - name: Install Dependencies
         run: npm ci
 
@@ -48,3 +48,5 @@ jobs:
       # the pipeline to immediately fail. Once those are fixed, we can add:
       # - name: Run Linter
       #   run: npm run lint
+
+
