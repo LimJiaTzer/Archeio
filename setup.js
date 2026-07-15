@@ -56,9 +56,15 @@ const pipPath = os.platform() === 'win32'
   ? path.join(__dirname, 'venv', 'Scripts', 'pip')
   : path.join(__dirname, 'venv', 'bin', 'pip');
 
-console.log('Installing python libraries (pillow, pillow_heif)...');
-if (!runCommand(`"${pipPath}" install pillow pillow_heif`)) {
-  console.error('❌ Failed to install Python dependencies.');
+console.log('Installing python libraries from requirements.txt...');
+const reqPath = path.join(__dirname, 'backend', 'requirements.txt');
+if (fs.existsSync(reqPath)) {
+  if (!runCommand(`"${pipPath}" install -r "${reqPath}"`)) {
+    console.error('❌ Failed to install Python dependencies from requirements.txt.');
+    process.exit(1);
+  }
+} else {
+  console.error(`❌ Requirements file not found at ${reqPath}.`);
   process.exit(1);
 }
 
