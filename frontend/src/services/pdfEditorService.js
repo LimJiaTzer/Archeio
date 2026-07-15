@@ -7,7 +7,7 @@ import { PDFDocument, degrees } from 'pdf-lib';
  * @param {string} dataUrl 
  * @returns {ArrayBuffer}
  */
-const dataUrlToArrayBuffer = (dataUrl) => {
+export const dataUrlToArrayBuffer = (dataUrl) => {
   const base64 = dataUrl.split(',')[1];
   const binaryString = window.atob(base64);
   const len = binaryString.length;
