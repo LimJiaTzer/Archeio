@@ -1,7 +1,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { applyImageQuickAction, applyImageCrop, applyImageFilter } from '../../services/imageEditingServices/imageEditService';
+import { applyImageQuickAction, applyImageFilter } from '../../services/imageEditingServices/imageEditService';
 import { AnimatePresence, motion } from 'framer-motion';
 import ReactCrop from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
@@ -54,8 +54,9 @@ export default function ImageEditorModal({
   const [resetToOriginalPending, setResetToOriginalPending] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState('none');
 
-  const [cropSourceFile, setCropSourceFile] = useState(null);
-  const [cropSourcePreviewUrl, setCropSourcePreviewUrl] = useState(null);
+  // temp preview URLs (never replace the full image file)
+  const [cropPreviewUrl, setCropPreviewUrl] = useState(null);
+  const [croppedDisplayPreviewUrl, setCroppedDisplayPreviewUrl] = useState(null);
 
   const imageStageRef = useRef(null);
   const displayImageRef = useRef(null);
@@ -156,8 +157,8 @@ export default function ImageEditorModal({
     setAppliedCropPercent(initialCrop || null);
     setResetToOriginalPending(false);
     setSelectedFilter('none');
-    setCropSourceFile(null);
-    setCropSourcePreviewUrl(null);
+    setCropPreviewUrl(null);
+    setCroppedDisplayPreviewUrl(null);
 
     setTextLayers(initialTextLayers || []);
     setAnnotationStrokes(initialAnnotationStrokes || []);
@@ -177,10 +178,8 @@ export default function ImageEditorModal({
     initialAnnotationStrokes,
   ]);
 
-  const isFullImageCrop = () => {
-    const percentCrop = completedPercentCrop || crop;
-
-    if (!percentCrop) return false;
+  const isFullCropPercent = (percentCrop) => {
+    if (!percentCrop) return true;
 
     return (
       Math.round(percentCrop.x) === 0 &&
@@ -190,69 +189,37 @@ export default function ImageEditorModal({
     );
   };
 
-  const commitCrop = async () => {
-    if (!completedCrop || !imageRef.current) {
-      return null;
-    }
+  const isFullImageCrop = () => {
+    return isFullCropPercent(completedPercentCrop || crop);
+  };
 
-    if (isFullImageCrop() && !cropSourceFile) {
-      if (
-        editedPreviewUrl &&
-        editedPreviewUrl !== handedOffPreviewUrlRef.current
-      ) {
-        URL.revokeObjectURL(editedPreviewUrl);
-      }
-
-      const fullCrop = getFullCrop();
-
-      setEditedFile(null);
-      setEditedPreviewUrl(null);
-      setAppliedCropPercent(fullCrop);
-      setResetToOriginalPending(true);
-
-      setActiveTool(null);
-      setCrop(null);
-      setCompletedCrop(null);
-      setCompletedPercentCrop(null);
-
-      return {
-        file: originalFile || item.file,
-        previewUrl: originalPreviewUrl || item.previewUrl || previewUrl,
-        cropPercent: fullCrop,
-        resetToOriginal: true,
-      };
-    }
-
-    const sourceFile = cropSourceFile || originalFile || item.file;
-    const cropPercentToSave = completedPercentCrop || crop;
-
-    const result = await applyImageCrop({
-      file: sourceFile,
-      imageElement: imageRef.current,
-      crop: completedCrop,
-      outputType: item.file.type || 'image/png',
-    });
-
+  const clearCropPreview = () => {
     if (
-      editedPreviewUrl &&
-      editedPreviewUrl !== handedOffPreviewUrlRef.current
+      cropPreviewUrl &&
+      cropPreviewUrl !== handedOffPreviewUrlRef.current
     ) {
-      URL.revokeObjectURL(editedPreviewUrl);
+      URL.revokeObjectURL(cropPreviewUrl);
     }
 
-    setEditedFile(result.file);
-    setEditedPreviewUrl(result.previewUrl);
+    setCropPreviewUrl(null);
+  };
+
+  const commitCrop = async () => {
+    const cropPercentToSave =
+      completedPercentCrop ||
+      crop ||
+      appliedCropPercent ||
+      initialCrop ||
+      getFullCrop();
+
+    // Crop is metadata only inside the editor. The full image file is kept.
     setAppliedCropPercent(cropPercentToSave);
-    setResetToOriginalPending(false);
-    setSelectedFilter('none');
 
-    // The crop source already contains the visible text and annotations.
-    setTextLayers([]);
-    setAnnotationStrokes([]);
-    setCurrentStroke(null);
+    if (!isFullCropPercent(cropPercentToSave)) {
+      setResetToOriginalPending(false);
+    }
 
-    setCropSourceFile(null);
-    setCropSourcePreviewUrl(null);
+    clearCropPreview();
 
     setActiveTool(null);
     setCrop(null);
@@ -260,10 +227,26 @@ export default function ImageEditorModal({
     setCompletedPercentCrop(null);
 
     return {
-      ...result,
       cropPercent: cropPercentToSave,
       resetToOriginal: false,
     };
+  };
+
+  const handleResetCropOnly = () => {
+    const fullCrop = getFullCrop();
+
+    // Only reset the crop box to the full image.
+    // Do not clear filters, text, annotations, rotation, or flips.
+    setCrop(fullCrop);
+    setCompletedPercentCrop(fullCrop);
+
+    if (imageRef.current) {
+      setCompletedCrop(
+        percentCropToPixelCrop(fullCrop, imageRef.current)
+      );
+    } else {
+      setCompletedCrop(null);
+    }
   };
 
   // filter 
@@ -345,29 +328,31 @@ const getFilterCss = (filterId) => {
       image.src = url;
     });
 
-  const canvasToFile = (canvas, outputType, fileName) =>
+  const canvasToPreviewUrl = (canvas, outputType) =>
     new Promise((resolve, reject) => {
       canvas.toBlob(
         (blob) => {
           if (!blob) {
-            reject(new Error('Could not create the edited image.'));
+            reject(new Error('Could not create the edited image preview.'));
             return;
           }
 
-          resolve(
-            new File([blob], fileName, {
-              type: outputType,
-              lastModified: Date.now(),
-            })
-          );
+          resolve(URL.createObjectURL(blob));
         },
         outputType,
         0.95
       );
     });
 
-  const prepareLatestImageForCrop = async () => {
-    const sourceUrl = normalImageUrl;
+  const prepareLatestImageForCrop = async (
+    sourceUrlOverride = null,
+    filterIdOverride = selectedFilter
+  ) => {
+    const sourceUrl =
+      sourceUrlOverride ||
+      (resetToOriginalPending
+        ? originalPreviewUrl || item.previewUrl || previewUrl
+        : editedPreviewUrl || basePreviewUrl || previewUrl);
 
     if (!sourceUrl) {
       throw new Error('Image preview unavailable.');
@@ -384,7 +369,12 @@ const getFilterCss = (filterId) => {
     canvas.width = image.naturalWidth;
     canvas.height = image.naturalHeight;
 
-    context.filter = getFilterCss(selectedFilter);
+    setNaturalImageSize({
+      width: image.naturalWidth,
+      height: image.naturalHeight,
+    });
+
+    context.filter = getFilterCss(filterIdOverride);
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
     context.filter = 'none';
 
@@ -424,38 +414,27 @@ const getFilterCss = (filterId) => {
     });
 
     const outputType = item.file.type || 'image/png';
-    const sourceName = item.file.name || 'edited-image.png';
-    const extension = outputType.split('/')[1] || 'png';
-    const baseName = sourceName.replace(/\.[^/.]+$/, '') || 'edited-image';
+    const previewUrlForCrop = await canvasToPreviewUrl(canvas, outputType);
 
-    const file = await canvasToFile(
-      canvas,
-      outputType,
-      `${baseName}-crop-source.${extension}`
-    );
-    const previewUrl = URL.createObjectURL(file);
+    clearCropPreview();
+    setCropPreviewUrl(previewUrlForCrop);
 
-    if (
-      cropSourcePreviewUrl &&
-      cropSourcePreviewUrl !== handedOffPreviewUrlRef.current
-    ) {
-      URL.revokeObjectURL(cropSourcePreviewUrl);
-    }
-
-    setCropSourceFile(file);
-    setCropSourcePreviewUrl(previewUrl);
-
-    return {
-      file,
-      previewUrl,
-    };
+    return previewUrlForCrop;
   };
 
   const openCropTool = async () => {
     try {
       setIsEditing(true);
 
-      await prepareLatestImageForCrop();
+      let sourceUrlOverride = null;
+
+      // A selected filter is only a CSS preview until it is committed.
+      if (activeTool === 'filter' && selectedFilter !== 'none') {
+        const filterResult = await commitFilter();
+        sourceUrlOverride = filterResult?.previewUrl || null;
+      }
+
+      await prepareLatestImageForCrop(sourceUrlOverride, 'none');
 
       const nextCrop =
         appliedCropPercent ||
@@ -472,6 +451,116 @@ const getFilterCss = (filterId) => {
       setIsEditing(false);
     }
   };
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const sourceUrl = resetToOriginalPending
+      ? originalPreviewUrl || item.previewUrl || previewUrl
+      : editedPreviewUrl || basePreviewUrl || previewUrl;
+
+    const cropPercent =
+      appliedCropPercent ||
+      initialCrop ||
+      getFullCrop();
+
+    let generatedUrl = null;
+    let cancelled = false;
+
+    const createDisplayPreview = async () => {
+      if (!sourceUrl || isFullCropPercent(cropPercent)) {
+        setCroppedDisplayPreviewUrl((previousUrl) => {
+          if (
+            previousUrl &&
+            previousUrl !== handedOffPreviewUrlRef.current
+          ) {
+            URL.revokeObjectURL(previousUrl);
+          }
+
+          return null;
+        });
+        return;
+      }
+
+      try {
+        const image = await loadImageFromUrl(sourceUrl);
+
+        if (cancelled) return;
+
+        setNaturalImageSize({
+          width: image.naturalWidth,
+          height: image.naturalHeight,
+        });
+
+        const sourceX = (image.naturalWidth * cropPercent.x) / 100;
+        const sourceY = (image.naturalHeight * cropPercent.y) / 100;
+        const sourceWidth = (image.naturalWidth * cropPercent.width) / 100;
+        const sourceHeight = (image.naturalHeight * cropPercent.height) / 100;
+
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+
+        if (!context) {
+          throw new Error('Could not create the cropped display preview.');
+        }
+
+        canvas.width = Math.max(1, Math.round(sourceWidth));
+        canvas.height = Math.max(1, Math.round(sourceHeight));
+
+        context.drawImage(
+          image,
+          sourceX,
+          sourceY,
+          sourceWidth,
+          sourceHeight,
+          0,
+          0,
+          canvas.width,
+          canvas.height
+        );
+
+        generatedUrl = await canvasToPreviewUrl(
+          canvas,
+          item.file.type || 'image/png'
+        );
+
+        if (cancelled) {
+          URL.revokeObjectURL(generatedUrl);
+          return;
+        }
+
+        setCroppedDisplayPreviewUrl((previousUrl) => {
+          if (
+            previousUrl &&
+            previousUrl !== handedOffPreviewUrlRef.current
+          ) {
+            URL.revokeObjectURL(previousUrl);
+          }
+
+          return generatedUrl;
+        });
+      } catch (error) {
+        console.error('Failed to create cropped display preview:', error);
+      }
+    };
+
+    createDisplayPreview();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isOpen,
+    resetToOriginalPending,
+    editedPreviewUrl,
+    basePreviewUrl,
+    previewUrl,
+    originalPreviewUrl,
+    item.previewUrl,
+    item.file.type,
+    appliedCropPercent,
+    initialCrop,
+  ]);
 
   useEffect(() => {
     if (!isOpen || activeTool === 'crop') return;
@@ -501,6 +590,9 @@ const getFilterCss = (filterId) => {
     editedPreviewUrl,
     basePreviewUrl,
     previewUrl,
+    croppedDisplayPreviewUrl,
+    appliedCropPercent,
+    initialCrop,
   ]);
 
   const getImagePointFromEvent = (event) => {
@@ -511,13 +603,32 @@ const getFilterCss = (filterId) => {
     }
 
     const rect = overlay.getBoundingClientRect();
+    const activeCropPercent =
+      appliedCropPercent ||
+      initialCrop ||
+      getFullCrop();
 
-    const x = Math.max(0, Math.min(event.clientX - rect.left, rect.width));
-    const y = Math.max(0, Math.min(event.clientY - rect.top, rect.height));
+    const cropX =
+      (naturalImageSize.width * activeCropPercent.x) / 100;
+    const cropY =
+      (naturalImageSize.height * activeCropPercent.y) / 100;
+    const cropWidth =
+      (naturalImageSize.width * activeCropPercent.width) / 100;
+    const cropHeight =
+      (naturalImageSize.height * activeCropPercent.height) / 100;
+
+    const localX = Math.max(
+      0,
+      Math.min(event.clientX - rect.left, rect.width)
+    );
+    const localY = Math.max(
+      0,
+      Math.min(event.clientY - rect.top, rect.height)
+    );
 
     return {
-      x: (x / rect.width) * naturalImageSize.width,
-      y: (y / rect.height) * naturalImageSize.height,
+      x: cropX + (localX / rect.width) * cropWidth,
+      y: cropY + (localY / rect.height) * cropHeight,
     };
   };
 
@@ -543,10 +654,13 @@ const getFilterCss = (filterId) => {
 
     setTextLayers((prev) => [...prev, newLayer]);
     setSelectedTextId(newLayer.id);
+    setResetToOriginalPending(false);
   };
 
   const updateSelectedTextLayer = (patch) => {
     if (!selectedTextId) return;
+
+    setResetToOriginalPending(false);
 
     setTextLayers((prev) =>
       prev.map((layer) =>
@@ -571,6 +685,8 @@ const getFilterCss = (filterId) => {
     if (!point) return;
 
     event.currentTarget.setPointerCapture(event.pointerId);
+
+    setResetToOriginalPending(false);
 
     setCurrentStroke({
       id: createLayerId(),
@@ -681,21 +797,43 @@ const getFilterCss = (filterId) => {
       URL.revokeObjectURL(editedPreviewUrl);
     }
 
+    clearCropPreview();
+
+    if (
+      croppedDisplayPreviewUrl &&
+      croppedDisplayPreviewUrl !== handedOffPreviewUrlRef.current
+    ) {
+      URL.revokeObjectURL(croppedDisplayPreviewUrl);
+    }
+
     const fullCrop = getFullCrop();
+    const originalUrl =
+      originalPreviewUrl ||
+      item.previewUrl ||
+      previewUrl;
+
+    setBaseFile(originalFile || item.file);
+    setBasePreviewUrl(originalUrl);
 
     setEditedFile(null);
     setEditedPreviewUrl(null);
+    setCroppedDisplayPreviewUrl(null);
+
     setAppliedCropPercent(fullCrop);
     setResetToOriginalPending(true);
+    setSelectedFilter('none');
 
-    setCrop(fullCrop);
-    setCompletedPercentCrop(fullCrop);
+    setTextLayers([]);
+    setAnnotationStrokes([]);
+    setSelectedTextId(null);
+    setDraggingTextId(null);
+    setIsDrawing(false);
+    setCurrentStroke(null);
 
-    if (imageRef.current) {
-      setCompletedCrop(percentCropToPixelCrop(fullCrop, imageRef.current));
-    } else {
-      setCompletedCrop(null);
-    }
+    setActiveTool(null);
+    setCrop(null);
+    setCompletedCrop(null);
+    setCompletedPercentCrop(null);
   };
 
   const handleApplyCrop = async () => {
@@ -723,21 +861,7 @@ const getFilterCss = (filterId) => {
 
   // for restting crop 
   const handleResetEdits = () => {
-    if (
-      editedPreviewUrl &&
-      editedPreviewUrl !== handedOffPreviewUrlRef.current
-    ) {
-      URL.revokeObjectURL(editedPreviewUrl);
-    }
-
-    setEditedFile(null);
-    setEditedPreviewUrl(null);
-
-    setActiveTool(null);
-    setCrop(null);
-    setCompletedCrop(null);
-    setCompletedPercentCrop(null);
-    setResetToOriginalPending(false);
+    handleResetImageToOriginal();
   };
 
   if (typeof document === 'undefined') return null;
@@ -746,17 +870,28 @@ const getFilterCss = (filterId) => {
     ? originalPreviewUrl || item.previewUrl || previewUrl
     : editedPreviewUrl || basePreviewUrl || previewUrl;
 
-  const cropImageUrl =
-    cropSourcePreviewUrl ||
-    editedPreviewUrl ||
-    basePreviewUrl ||
-    originalPreviewUrl ||
-    item.previewUrl ||
-    previewUrl;
+  const activeCropPercent =
+    appliedCropPercent ||
+    initialCrop ||
+    getFullCrop();
+
+  const displayImageUrl =
+    !isFullCropPercent(activeCropPercent) && croppedDisplayPreviewUrl
+      ? croppedDisplayPreviewUrl
+      : normalImageUrl;
 
   const imageUrl = activeTool === 'crop'
-    ? cropImageUrl
-    : normalImageUrl;
+    ? cropPreviewUrl || normalImageUrl
+    : displayImageUrl;
+
+  const cropViewBox = {
+    x: (naturalImageSize.width * activeCropPercent.x) / 100,
+    y: (naturalImageSize.height * activeCropPercent.y) / 100,
+    width:
+      (naturalImageSize.width * activeCropPercent.width) / 100,
+    height:
+      (naturalImageSize.height * activeCropPercent.height) / 100,
+  };
 
   const changeTool = async (nextTool) => {
     try {
@@ -845,6 +980,7 @@ const getFilterCss = (filterId) => {
                 type="button"
                 onClick={() => {
                   if (activeTool === 'crop') {
+                    clearCropPreview();
                     setActiveTool(null);
                     setCrop(null);
                     setCompletedCrop(null);
@@ -1009,10 +1145,13 @@ const getFilterCss = (filterId) => {
                           src={imageUrl}
                           alt={item?.file?.name || 'Image being edited'}
                           onLoad={(event) => {
-                            setNaturalImageSize({
-                              width: event.currentTarget.naturalWidth,
-                              height: event.currentTarget.naturalHeight,
-                            });
+                            if (isFullCropPercent(activeCropPercent)) {
+                              setNaturalImageSize({
+                                width: event.currentTarget.naturalWidth,
+                                height: event.currentTarget.naturalHeight,
+                              });
+                            }
+
                             requestAnimationFrame(updateOverlayBounds);
                           }}
                           draggable={false}
@@ -1028,7 +1167,7 @@ const getFilterCss = (filterId) => {
                           overlayBounds.height > 0 && (
                             <div
                               ref={overlayRef}
-                              className={`absolute z-10 touch-none ${
+                              className={`absolute z-10 overflow-hidden touch-none ${
                                 activeTool === 'draw' ? 'cursor-crosshair' : ''
                               }`}
                               style={{
@@ -1048,7 +1187,7 @@ const getFilterCss = (filterId) => {
                             >
                               <svg
                                 className="pointer-events-none absolute inset-0 h-full w-full overflow-hidden"
-                                viewBox={`0 0 ${naturalImageSize.width} ${naturalImageSize.height}`}
+                                viewBox={`${cropViewBox.x} ${cropViewBox.y} ${cropViewBox.width} ${cropViewBox.height}`}
                                 preserveAspectRatio="none"
                               >
                                 {[...annotationStrokes, currentStroke]
@@ -1096,10 +1235,14 @@ const getFilterCss = (filterId) => {
                                     }`}
                                     style={{
                                       left: `${
-                                        (layer.x / naturalImageSize.width) * 100
+                                        ((layer.x - cropViewBox.x) /
+                                          cropViewBox.width) *
+                                        100
                                       }%`,
                                       top: `${
-                                        (layer.y / naturalImageSize.height) * 100
+                                        ((layer.y - cropViewBox.y) /
+                                          cropViewBox.height) *
+                                        100
                                       }%`,
                                       color: layer.color,
                                       fontFamily:
@@ -1107,7 +1250,7 @@ const getFilterCss = (filterId) => {
                                       fontSize: `${Math.max(
                                         12,
                                         (layer.fontSize /
-                                          naturalImageSize.width) *
+                                          cropViewBox.width) *
                                           overlayBounds.width
                                       )}px`,
                                       textShadow:
@@ -1143,15 +1286,7 @@ const getFilterCss = (filterId) => {
                         setCompletedCrop(null);
                         setCompletedPercentCrop(null);
 
-                        if (
-                          cropSourcePreviewUrl &&
-                          cropSourcePreviewUrl !== handedOffPreviewUrlRef.current
-                        ) {
-                          URL.revokeObjectURL(cropSourcePreviewUrl);
-                        }
-
-                        setCropSourceFile(null);
-                        setCropSourcePreviewUrl(null);
+                        clearCropPreview();
                       }}
                       className="flex h-11 w-11 items-center justify-center rounded-full bg-stone-100 text-stone-600 transition hover:bg-stone-200 hover:text-stone-950 active:scale-[0.98]"
                       aria-label="Cancel crop"
@@ -1161,7 +1296,7 @@ const getFilterCss = (filterId) => {
 
                     <button
                       type="button"
-                      onClick={handleResetImageToOriginal}
+                      onClick={handleResetCropOnly} 
                       className="rounded-full bg-stone-100 px-5 py-2.5 text-sm font-bold text-stone-600 transition hover:bg-stone-200 hover:text-stone-950 active:scale-[0.98]"
                     >
                       Reset
@@ -1387,13 +1522,23 @@ const getFilterCss = (filterId) => {
 
             {/* Bottom action bar */}
             <div className="flex items-center justify-between border-t border-stone-200 bg-white px-5 py-4">
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-xl px-4 py-2 text-sm font-bold text-stone-500 transition hover:bg-stone-100 hover:text-stone-900"
-              >
-                Cancel
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-xl px-4 py-2 text-sm font-bold text-stone-500 transition hover:bg-stone-100 hover:text-stone-900"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleResetEdits}
+                  className="rounded-xl px-4 py-2 text-sm font-bold text-stone-500 transition hover:bg-stone-100 hover:text-stone-900"
+                >
+                  Reset
+                </button>
+              </div>
 
               <button
                 type="button"
@@ -1402,86 +1547,74 @@ const getFilterCss = (filterId) => {
                   try {
                     setIsEditing(true);
 
-                    if (activeTool === 'crop' && completedCrop) {
+                    let cropPercentToApply =
+                      appliedCropPercent ||
+                      initialCrop ||
+                      getFullCrop();
+                    let shouldResetToOriginal = resetToOriginalPending;
+
+                    if (activeTool === 'crop') {
                       const cropResult = await commitCrop();
 
                       if (cropResult) {
-                        if (!cropResult.resetToOriginal) {
-                          handedOffPreviewUrlRef.current = cropResult.previewUrl;
-                        }
+                        cropPercentToApply = cropResult.cropPercent;
 
-                        onApply({
-                          file: cropResult.file,
-                          previewUrl: cropResult.previewUrl,
-                          cropPercent: cropResult.cropPercent,
-                          resetToOriginal: cropResult.resetToOriginal,
-                          textLayers,
-                          annotationStrokes,
-                        });
-                        return;
+                        if (!isFullCropPercent(cropResult.cropPercent)) {
+                          shouldResetToOriginal = false;
+                        }
                       }
                     }
+
+                    let latestFile =
+                      editedFile ||
+                      baseFile ||
+                      item.file;
+                    let latestPreviewUrl =
+                      editedPreviewUrl ||
+                      basePreviewUrl ||
+                      previewUrl;
 
                     if (activeTool === 'filter' && selectedFilter !== 'none') {
                       const filterResult = await commitFilter();
 
                       if (filterResult) {
-                        handedOffPreviewUrlRef.current = filterResult.previewUrl;
-
-                        onApply({
-                          file: filterResult.file,
-                          previewUrl: filterResult.previewUrl,
-                          cropPercent: appliedCropPercent || initialCrop,
-                          resetToOriginal: false,
-                          textLayers,
-                          annotationStrokes,
-                        });
-                        return;
+                        latestFile = filterResult.file;
+                        latestPreviewUrl = filterResult.previewUrl;
+                        shouldResetToOriginal = false;
+                        handedOffPreviewUrlRef.current =
+                          filterResult.previewUrl;
                       }
-                    }
-
-                    if (resetToOriginalPending) {
-                      onApply({
-                        file: originalFile || item.file,
-                        previewUrl: originalPreviewUrl || item.previewUrl || previewUrl,
-                        cropPercent: getFullCrop(),
-                        resetToOriginal: true,
-                        textLayers,
-                        annotationStrokes,
-                      });
-                      return;
-                    }
-
-                    if (editedFile && editedPreviewUrl) {
-                      handedOffPreviewUrlRef.current = editedPreviewUrl;
-
-                      onApply({
-                        file: editedFile,
-                        previewUrl: editedPreviewUrl,
-                        cropPercent: appliedCropPercent || initialCrop,
-                        resetToOriginal: false,
-                        textLayers,
-                        annotationStrokes,
-                      });
-                      return;
                     }
 
                     if (
                       textLayers.length > 0 ||
-                      annotationStrokes.length > 0 ||
-                      initialTextLayers.length > 0 ||
-                      initialAnnotationStrokes.length > 0
+                      annotationStrokes.length > 0
                     ) {
-                      onApply({
-                        cropPercent: appliedCropPercent || initialCrop,
-                        resetToOriginal: false,
-                        textLayers,
-                        annotationStrokes,
-                      });
-                      return;
+                      shouldResetToOriginal = false;
                     }
 
-                    onClose();
+                    if (shouldResetToOriginal) {
+                      latestFile = originalFile || item.file;
+                      latestPreviewUrl =
+                        originalPreviewUrl ||
+                        item.previewUrl ||
+                        previewUrl;
+                    } else if (
+                      latestPreviewUrl &&
+                      latestPreviewUrl !== handedOffPreviewUrlRef.current
+                    ) {
+                      handedOffPreviewUrlRef.current = latestPreviewUrl;
+                    }
+
+                    // cropPercent remains metadata. Compression applies the crop later.
+                    onApply({
+                      file: latestFile,
+                      previewUrl: latestPreviewUrl,
+                      cropPercent: cropPercentToApply,
+                      resetToOriginal: shouldResetToOriginal,
+                      textLayers,
+                      annotationStrokes,
+                    });
                   } catch (error) {
                     console.error('Apply changes failed:', error);
                   } finally {
