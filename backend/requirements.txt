@@ -23,3 +23,4 @@ python-docx==1.1.2
 opencv-python-headless==4.10.0.84   # headless: no GUI libs needed on a server
 beautifulsoup4==4.12.3
 numpy>=1.24,<2.0            # paddlepaddle 2.6 pins numpy <2.0 as of this writing — verify against your installed paddle version
+PyMuPDF>=1.24,<2.0

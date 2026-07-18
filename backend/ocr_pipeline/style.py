@@ -18,10 +18,9 @@ class TextStyle:
     italic_guess: bool        # low-confidence heuristic, treat as advisory
 
 
-# Rough px-height -> pt mapping assuming ~150 "dpi-equivalent" after our
-# upscale_if_small() step in preprocessing. Calibrate against a few real
-# samples once you have them; this is a starting constant, not gospel.
-_PX_PER_PT = 150 / 72
+# PDF pages are rasterized at 200 DPI before OCR. The image preprocessing
+# also brings smaller uploads close to that working resolution.
+_PX_PER_PT = 200 / 72
 
 
 def estimate_font_size(bbox_height_px: int) -> float:
@@ -29,6 +28,28 @@ def estimate_font_size(bbox_height_px: int) -> float:
     # Snap to the nearest common size — avoids ugly "13.4pt" outputs
     common_sizes = [8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48]
     return min(common_sizes, key=lambda s: abs(s - pt))
+
+
+def estimate_glyph_height_px(crop_bgr: np.ndarray) -> int:
+    """Estimate character height without mistaking a multi-line region for one font."""
+    gray = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2GRAY)
+    _, mask = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
+    _, _, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
+
+    crop_height = crop_bgr.shape[0]
+    heights = []
+    for x, y, width, height, area in stats[1:]:
+        if width < 2 or height < 6 or area < 12:
+            continue
+        # Ignore borders, photos, and other components that occupy most of
+        # the detected layout region rather than representing a glyph.
+        if height > crop_height * 0.8:
+            continue
+        heights.append(height)
+
+    if not heights:
+        return max(1, crop_height)
+    return int(np.median(heights))
 
 
 def dominant_text_color(crop_bgr: np.ndarray) -> tuple:
@@ -80,12 +101,8 @@ def extract_style(img: np.ndarray, bbox: list, padding_px: int = 4) -> TextStyle
     if crop.size == 0:
         return TextStyle(font_size_pt=11, color_rgb=(0, 0, 0), bold=False, italic_guess=False)
 
-    # Font size still comes from the ORIGINAL box, not the padded one —
-    # padding is only to avoid clipping pixels for color/bold sampling.
-    orig_x1, orig_y1, orig_x2, orig_y2 = [int(v) for v in bbox]
-    height_px = orig_y2 - orig_y1
     return TextStyle(
-        font_size_pt=estimate_font_size(height_px),
+        font_size_pt=estimate_font_size(estimate_glyph_height_px(crop)),
         color_rgb=dominant_text_color(crop),
         bold=estimate_boldness(crop),
         italic_guess=False,  # slant detection deferred — low value for v1

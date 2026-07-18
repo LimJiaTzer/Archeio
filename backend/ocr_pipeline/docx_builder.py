@@ -18,6 +18,7 @@ from .style import TextStyle
 def _apply_run_style(run, style: TextStyle):
     run.font.size = Pt(style.font_size_pt)
     run.font.bold = style.bold
+    run.font.italic = style.italic_guess
     r, g, b = style.color_rgb
     run.font.color.rgb = RGBColor(r, g, b)
 
@@ -42,41 +43,44 @@ def _add_table_from_html(doc: Document, html: str):
             table.cell(i, j).text = cell.get_text(strip=True)
 
 
-def build_docx(regions: List[Region], region_texts: dict, region_styles: dict) -> bytes:
-    """
-    regions: ordered Region list from layout.analyze_layout()
-    region_texts: {region.order: recognized_text}   (OCR output per region)
-    region_styles: {region.order: TextStyle}        (per region, text regions only)
-    Returns raw .docx bytes, ready to hand back over HTTP.
-    """
-    doc = Document()
-
+def add_regions_to_docx(doc: Document, regions: List[Region]) -> None:
+    """Append one OCR page's regions to an existing document."""
     for region in regions:
-        if region.kind == "table":
+        if region.role == "table":
             html = (region.res or {}).get("html", "") if isinstance(region.res, dict) else ""
             if html:
                 _add_table_from_html(doc, html)
             continue
 
-        if region.kind == "figure":
+        if region.role == "figure":
             # Phase 1: figures/diagrams stay as a placeholder paragraph.
             # Diagram→editable-shape reconstruction is Phase 3.
             doc.add_paragraph("[figure — diagram reconstruction pending]")
             continue
 
-        text = region_texts.get(region.order, "").strip()
+        text = region.text.strip()
         if not text:
             continue
 
         para = doc.add_paragraph()
-        if region.kind == "title":
+        if region.role == "heading":
             para.style = doc.styles["Heading 1"]
-        para.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        elif region.role == "list":
+            para.style = doc.styles["List Bullet"]
+        para.alignment = {
+            "center": WD_ALIGN_PARAGRAPH.CENTER,
+            "right": WD_ALIGN_PARAGRAPH.RIGHT,
+        }.get(region.alignment, WD_ALIGN_PARAGRAPH.LEFT)
 
         run = para.add_run(text)
-        style = region_styles.get(region.order)
-        if style:
-            _apply_run_style(run, style)
+        if region.style:
+            _apply_run_style(run, region.style)
+
+
+def build_docx(regions: List[Region]) -> bytes:
+    """Build a DOCX from one OCR page's ordered regions."""
+    doc = Document()
+    add_regions_to_docx(doc, regions)
 
     buf = io.BytesIO()
     doc.save(buf)

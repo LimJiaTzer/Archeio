@@ -473,84 +473,6 @@ app.post('/convert/image-to-docx', upload.single('file'), async (req, res) => {
   }
 });
 
-// Simple OCR Preview Proxy Route (whole-page, no layout model)
-app.post('/ocr/simple-preview', upload.single('file'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).send('No file uploaded.');
-    }
-
-    const filePath = req.file.path;
-    const fileBuffer = fs.readFileSync(filePath);
-
-    const formData = new FormData();
-    const blob = new Blob([fileBuffer], { type: req.file.mimetype });
-    formData.append('file', blob, req.file.originalname);
-
-    const response = await fetch('http://127.0.0.1:8000/ocr/simple-preview', {
-      method: 'POST',
-      body: formData,
-    });
-
-    fs.unlinkSync(filePath);
-
-    if (!response.ok) {
-      const errText = await response.text();
-      return res.status(response.status).send(errText || 'FastAPI simple OCR preview failed');
-    }
-
-    const data = await response.json();
-    res.json(data);
-  } catch (err) {
-    console.error('Simple OCR preview proxy error:', err);
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
-    res.status(500).json({ error: err.message || 'Simple OCR preview failed.' });
-  }
-});
-
-// Simple OCR Docx Conversion Proxy Route (whole-page, plain text)
-app.post('/convert/simple-to-docx', upload.single('file'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).send('No file uploaded.');
-    }
-
-    const filePath = req.file.path;
-    const fileBuffer = fs.readFileSync(filePath);
-
-    const formData = new FormData();
-    const blob = new Blob([fileBuffer], { type: req.file.mimetype });
-    formData.append('file', blob, req.file.originalname);
-
-    const response = await fetch('http://127.0.0.1:8000/convert/simple-to-docx', {
-      method: 'POST',
-      body: formData,
-    });
-
-    fs.unlinkSync(filePath);
-
-    if (!response.ok) {
-      const errText = await response.text();
-      return res.status(response.status).send(errText || 'FastAPI simple-to-docx conversion failed');
-    }
-
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-    res.setHeader('Content-Disposition', `attachment; filename="${req.file.originalname.replace(/\.[^/.]+$/, '')}_simple.docx"`);
-    res.send(buffer);
-  } catch (err) {
-    console.error('Simple docx conversion proxy error:', err);
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
-    res.status(500).send(err.message || 'Simple OCR document conversion failed.');
-  }
-});
-
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Backend running on http://localhost:${PORT}`);
@@ -589,4 +511,3 @@ app.listen(PORT, () => {
     process.exit();
   });
 });
-

@@ -1,15 +1,42 @@
 import tempfile
 import shutil
 import os
+import fitz
 from fastapi import FastAPI, UploadFile, HTTPException
 from fastapi.responses import Response, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pdf_converter import convert_to_pdf, LIBREOFFICE_FORMATS, EPUB_FORMATS
-from ocr_pipeline.pipeline import image_to_docx
-from ocr_pipeline.simple_pipeline import image_to_text as simple_image_to_text
-from ocr_pipeline.simple_pipeline import image_to_docx_simple
+from ocr_pipeline.pipeline import image_to_docx, images_to_docx
 
 app = FastAPI(title="Archeio API")
+
+OCR_IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff")
+MAX_OCR_PDF_PAGES = 50
+
+
+def prepare_ocr_pages(file_name: str, file_bytes: bytes) -> list[bytes]:
+    """Return an image upload as one page or render every PDF page to PNG."""
+    ext = os.path.splitext(file_name)[1].lower()
+    if ext in OCR_IMAGE_EXTENSIONS:
+        return [file_bytes]
+    if ext != ".pdf":
+        raise HTTPException(400, f"Unsupported OCR format: {ext}")
+
+    try:
+        pdf = fitz.open(stream=file_bytes, filetype="pdf")
+    except Exception as exc:
+        raise HTTPException(400, "Could not read the PDF.") from exc
+
+    try:
+        if not pdf.page_count:
+            raise HTTPException(400, "The PDF has no pages.")
+        if pdf.page_count > MAX_OCR_PDF_PAGES:
+            raise HTTPException(400, f"PDFs are limited to {MAX_OCR_PDF_PAGES} pages per OCR request.")
+
+        matrix = fitz.Matrix(200 / 72, 200 / 72)
+        return [page.get_pixmap(matrix=matrix, alpha=False).tobytes("png") for page in pdf]
+    finally:
+        pdf.close()
 
 
 app.add_middleware(
@@ -64,13 +91,11 @@ async def convert_endpoint(file: UploadFile):
 
 @app.post("/convert/image-to-docx")
 async def image_to_docx_endpoint(file: UploadFile):
-    ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in (".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff"):
-        raise HTTPException(400, f"Unsupported image format: {ext}")
-
     try:
-        image_bytes = await file.read()
-        docx_bytes = image_to_docx(image_bytes)
+        pages = prepare_ocr_pages(file.filename, await file.read())
+        docx_bytes = images_to_docx(pages) if len(pages) > 1 else image_to_docx(pages[0])
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"OCR-to-docx failed: {str(e)}")
         raise HTTPException(500, f"Conversion failed: {str(e)}")
@@ -81,42 +106,3 @@ async def image_to_docx_endpoint(file: UploadFile):
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": f'attachment; filename="{out_name}"'},
     )
-
-# Text-only preview using the simplified, layout-free pipeline (whole-page
-# OCR, no region cropping).
-@app.post("/ocr/simple-preview")
-async def ocr_simple_preview_endpoint(file: UploadFile):
-    ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in (".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff"):
-        raise HTTPException(400, f"Unsupported image format: {ext}")
-
-    try:
-        image_bytes = await file.read()
-        text = simple_image_to_text(image_bytes)
-    except Exception as e:
-        print(f"Simple OCR preview failed: {str(e)}")
-        raise HTTPException(500, f"Simple OCR preview failed: {str(e)}")
-
-    return {"text": text, "engine": "paddleocr-simple"}
-
-# Full docx download using the simplified, layout-free pipeline.
-@app.post("/convert/simple-to-docx")
-async def simple_image_to_docx_endpoint(file: UploadFile):
-    ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in (".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff"):
-        raise HTTPException(400, f"Unsupported image format: {ext}")
-
-    try:
-        image_bytes = await file.read()
-        docx_bytes = image_to_docx_simple(image_bytes)
-    except Exception as e:
-        print(f"Simple OCR-to-docx failed: {str(e)}")
-        raise HTTPException(500, f"Conversion failed: {str(e)}")
-
-    out_name = os.path.splitext(file.filename)[0] + ".docx"
-    return Response(
-        content=docx_bytes,
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": f'attachment; filename="{out_name}"'},
-    )
-

@@ -5,7 +5,7 @@ at document-batch speeds. Detects regions and classifies them as
 text / title / table / figure / list, each with a bounding box.
 """
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Any, List, Optional
 import numpy as np
 
 from paddleocr import PPStructure
@@ -36,10 +36,14 @@ def get_engine() -> PPStructure:
 
 @dataclass
 class Region:
-    kind: str                       # "text" | "title" | "table" | "figure" | "list"
-    bbox: List[int]                 # [x1, y1, x2, y2]
-    res: object = field(default=None)  # raw PP-Structure result for this region
-    order: int = 0                  # reading-order index, filled in later
+    kind: str                         # Raw PP-Structure type.
+    bbox: List[int]                   # [x1, y1, x2, y2]
+    res: object = field(default=None) # Raw PP-Structure result for tables.
+    order: int = 0                    # Reading-order index.
+    role: str = "paragraph"          # heading | paragraph | list | table | figure
+    text: str = ""                   # OCR text for text-bearing regions.
+    alignment: str = "left"           # left | center | right
+    style: Optional[Any] = None        # TextStyle, attached during enrichment.
 
 
 def analyze_layout(img: np.ndarray) -> List[Region]:

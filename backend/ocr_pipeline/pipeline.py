@@ -11,14 +11,43 @@ call on the same crop does not ("Hello! My name is Muhammad Wajid...").
 Table regions are unaffected by this bug (table HTML comes from a separate
 submodule) and are passed straight to docx_builder.
 """
-from typing import Dict
+import io
+from typing import List
 import numpy as np
+from docx import Document
 
 from . import preprocess as pre
 from .layout import analyze_layout, Region
-from .style import extract_style, TextStyle
-from .docx_builder import build_docx
-from .simple_pipeline import get_ocr_engine, sort_ocr_boxes
+from .style import extract_style
+from .docx_builder import add_regions_to_docx
+from .recognition import recognize_lines
+
+
+def _infer_alignment(bbox: list, page_width: int) -> str:
+    """Infer paragraph alignment from a layout region's horizontal margins."""
+    x1, _, x2, _ = [int(value) for value in bbox]
+    region_width = x2 - x1
+    left_margin = x1
+    right_margin = page_width - x2
+
+    # A narrow region with similar left and right margins is a centered title
+    # or label. Full-width body regions naturally stay left-aligned.
+    if region_width <= page_width * 0.78 and abs(left_margin - right_margin) <= page_width * 0.08:
+        return "center"
+    if left_margin >= page_width * 0.28 and right_margin <= page_width * 0.08:
+        return "right"
+    return "left"
+
+
+def _classify_region(region: Region) -> str:
+    """Normalize PP-Structure labels into the document roles we export."""
+    return {
+        "title": "heading",
+        "text": "paragraph",
+        "list": "list",
+        "table": "table",
+        "figure": "figure",
+    }.get(region.kind, "paragraph")
 
 
 def _ocr_region_text(img: np.ndarray, bbox: list) -> str:
@@ -30,42 +59,47 @@ def _ocr_region_text(img: np.ndarray, bbox: list) -> str:
     if crop.size == 0:
         return ""
 
-    result = get_ocr_engine().ocr(crop, cls=False)
-    if not result or not result[0]:
-        return ""
-
-    sorted_result = sort_ocr_boxes(result[0])
-    return " ".join(line[1][0] for line in sorted_result)
+    return " ".join(line[1][0] for line in recognize_lines(crop))
 
 
-def _process_regions(image_bytes: bytes):
-    """Shared by image_to_text() and image_to_docx() -- one preprocessing
-    + layout + per-region OCR/style pass, reused by both callers."""
+def analyze_image(image_bytes: bytes) -> List[Region]:
+    """Return layout regions enriched with semantic role, OCR text, and style."""
     img = pre.preprocess(image_bytes)
     regions = analyze_layout(img)
 
-    region_texts: Dict[int, str] = {}
-    region_styles: Dict[int, TextStyle] = {}
-
     for region in regions:
-        if region.kind in ("table", "figure"):
+        region.role = _classify_region(region)
+        if region.role in ("table", "figure"):
             continue
-        region_texts[region.order] = _ocr_region_text(img, region.bbox)
-        region_styles[region.order] = extract_style(img, region.bbox)
+        region.text = _ocr_region_text(img, region.bbox)
+        region.style = extract_style(img, region.bbox)
+        region.alignment = _infer_alignment(region.bbox, img.shape[1])
 
-    return regions, region_texts, region_styles
+    return regions
 
 
 def image_to_text(image_bytes: bytes) -> str:
-    regions, region_texts, _ = _process_regions(image_bytes)
+    regions = analyze_image(image_bytes)
     lines = [
-        region_texts[r.order]
-        for r in regions
-        if region_texts.get(r.order, "").strip()
+        region.text
+        for region in regions
+        if region.text.strip()
     ]
     return "\n".join(lines)
 
 
 def image_to_docx(image_bytes: bytes) -> bytes:
-    regions, region_texts, region_styles = _process_regions(image_bytes)
-    return build_docx(regions, region_texts, region_styles)
+    return images_to_docx([image_bytes])
+
+
+def images_to_docx(image_pages: List[bytes]) -> bytes:
+    """Create one editable DOCX from one or more rasterized document pages."""
+    doc = Document()
+    for page_index, image_bytes in enumerate(image_pages):
+        if page_index:
+            doc.add_page_break()
+        add_regions_to_docx(doc, analyze_image(image_bytes))
+
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    return buffer.getvalue()

@@ -4,123 +4,6 @@ import { Link } from 'react-router-dom';
 import archeioIcon from '../assets/archeioIcon.png'
 
 export const navMenus = [
-  {
-    title: 'Unlock',  // name pending 
-    options: [
-      { label: 'Image to Text (OCR)', href: '#' },
-    ]
-  },
-  {
-    title: 'Convert',
-    categories: [
-      {
-        title: 'PDF & Documents',
-        options: [
-          { label: 'PDF Converter', href: '#' },
-          { label: 'Document Converter', href: '#' },
-          { label: 'Ebook Converter', href: '#' },
-          { label: 'Word to PDF', href: '#' },
-          { label: 'PDF to JPG', href: '#' },
-          { label: 'PDF to EPUB', href: '#' },
-          { label: 'EPUB to PDF', href: '#' },
-          { label: 'HEIC to PDF', href: '#' },
-          { label: 'DOCX to PDF', href: '#' },
-          { label: 'JPG to PDF', href: '#' },
-        ],
-      },
-      {
-        title: 'Image',
-        options: [
-          { label: 'Image Converter', href: '#' },
-          { label: 'WEBP to PNG', href: '#' },
-          { label: 'JFIF to PNG', href: '#' },
-          { label: 'PNG to SVG', href: '#' },
-          { label: 'HEIC to JPG', href: '#' },
-          { label: 'HEIC to PNG', href: '#' },
-          { label: 'WEBP to JPG', href: '#' },
-          { label: 'SVG Converter', href: '#' },
-        ],
-      },
-      {
-        title: 'Video & Audio',
-        options: [
-          { label: 'Video Converter', href: '#' },
-          { label: 'Audio Converter', href: '#' },
-          { label: 'MP3 Converter', href: '#' },
-          { label: 'MP4 to MP3', href: '#' },
-          { label: 'Video to MP3', href: '#' },
-          { label: 'MP4 Converter', href: '#' },
-          { label: 'MOV to MP4', href: '#' },
-          { label: 'MP3 to OGG', href: '#' },
-        ],
-      },
-      {
-        title: 'GIF',
-        options: [
-          { label: 'Video to GIF', href: '#' },
-          { label: 'MP4 to GIF', href: '#' },
-          { label: 'WEBM to GIF', href: '#' },
-          { label: 'APNG to GIF', href: '#' },
-          { label: 'GIF to MP4', href: '#' },
-          { label: 'GIF to APNG', href: '#' },
-          { label: 'Image to GIF', href: '#' },
-          { label: 'MOV to GIF', href: '#' },
-          { label: 'AVI to GIF', href: '#' },
-        ],
-      },
-      {
-        title: 'Others',
-        options: [
-          { label: 'Unit Converter', href: '#' },
-          { label: 'Time Converter', href: '#' },
-          { label: 'Archive Converter', href: '#' },
-        ],
-      },
-    ],
-  },
-  {
-    title: 'Compress',
-    categories: [
-      {
-        title: 'Documents',
-        options: [
-          { label: 'Compress PDF', href: '#' },
-          { label: 'Compress DOCX', href: '#' },
-          { label: 'Compress PPTX', href: '#' },
-          { label: 'Compress XLSX', href: '#' },
-          { label: 'Compress RTF', href: '#' },
-          { label: 'Compress EUP', href: '#' },
-        ],
-      },
-      {
-        title: 'Image',
-        options: [
-          { label: 'Compress Image', href: '#' },
-          { label: 'Compress PNG', href: '#' },
-          { label: 'Compress JPG', href: '#' },
-          { label: 'Compress SVG', href: '#' },
-          { label: 'Compress WEBP', href: '#' },
-          { label: 'Compress AVIF', href: '#' },
-          { label: 'Compress HEIC', href: '#' },
-        ],
-      },
-      {
-        title: 'Video & Audio',
-        options: [
-          { label: 'Compress Video', href: '#' },
-          { label: 'Compress Audio', href: '#' },
-          { label: 'Compress MP3', href: '#' },
-          { label: 'Compress MP4', href: '#' },
-        ],
-      },
-      {
-        title: 'GIF',
-        options: [
-          { label: 'Compress GIF', href: '#' },
-        ],
-      },
-    ],
-  },
 {
   title: 'Tools',
   categories: [
@@ -179,11 +62,12 @@ export default function Header() {
       <span>ARCHEÍO</span>
       </a>
       
-      {/* Main Dropdown Nav */}
+      {/* Primary navigation */}
       <nav className="absolute left-1/2 -translate-x-1/2 hidden sm:flex items-center space-x-8 text-sm text-stone-600 px-8 rounded-full">
-        {navMenus.map((menu, i) => (
-          <NavDropdown key={i} item={menu} />
-        ))}
+        <Link to="/ocr" className="font-semibold hover:text-stone-900 transition-colors">Unlock</Link>
+        <Link to="/convert" className="font-semibold hover:text-stone-900 transition-colors">Convert</Link>
+        <Link to="/compress" className="font-semibold hover:text-stone-900 transition-colors">Compress</Link>
+        <NavDropdown item={navMenus[0]} />
       </nav>
       
       <nav className="space-x-6 text-sm font-medium text-stone-600 hidden sm:flex items-center">
