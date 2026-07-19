@@ -37,3 +37,5 @@ pnpm-debug.log*
 # Backend temporary uploads
 backend/uploads/
 !backend/uploads/.gitkeep
+
+.claude/
