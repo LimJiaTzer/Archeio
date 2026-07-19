@@ -74,7 +74,8 @@ const ImageCompressionDetails = ({
     if (!(item.editedFile || item.file) || item.fileInfo.category !== 'images') return;
 
     let cancelled = false;
-    let generatedUrl = '';
+    let generatedCompressedUrl = '';
+    let generatedEditedSourceUrl = '';
 
     updatePreviewItem(item.id, {
       previewLoading: true,
@@ -90,20 +91,38 @@ const ImageCompressionDetails = ({
           maxWidth: item.maxWidth ? Number(item.maxWidth) : null,
           maxHeight: item.maxHeight ? Number(item.maxHeight) : null,
           maintainAspectRatio: item.maintainAspectRatio,
+
+          // Crop, annotation, and text remain metadata in the editor.
+          // The preview service temporarily renders them for both sides.
+          cropPercent: item.editedCrop,
+          textLayers: item.textLayers || [],
+          annotationStrokes: item.annotationStrokes || [],
         });
 
         if (cancelled) {
           URL.revokeObjectURL(preview.previewUrl);
+
+          if (preview.sourcePreviewUrl) {
+            URL.revokeObjectURL(preview.sourcePreviewUrl);
+          }
+
           return;
         }
 
-        generatedUrl = preview.previewUrl;
+        generatedCompressedUrl = preview.previewUrl;
+        generatedEditedSourceUrl = preview.sourcePreviewUrl || '';
 
         if (item.compressedPreviewUrl) {
           URL.revokeObjectURL(item.compressedPreviewUrl);
         }
 
+        if (item.renderedEditPreviewUrl) {
+          URL.revokeObjectURL(item.renderedEditPreviewUrl);
+        }
+
         updatePreviewItem(item.id, {
+          renderedEditPreviewUrl: preview.sourcePreviewUrl || '',
+          renderedEditSize: preview.sourceSizeBytes,
           compressedPreviewUrl: preview.previewUrl,
           estimatedSize: preview.sizeBytes,
           previewWidth: preview.width,
@@ -111,6 +130,8 @@ const ImageCompressionDetails = ({
           previewLoading: false,
         });
       } catch (error) {
+        console.error('Failed to generate edited image preview:', error);
+
         if (!cancelled) {
           updatePreviewItem(item.id, {
             previewLoading: false,
@@ -123,14 +144,21 @@ const ImageCompressionDetails = ({
       cancelled = true;
       clearTimeout(timeoutId);
 
-      if (generatedUrl) {
-        URL.revokeObjectURL(generatedUrl);
+      if (generatedCompressedUrl) {
+        URL.revokeObjectURL(generatedCompressedUrl);
+      }
+
+      if (generatedEditedSourceUrl) {
+        URL.revokeObjectURL(generatedEditedSourceUrl);
       }
     };
   }, [
     item.id,
     item.file,
     item.editedFile,
+    item.editedCrop,
+    item.textLayers,
+    item.annotationStrokes,
     item.fileInfo.category,
     item.format,
     effectiveRatio,
@@ -156,13 +184,19 @@ const ImageCompressionDetails = ({
           {/* Component one : img preview */}
           <div className="md:col-span-2">
             <BeforeAfterImageSlider
-              originalUrl={sourcePreviewUrl}
+              originalUrl={
+                item.renderedEditPreviewUrl ||
+                sourcePreviewUrl
+              }
               compressedUrl={
                 item.downloadUrl ||
                 item.compressedPreviewUrl ||
                 sourcePreviewUrl
               }
-              originalSize={formatBytes(sourceFile?.size)}
+              originalSize={formatBytes(
+                item.renderedEditSize ||
+                sourceFile?.size
+              )}
               compressedSize={
                 item.previewLoading
                   ? 'Generating preview...'
@@ -362,14 +396,25 @@ const ImageCompressionDetails = ({
             URL.revokeObjectURL(item.editedPreviewUrl);
           }
 
+          if (item.renderedEditPreviewUrl) {
+            URL.revokeObjectURL(item.renderedEditPreviewUrl);
+          }
+
+          if (item.compressedPreviewUrl) {
+            URL.revokeObjectURL(item.compressedPreviewUrl);
+          }
+
           if (resetToOriginal) {
             updatePreviewItem(item.id, {
               editedFile: null,
               editedPreviewUrl: '',
               editedCrop: null,
 
-              textLayers: textLayers ?? item.textLayers ?? [],
-              annotationStrokes: annotationStrokes ?? item.annotationStrokes ?? [],
+              textLayers: [],
+              annotationStrokes: [],
+
+              renderedEditPreviewUrl: '',
+              renderedEditSize: null,
 
               result: null,
               downloadUrl: '',
@@ -396,6 +441,9 @@ const ImageCompressionDetails = ({
 
             textLayers: textLayers ?? item.textLayers ?? [],
             annotationStrokes: annotationStrokes ?? item.annotationStrokes ?? [],
+
+            renderedEditPreviewUrl: '',
+            renderedEditSize: null,
 
             result: null,
             downloadUrl: '',

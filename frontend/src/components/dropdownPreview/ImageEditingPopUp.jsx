@@ -1,4 +1,3 @@
-
 import { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { applyImageQuickAction, applyImageFilter } from '../../services/imageEditingServices/imageEditService';
@@ -54,7 +53,7 @@ export default function ImageEditorModal({
   const [resetToOriginalPending, setResetToOriginalPending] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState('none');
 
-  // temp preview URLs (never replace the full image file)
+  // Temporary preview URLs only. These never replace the full image file.
   const [cropPreviewUrl, setCropPreviewUrl] = useState(null);
   const [croppedDisplayPreviewUrl, setCroppedDisplayPreviewUrl] = useState(null);
 
@@ -84,12 +83,146 @@ export default function ImageEditorModal({
     height: 0,
   });
 
+  // Annotation and text share one undo/redo history.
+  // Crop, filter, rotation, and flip actions are intentionally excluded.
+  const overlayUndoStackRef = useRef([]);
+  const overlayRedoStackRef = useRef([]);
+  const textDragSnapshotRef = useRef(null);
+  const textEditSnapshotRef = useRef(null);
+  const [, setOverlayHistoryVersion] = useState(0);
+  const OVERLAY_HISTORY_LIMIT = 50;
+
   const createLayerId = () => {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
       return crypto.randomUUID();
     }
 
     return `${Date.now()}-${Math.random()}`;
+  };
+
+  const cloneTextLayers = (layers) => {
+    return layers.map((layer) => ({ ...layer }));
+  };
+
+  const cloneAnnotationStrokes = (strokes) => {
+    return strokes.map((stroke) => ({
+      ...stroke,
+      points: (stroke.points || []).map((point) => ({ ...point })),
+    }));
+  };
+
+  const createOverlaySnapshot = () => ({
+    textLayers: cloneTextLayers(textLayers),
+    annotationStrokes: cloneAnnotationStrokes(annotationStrokes),
+  });
+
+  const overlaySnapshotsAreEqual = (first, second) => {
+    return JSON.stringify(first) === JSON.stringify(second);
+  };
+
+  const refreshOverlayHistoryButtons = () => {
+    setOverlayHistoryVersion((version) => version + 1);
+  };
+
+  const clearOverlayHistory = () => {
+    overlayUndoStackRef.current = [];
+    overlayRedoStackRef.current = [];
+    textDragSnapshotRef.current = null;
+    textEditSnapshotRef.current = null;
+    refreshOverlayHistoryButtons();
+  };
+
+  const pushOverlayUndoSnapshot = (snapshot) => {
+    if (!snapshot) return;
+
+    overlayUndoStackRef.current.push(snapshot);
+
+    if (overlayUndoStackRef.current.length > OVERLAY_HISTORY_LIMIT) {
+      overlayUndoStackRef.current.shift();
+    }
+
+    // Any new text or annotation edit starts a new history branch.
+    overlayRedoStackRef.current = [];
+    refreshOverlayHistoryButtons();
+  };
+
+  const restoreOverlaySnapshot = (snapshot) => {
+    if (!snapshot) return;
+
+    setTextLayers(cloneTextLayers(snapshot.textLayers));
+    setAnnotationStrokes(
+      cloneAnnotationStrokes(snapshot.annotationStrokes)
+    );
+
+    // Undo/redo restores content, not temporary interaction state.
+    setSelectedTextId(null);
+    setDraggingTextId(null);
+    setIsDrawing(false);
+    setCurrentStroke(null);
+  };
+
+  const handleUndoOverlay = () => {
+    if (isEditing || overlayUndoStackRef.current.length === 0) {
+      return;
+    }
+
+    overlayRedoStackRef.current.push(createOverlaySnapshot());
+
+    if (overlayRedoStackRef.current.length > OVERLAY_HISTORY_LIMIT) {
+      overlayRedoStackRef.current.shift();
+    }
+
+    const previousSnapshot = overlayUndoStackRef.current.pop();
+    restoreOverlaySnapshot(previousSnapshot);
+    refreshOverlayHistoryButtons();
+  };
+
+  const handleRedoOverlay = () => {
+    if (isEditing || overlayRedoStackRef.current.length === 0) {
+      return;
+    }
+
+    overlayUndoStackRef.current.push(createOverlaySnapshot());
+
+    if (overlayUndoStackRef.current.length > OVERLAY_HISTORY_LIMIT) {
+      overlayUndoStackRef.current.shift();
+    }
+
+    const nextSnapshot = overlayRedoStackRef.current.pop();
+    restoreOverlaySnapshot(nextSnapshot);
+    refreshOverlayHistoryButtons();
+  };
+
+  const beginTextEditHistory = () => {
+    if (!selectedTextId || textEditSnapshotRef.current) return;
+
+    textEditSnapshotRef.current = createOverlaySnapshot();
+  };
+
+  const commitTextEditHistory = () => {
+    const beforeChange = textEditSnapshotRef.current;
+    textEditSnapshotRef.current = null;
+
+    if (
+      beforeChange &&
+      !overlaySnapshotsAreEqual(beforeChange, createOverlaySnapshot())
+    ) {
+      pushOverlayUndoSnapshot(beforeChange);
+    }
+  };
+
+  const finishTextDrag = () => {
+    const beforeChange = textDragSnapshotRef.current;
+    textDragSnapshotRef.current = null;
+
+    if (
+      beforeChange &&
+      !overlaySnapshotsAreEqual(beforeChange, createOverlaySnapshot())
+    ) {
+      pushOverlayUndoSnapshot(beforeChange);
+    }
+
+    setDraggingTextId(null);
   };
 
   const updateOverlayBounds = () => {
@@ -168,6 +301,12 @@ export default function ImageEditorModal({
     setCurrentStroke(null);
 
     handedOffPreviewUrlRef.current = null;
+
+    overlayUndoStackRef.current = [];
+    overlayRedoStackRef.current = [];
+    textDragSnapshotRef.current = null;
+    textEditSnapshotRef.current = null;
+    refreshOverlayHistoryButtons();
   }, [
     isOpen,
     item.file,
@@ -230,23 +369,6 @@ export default function ImageEditorModal({
       cropPercent: cropPercentToSave,
       resetToOriginal: false,
     };
-  };
-
-  const handleResetCropOnly = () => {
-    const fullCrop = getFullCrop();
-
-    // Only reset the crop box to the full image.
-    // Do not clear filters, text, annotations, rotation, or flips.
-    setCrop(fullCrop);
-    setCompletedPercentCrop(fullCrop);
-
-    if (imageRef.current) {
-      setCompletedCrop(
-        percentCropToPixelCrop(fullCrop, imageRef.current)
-      );
-    } else {
-      setCompletedCrop(null);
-    }
   };
 
   // filter 
@@ -633,6 +755,8 @@ const getFilterCss = (filterId) => {
   };
 
   const addTextLayer = () => {
+    const beforeChange = createOverlaySnapshot();
+
     const width =
       naturalImageSize.width ||
       displayImageRef.current?.naturalWidth ||
@@ -655,6 +779,7 @@ const getFilterCss = (filterId) => {
     setTextLayers((prev) => [...prev, newLayer]);
     setSelectedTextId(newLayer.id);
     setResetToOriginalPending(false);
+    pushOverlayUndoSnapshot(beforeChange);
   };
 
   const updateSelectedTextLayer = (patch) => {
@@ -672,10 +797,13 @@ const getFilterCss = (filterId) => {
   const removeSelectedTextLayer = () => {
     if (!selectedTextId) return;
 
+    const beforeChange = createOverlaySnapshot();
+
     setTextLayers((prev) =>
       prev.filter((layer) => layer.id !== selectedTextId)
     );
     setSelectedTextId(null);
+    pushOverlayUndoSnapshot(beforeChange);
   };
 
   const handleCanvasPointerDown = (event) => {
@@ -729,12 +857,15 @@ const getFilterCss = (filterId) => {
 
   const handleCanvasPointerUp = (event) => {
     if (draggingTextId) {
-      setDraggingTextId(null);
+      finishTextDrag();
       return;
     }
 
     if (currentStroke && currentStroke.points.length > 1) {
+      const beforeChange = createOverlaySnapshot();
+
       setAnnotationStrokes((prev) => [...prev, currentStroke]);
+      pushOverlayUndoSnapshot(beforeChange);
     }
 
     if (
@@ -749,8 +880,13 @@ const getFilterCss = (filterId) => {
   };
 
   const clearAnnotationStrokes = () => {
+    if (annotationStrokes.length === 0) return;
+
+    const beforeChange = createOverlaySnapshot();
+
     setAnnotationStrokes([]);
     setCurrentStroke(null);
+    pushOverlayUndoSnapshot(beforeChange);
   };
 
   const handleQuickAction = async (action) => {
@@ -786,6 +922,21 @@ const getFilterCss = (filterId) => {
       console.error(`${action} failed:`, error);
     } finally {
       setIsEditing(false);
+    }
+  };
+
+  const handleResetCropOnly = () => {
+    const fullCrop = getFullCrop();
+
+    // Only reset the crop selection. Keep filters, text, annotations,
+    // rotations, flips, and every other edit unchanged.
+    setCrop(fullCrop);
+    setCompletedPercentCrop(fullCrop);
+
+    if (imageRef.current) {
+      setCompletedCrop(percentCropToPixelCrop(fullCrop, imageRef.current));
+    } else {
+      setCompletedCrop(null);
     }
   };
 
@@ -829,6 +980,7 @@ const getFilterCss = (filterId) => {
     setDraggingTextId(null);
     setIsDrawing(false);
     setCurrentStroke(null);
+    clearOverlayHistory();
 
     setActiveTool(null);
     setCrop(null);
@@ -956,25 +1108,35 @@ const getFilterCss = (filterId) => {
 
             {/* Toolbar */}
             <div className="flex items-center justify-center gap-3 border-b border-stone-200 bg-white px-4 py-3">
-              <button
-                type="button"
-                onClick={() => null}
-                className="flex h-10 w-10 items-center justify-center rounded-full text-stone-600 transition hover:bg-stone-200 hover:text-stone-950"
-                aria-label="Undo"
-              >
-                <Undo2 className="h-5 w-5" />
-              </button>
+              {(activeTool === 'draw' || activeTool === 'text') && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleUndoOverlay}
+                    disabled={
+                      isEditing || overlayUndoStackRef.current.length === 0
+                    }
+                    className="flex h-10 w-10 items-center justify-center rounded-full text-stone-600 transition hover:bg-stone-200 hover:text-stone-950 disabled:cursor-not-allowed disabled:opacity-30"
+                    aria-label="Undo text or annotation"
+                  >
+                    <Undo2 className="h-5 w-5" />
+                  </button>
 
-              <button
-                type="button"
-                onClick={() => null}
-                className="flex h-10 w-10 items-center justify-center rounded-full text-stone-600 transition hover:bg-stone-200 hover:text-stone-950"
-                aria-label="Redo"
-              >
-                <Redo2 className="h-5 w-5" />
-              </button>
+                  <button
+                    type="button"
+                    onClick={handleRedoOverlay}
+                    disabled={
+                      isEditing || overlayRedoStackRef.current.length === 0
+                    }
+                    className="flex h-10 w-10 items-center justify-center rounded-full text-stone-600 transition hover:bg-stone-200 hover:text-stone-950 disabled:cursor-not-allowed disabled:opacity-30"
+                    aria-label="Redo text or annotation"
+                  >
+                    <Redo2 className="h-5 w-5" />
+                  </button>
 
-              <div className="mx-2 h-8 w-px bg-stone-200" />
+                  <div className="mx-2 h-8 w-px bg-stone-200" />
+                </>
+              )}
 
               <button
                 type="button"
@@ -1221,12 +1383,18 @@ const getFilterCss = (filterId) => {
                                       event.currentTarget.setPointerCapture(
                                         event.pointerId
                                       );
+                                      textDragSnapshotRef.current =
+                                        createOverlaySnapshot();
                                       setSelectedTextId(layer.id);
                                       setDraggingTextId(layer.id);
                                     }}
                                     onPointerUp={(event) => {
                                       event.stopPropagation();
-                                      setDraggingTextId(null);
+                                      finishTextDrag();
+                                    }}
+                                    onPointerCancel={(event) => {
+                                      event.stopPropagation();
+                                      finishTextDrag();
                                     }}
                                     className={`absolute -translate-x-1/2 -translate-y-1/2 select-none rounded-md px-1 font-bold ${
                                       isSelected
@@ -1296,7 +1464,7 @@ const getFilterCss = (filterId) => {
 
                     <button
                       type="button"
-                      onClick={handleResetCropOnly} 
+                      onClick={handleResetCropOnly}
                       className="rounded-full bg-stone-100 px-5 py-2.5 text-sm font-bold text-stone-600 transition hover:bg-stone-200 hover:text-stone-950 active:scale-[0.98]"
                     >
                       Reset
@@ -1444,6 +1612,8 @@ const getFilterCss = (filterId) => {
                               )?.text || ''
                             : textDraft
                         }
+                        onFocus={beginTextEditHistory}
+                        onBlur={commitTextEditHistory}
                         onChange={(event) => {
                           const value = event.target.value;
 
@@ -1467,6 +1637,9 @@ const getFilterCss = (filterId) => {
                                 )?.color || textColor
                               : textColor
                           }
+                          onFocus={beginTextEditHistory}
+                          onPointerDown={beginTextEditHistory}
+                          onBlur={commitTextEditHistory}
                           onChange={(event) => {
                             setTextColor(event.target.value);
                             updateSelectedTextLayer({
@@ -1487,6 +1660,8 @@ const getFilterCss = (filterId) => {
                                 )?.fontSize || textSize
                               : textSize
                           }
+                          onFocus={beginTextEditHistory}
+                          onBlur={commitTextEditHistory}
                           onChange={(event) => {
                             const size = Number(event.target.value);
 

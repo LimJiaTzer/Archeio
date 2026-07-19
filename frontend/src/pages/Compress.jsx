@@ -131,6 +131,10 @@ export default function Compress() {
           textLayers: [],
           annotationStrokes: [],
 
+          // Flattened preview of crop + text + annotations before compression
+          renderedEditPreviewUrl: '',
+          renderedEditSize: null,
+
           result: null,
           downloadUrl: '',
           compressedFileName: '',
@@ -205,6 +209,10 @@ export default function Compress() {
             URL.revokeObjectURL(item.editedPreviewUrl);
           }
 
+          if (item.renderedEditPreviewUrl) {
+            URL.revokeObjectURL(item.renderedEditPreviewUrl);
+          }
+
           return false;
         }
 
@@ -230,6 +238,10 @@ export default function Compress() {
       if (item.editedPreviewUrl) {
         URL.revokeObjectURL(item.editedPreviewUrl);
       }
+
+      if (item.renderedEditPreviewUrl) {
+        URL.revokeObjectURL(item.renderedEditPreviewUrl);
+      }
     });
 
     setFileItems([]);
@@ -254,6 +266,10 @@ export default function Compress() {
         if (item.editedPreviewUrl) {
           URL.revokeObjectURL(item.editedPreviewUrl);
         }
+
+        if (item.renderedEditPreviewUrl) {
+          URL.revokeObjectURL(item.renderedEditPreviewUrl);
+        }
       });
     };
   }, []);
@@ -273,95 +289,118 @@ export default function Compress() {
         compressedFileName: '',
       });
 
-      const effectiveRatio = getEffectiveRatio(item);
-      let sourceFile = item.editedFile || item.file;
-      let overlayRenderResult = null;
+      let editRenderResult = null;
 
-      const hasOverlays =
-        (item.textLayers?.length ?? 0) > 0 ||
-        (item.annotationStrokes?.length ?? 0) > 0;
+      try {
+        const effectiveRatio = getEffectiveRatio(item);
+        let sourceFile = item.editedFile || item.file;
 
-      if (hasOverlays) {
-        overlayRenderResult = await renderImageWithOverlays({
-          file: sourceFile,
-          textLayers: item.textLayers || [],
-          annotationStrokes: item.annotationStrokes || [],
-          outputType: item.file.type || 'image/png',
-        });
+        const hasOverlays =
+          (item.textLayers?.length ?? 0) > 0 ||
+          (item.annotationStrokes?.length ?? 0) > 0;
 
-        sourceFile = overlayRenderResult.file;
-      }
+        const cropPercent = item.editedCrop;
+        const hasCrop =
+          cropPercent &&
+          !(
+            Math.abs(Number(cropPercent.x) || 0) < 0.01 &&
+            Math.abs(Number(cropPercent.y) || 0) < 0.01 &&
+            Math.abs((Number(cropPercent.width) || 100) - 100) < 0.01 &&
+            Math.abs((Number(cropPercent.height) || 100) - 100) < 0.01
+          );
 
-      const sharedArgs = {
-        file: sourceFile,
-        ratio: effectiveRatio,
-        format: item.format,
-        fileInfo: item.fileInfo,
-
-        resizeEnabled: item.resizeEnabled,
-        maxWidth: item.maxWidth ? Number(item.maxWidth) : null,
-        maxHeight: item.maxHeight ? Number(item.maxHeight) : null,
-        maintainAspectRatio: item.maintainAspectRatio,
-
-        setDownloadUrl: (url) => {
-          updateFileItem(item.id, { downloadUrl: url });
-        },
-
-        setCompressedFileName: (name) => {
-          updateFileItem(item.id, { compressedFileName: name });
-        },
-
-        setResult: (result) => {
-          updateFileItem(item.id, { result });
-        },
-
-        setWarning: (warningMsg) => {
-          if (warningMsg) {
-            setWarning(warningMsg);
-          }
-        },
-
-        // prevent each individual file from turning off the global loading state
-        setCompressing: () => {},
-      };
-
-      switch (item.fileInfo.category) {
-        case 'documents':
-          await compressDocument(sharedArgs);
-          break;
-
-        case 'images':
-          await new Promise((resolve) => {
-            compressImage({
-              ...sharedArgs,
-
-              // compressImage is not truly async, so manually resolve when it finishes
-              setCompressing: () => {
-                resolve();
-              },
-            });
+        // Crop stays as metadata while editing. Right before compression,
+        // render text and annotations first, then extract the selected crop.
+        if (
+          item.fileInfo.category === 'images' &&
+          (hasOverlays || hasCrop)
+        ) {
+          editRenderResult = await renderImageWithOverlays({
+            file: sourceFile,
+            textLayers: item.textLayers || [],
+            annotationStrokes: item.annotationStrokes || [],
+            cropPercent: item.editedCrop,
+            outputType: 'image/png',
           });
-          break;
 
-        case 'audio':
-          await compressAudio(sharedArgs);
-          break;
+          sourceFile = editRenderResult.file;
+        }
 
-        case 'video':
-          await compressVideo(sharedArgs);
-          break;
+        const sharedArgs = {
+          file: sourceFile,
+          ratio: effectiveRatio,
+          format: item.format,
+          fileInfo: item.fileInfo,
 
-        default:
-          alert(`${item.file.name} is not supported`);
-          updateFileItem(item.id, { status: 'error' });
-          continue;
+          resizeEnabled: item.resizeEnabled,
+          maxWidth: item.maxWidth ? Number(item.maxWidth) : null,
+          maxHeight: item.maxHeight ? Number(item.maxHeight) : null,
+          maintainAspectRatio: item.maintainAspectRatio,
+
+          setDownloadUrl: (url) => {
+            updateFileItem(item.id, { downloadUrl: url });
+          },
+
+          setCompressedFileName: (name) => {
+            updateFileItem(item.id, { compressedFileName: name });
+          },
+
+          setResult: (result) => {
+            updateFileItem(item.id, { result });
+          },
+
+          setWarning: (warningMsg) => {
+            if (warningMsg) {
+              setWarning(warningMsg);
+            }
+          },
+
+          // prevent each individual file from turning off the global loading state
+          setCompressing: () => {},
+        };
+
+        switch (item.fileInfo.category) {
+          case 'documents':
+            await compressDocument(sharedArgs);
+            break;
+
+          case 'images':
+            await new Promise((resolve) => {
+              compressImage({
+                ...sharedArgs,
+
+                // compressImage is not truly async, so manually resolve when it finishes
+                setCompressing: () => {
+                  resolve();
+                },
+              });
+            });
+            break;
+
+          case 'audio':
+            await compressAudio(sharedArgs);
+            break;
+
+          case 'video':
+            await compressVideo(sharedArgs);
+            break;
+
+          default:
+            alert(`${item.file.name} is not supported`);
+            updateFileItem(item.id, { status: 'error' });
+            continue;
+        }
+
+        updateFileItem(item.id, { status: 'done' });
+      } catch (error) {
+        console.error(`Compression failed for ${item.file.name}:`, error);
+        updateFileItem(item.id, { status: 'error' });
+        setWarning(`Could not compress ${item.file.name}`);
+      } finally {
+        if (editRenderResult?.previewUrl) {
+          URL.revokeObjectURL(editRenderResult.previewUrl);
+        }
       }
-
-      if (overlayRenderResult?.previewUrl) {
-        URL.revokeObjectURL(overlayRenderResult.previewUrl);
-      }
-
-      updateFileItem(item.id, { status: 'done' });
     }
 
     setCompressing(false);
