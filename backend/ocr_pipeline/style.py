@@ -16,15 +16,12 @@ class TextStyle:
     color_rgb: tuple          # (r, g, b), 0-255
     bold: bool
     italic_guess: bool        # low-confidence heuristic, treat as advisory
+    font_family: str | None = None
+    highlight_rgb: tuple[int, int, int] | None = None
 
 
-# PDF pages are rasterized at 200 DPI before OCR. The image preprocessing
-# also brings smaller uploads close to that working resolution.
-_PX_PER_PT = 200 / 72
-
-
-def estimate_font_size(bbox_height_px: int) -> float:
-    pt = bbox_height_px / _PX_PER_PT
+def estimate_font_size(bbox_height_px: int, dpi: int = 200) -> float:
+    pt = bbox_height_px / (max(72, dpi) / 72)
     # Snap to the nearest common size — avoids ugly "13.4pt" outputs
     common_sizes = [8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48]
     return min(common_sizes, key=lambda s: abs(s - pt))
@@ -84,7 +81,25 @@ def estimate_boldness(crop_bgr: np.ndarray) -> bool:
     return ink_ratio > 0.22  # calibrate this threshold against real samples
 
 
-def extract_style(img: np.ndarray, bbox: list, padding_px: int = 4) -> TextStyle:
+def estimate_highlight_color(crop_bgr: np.ndarray) -> tuple[int, int, int] | None:
+    """Detect a light, saturated background typical of marker highlighting."""
+    hsv = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2HSV)
+    saturation = hsv[:, :, 1]
+    value = hsv[:, :, 2]
+    mask = (saturation >= 35) & (value >= 165)
+    coverage = float(np.count_nonzero(mask)) / mask.size
+    if coverage < 0.04 or coverage > 0.85:
+        return None
+    b, g, r = np.median(crop_bgr[mask], axis=0)
+    return (int(r), int(g), int(b))
+
+
+def extract_style(
+    img: np.ndarray,
+    bbox: list,
+    padding_px: int = 4,
+    dpi: int = 200,
+) -> TextStyle:
     """
     FIX: zero-padding crops clip anti-aliased glyph edges, which biases
     dominant_text_color() toward edge-blur pixels and can shift the ink
@@ -102,8 +117,9 @@ def extract_style(img: np.ndarray, bbox: list, padding_px: int = 4) -> TextStyle
         return TextStyle(font_size_pt=11, color_rgb=(0, 0, 0), bold=False, italic_guess=False)
 
     return TextStyle(
-        font_size_pt=estimate_font_size(estimate_glyph_height_px(crop)),
+        font_size_pt=estimate_font_size(estimate_glyph_height_px(crop), dpi=dpi),
         color_rgb=dominant_text_color(crop),
         bold=estimate_boldness(crop),
         italic_guess=False,  # slant detection deferred — low value for v1
+        highlight_rgb=estimate_highlight_color(crop),
     )

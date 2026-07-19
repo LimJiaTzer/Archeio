@@ -6,6 +6,7 @@ frontend/node_modules/
 # Python Virtual Environment
 venv/
 .venv/
+venv-*/
 __pycache__/
 *.pyc
 *.pyo
@@ -38,4 +39,8 @@ pnpm-debug.log*
 backend/uploads/
 !backend/uploads/.gitkeep
 
+<<<<<<< Updated upstream
 .claude/
+=======
+./claude/
+>>>>>>> Stashed changes

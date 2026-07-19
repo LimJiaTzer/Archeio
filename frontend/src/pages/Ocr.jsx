@@ -22,9 +22,13 @@ const ZOOM_PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 3;
 const ZOOM_STEP = 0.1;
+const SUPPORTED_IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.tif', '.tiff'];
 
 const isPdfFile = (file) => file?.type === 'application/pdf' || file?.name.toLowerCase().endsWith('.pdf');
-const isSupportedSource = (file) => file?.type.startsWith('image/') || isPdfFile(file);
+const isSupportedSource = (file) => {
+  const name = file?.name.toLowerCase() || '';
+  return isPdfFile(file) || SUPPORTED_IMAGE_EXTENSIONS.some((extension) => name.endsWith(extension));
+};
 const clampZoom = (value) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
 const documentNameFor = (file) => `${file.name.replace(/\.[^/.]+$/, '')}.docx`;
 
@@ -181,7 +185,7 @@ export default function Ocr() {
       const target = event.target;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
 
-      const images = Array.from(event.clipboardData?.files || []).filter((file) => file.type.startsWith('image/'));
+      const images = Array.from(event.clipboardData?.files || []).filter(isSupportedSource);
       if (!images.length) return;
       event.preventDefault();
       addSourceFiles(images);
@@ -327,7 +331,7 @@ export default function Ocr() {
                 <input
                   type="file"
                   multiple
-                  accept="image/*,application/pdf,.pdf"
+                  accept="image/png,image/jpeg,image/webp,image/tiff,.png,.jpg,.jpeg,.webp,.tif,.tiff,application/pdf,.pdf"
                   onChange={(event) => {
                     addSourceFiles(event.target.files);
                     event.target.value = '';

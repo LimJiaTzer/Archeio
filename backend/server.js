@@ -3,6 +3,7 @@ import multer from 'multer';
 import cors from 'cors';
 import { execFile, spawn } from 'child_process'; 
 import http from 'http';
+import net from 'net';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -14,7 +15,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const upload = multer({ dest: 'uploads/' });
+// Keep the proxy and FastAPI OCR upload limits identical by default. The
+// legacy MAX_UPLOAD_BYTES name remains an override for existing deployments.
+const configuredUploadBytes = Number(
+  process.env.MAX_OCR_UPLOAD_BYTES || process.env.MAX_UPLOAD_BYTES
+);
+const MAX_UPLOAD_BYTES = Number.isFinite(configuredUploadBytes) && configuredUploadBytes > 0
+  ? Math.floor(configuredUploadBytes)
+  : 100 * 1024 * 1024;
+const upload = multer({ dest: 'uploads/', limits: { fileSize: MAX_UPLOAD_BYTES } });
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -34,6 +43,16 @@ const findBinary = (binName, macPath) => {
   }
 
   return null;
+};
+
+// Every Python-backed route and the FastAPI child must use the one root venv
+// created by `npm run setup`, including on Windows.
+const resolvePythonPath = () => {
+  const venvPython = process.platform === 'win32'
+    ? path.join(__dirname, '../venv/Scripts/python.exe')
+    : path.join(__dirname, '../venv/bin/python3');
+  if (fs.existsSync(venvPython)) return venvPython;
+  return findBinary('python3') || findBinary('python') || (process.platform === 'win32' ? 'python' : 'python3');
 };
 
 // DOCX, PPTX, XLSX, ODT, ODP, ODS, EPUB
@@ -297,16 +316,8 @@ app.post('/convert-to-heic', upload.single('file'), (req, res) => {
   const outputPath = path.join('uploads', `${req.file.filename}.heic`);
   const scriptPath = path.join(__dirname, 'anyToHEIC.py');
 
-  // Prefer venv python if present, otherwise fall back to system python3 / python
-  const venvPython = path.join(__dirname, '../venv/bin/python3');
-  let pythonPath = venvPython;
-  if (!fs.existsSync(pythonPath)) {
-    const found = findBinary('python3') || findBinary('python');
-    pythonPath = found || 'python3';
-  }
-
   execFile(
-    pythonPath,
+    resolvePythonPath(),
     [scriptPath, inputPath, outputPath],
     (error, stdout, stderr) => {
       if (error) {
@@ -337,8 +348,8 @@ app.post('/convert-to-avif', upload.single('file'), async (req, res) => {
     const quality = Math.round(85 - ((ratio - 20) / (90 - 20)) * 55);
     const safeQuality = Math.max(30, Math.min(85, quality));
 
-    const python = spawn('python3', [
-      'anyToAVIF.py',
+    const python = spawn(resolvePythonPath(), [
+      path.join(__dirname, 'anyToAVIF.py'),
       inputPath,
       outputPath,
       String(safeQuality),
@@ -432,9 +443,58 @@ app.post('/convert-to-pdf', upload.single('file'), (req, res) => {
   }
 });
 
-const OCR_PROXY_TIMEOUT_MS = 20 * 60 * 1000;
+const OCR_HOST = process.env.OCR_HOST || '127.0.0.1';
+const REQUESTED_OCR_PORT = Number(process.env.OCR_PORT) || 8000;
+const OCR_PROXY_TIMEOUT_MS = Number(process.env.OCR_PROXY_TIMEOUT_MS) || 60 * 60 * 1000;
+let ocrPort = REQUESTED_OCR_PORT;
 
-const sendOcrDocument = ({ fileBuffer, fileName, mimeType }) => new Promise((resolve, reject) => {
+const portIsAvailable = (port) => new Promise((resolve) => {
+  const tester = net.createServer();
+  tester.unref();
+  tester.once('error', () => resolve(false));
+  tester.listen(port, OCR_HOST, () => tester.close(() => resolve(true)));
+});
+
+const findAvailableOcrPort = async (startingPort) => {
+  for (let port = startingPort; port < startingPort + 50; port += 1) {
+    if (await portIsAvailable(port)) return port;
+  }
+  throw new Error(`No available OCR port found from ${startingPort} to ${startingPort + 49}.`);
+};
+
+const isArcheioOcrService = (port) => new Promise((resolve) => {
+  const request = http.get({ hostname: OCR_HOST, port, path: '/ocr/engine' }, (response) => {
+    const chunks = [];
+    response.on('data', (chunk) => chunks.push(chunk));
+    response.on('end', () => {
+      try {
+        const payload = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        resolve(response.statusCode === 200 && typeof payload.engine === 'string');
+      } catch {
+        resolve(false);
+      }
+    });
+  });
+  request.setTimeout(1500, () => {
+    request.destroy();
+    resolve(false);
+  });
+  request.on('error', () => resolve(false));
+});
+
+const encodedAttachment = (fileName) => {
+  const cleanName = path.basename(fileName).replace(/[\r\n]/g, '_');
+  const asciiName = cleanName
+    .normalize('NFKD')
+    .replace(/[^\x20-\x7E]/g, '_')
+    .replace(/["\\]/g, '_') || 'document.docx';
+  const encodedName = encodeURIComponent(cleanName).replace(/[!'()*]/g, (character) => (
+    `%${character.charCodeAt(0).toString(16).toUpperCase()}`
+  ));
+  return `attachment; filename="${asciiName}"; filename*=UTF-8''${encodedName}`;
+};
+
+const sendOcrDocument = ({ filePath, fileName, mimeType }) => new Promise((resolve, reject) => {
   const boundary = `----archeio-${Date.now().toString(16)}`;
   const safeFileName = path.basename(fileName).replace(/["\r\n]/g, '_');
   const preamble = Buffer.from(
@@ -444,31 +504,50 @@ const sendOcrDocument = ({ fileBuffer, fileName, mimeType }) => new Promise((res
     'utf8'
   );
   const closing = Buffer.from(`\r\n--${boundary}--\r\n`, 'utf8');
-  const body = Buffer.concat([preamble, fileBuffer, closing]);
+  const fileSize = fs.statSync(filePath).size;
+  let settled = false;
+  let fileStream;
+
+  const finish = (callback, value) => {
+    if (settled) return;
+    settled = true;
+    callback(value);
+  };
 
   const request = http.request({
-    hostname: '127.0.0.1',
-    port: 8000,
+    hostname: OCR_HOST,
+    port: ocrPort,
     path: '/convert/image-to-docx',
     method: 'POST',
     headers: {
       'Content-Type': `multipart/form-data; boundary=${boundary}`,
-      'Content-Length': body.length,
+      'Content-Length': preamble.length + fileSize + closing.length,
     },
   }, (response) => {
     const chunks = [];
     response.on('data', (chunk) => chunks.push(chunk));
-    response.on('end', () => resolve({
+    response.on('aborted', () => finish(reject, new Error('FastAPI closed the OCR response early.')));
+    response.on('error', (error) => finish(reject, error));
+    response.on('end', () => finish(resolve, {
       status: response.statusCode || 500,
       body: Buffer.concat(chunks),
     }));
   });
 
   request.setTimeout(OCR_PROXY_TIMEOUT_MS, () => {
-    request.destroy(new Error('OCR conversion timed out after 20 minutes.'));
+    request.destroy(new Error(`OCR conversion timed out after ${Math.round(OCR_PROXY_TIMEOUT_MS / 60000)} minutes.`));
   });
-  request.on('error', reject);
-  request.end(body);
+  request.on('error', (error) => {
+    fileStream?.destroy();
+    finish(reject, error);
+  });
+  request.write(preamble);
+  fileStream = fs.createReadStream(filePath);
+  fileStream.on('error', (error) => {
+    request.destroy(error);
+  });
+  fileStream.on('end', () => request.end(closing));
+  fileStream.pipe(request, { end: false });
 });
 
 // OCR Docx Conversion Proxy Route
@@ -479,10 +558,9 @@ app.post('/convert/image-to-docx', upload.single('file'), async (req, res) => {
     }
 
     const filePath = req.file.path;
-    const fileBuffer = fs.readFileSync(filePath);
     
     const response = await sendOcrDocument({
-      fileBuffer,
+      filePath,
       fileName: req.file.originalname,
       mimeType: req.file.mimetype,
     });
@@ -496,7 +574,8 @@ app.post('/convert/image-to-docx', upload.single('file'), async (req, res) => {
     }
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-    res.setHeader('Content-Disposition', `attachment; filename="${req.file.originalname.replace(/\.[^/.]+$/, '')}.docx"`);
+    const documentName = `${req.file.originalname.replace(/\.[^/.]+$/, '')}.docx`;
+    res.setHeader('Content-Disposition', encodedAttachment(documentName));
     res.send(response.body);
   } catch (err) {
     console.error('OCR docx conversion proxy error:', err);
@@ -507,26 +586,49 @@ app.post('/convert/image-to-docx', upload.single('file'), async (req, res) => {
   }
 });
 
+app.use((error, req, res, next) => {
+  if (error?.code === 'LIMIT_FILE_SIZE') {
+    res.status(413).send(`Upload exceeds the ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB limit.`);
+    return;
+  }
+  next(error);
+});
+
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Backend running on http://localhost:${PORT}`);
   
-  // Resolve Python binary path
-  const venvPython = path.join(__dirname, '../venv/bin/python3');
-  let pythonPath = venvPython;
-  if (!fs.existsSync(pythonPath)) {
-    const found = findBinary('python3') || findBinary('python');
-    pythonPath = found || 'python3';
-  }
+  const pythonPath = resolvePythonPath();
   
-  console.log(`Starting FastAPI OCR server with ${pythonPath}...`);
-  const fastapiProcess = spawn(pythonPath, ['-m', 'uvicorn', 'main:app', '--host', '127.0.0.1', '--port', '8000'], {
+  const requestedPortAvailable = await portIsAvailable(REQUESTED_OCR_PORT);
+  if (!requestedPortAvailable && await isArcheioOcrService(REQUESTED_OCR_PORT)) {
+    ocrPort = REQUESTED_OCR_PORT;
+    console.log(`Using the existing FastAPI OCR server on ${OCR_HOST}:${ocrPort}.`);
+    return;
+  }
+
+  try {
+    ocrPort = await findAvailableOcrPort(REQUESTED_OCR_PORT);
+  } catch (error) {
+    console.error('Could not allocate a FastAPI OCR port:', error);
+    return;
+  }
+  if (ocrPort !== REQUESTED_OCR_PORT) {
+    console.log(`OCR port ${REQUESTED_OCR_PORT} is in use; using ${ocrPort} instead.`);
+  }
+  console.log(`Starting FastAPI OCR server with ${pythonPath} on ${OCR_HOST}:${ocrPort}...`);
+  const fastapiProcess = spawn(pythonPath, ['-m', 'uvicorn', 'main:app', '--host', OCR_HOST, '--port', String(ocrPort)], {
     cwd: __dirname,
     stdio: 'inherit',
   });
 
   fastapiProcess.on('error', (err) => {
     console.error('Failed to start FastAPI OCR server:', err);
+  });
+  fastapiProcess.on('exit', (code, signal) => {
+    if (code && code !== 0) {
+      console.error(`FastAPI OCR server exited with code ${code}${signal ? ` (${signal})` : ''}.`);
+    }
   });
 
   // Ensure the child process is terminated when node exits
