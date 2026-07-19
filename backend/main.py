@@ -6,6 +6,7 @@ from fastapi import FastAPI, UploadFile, HTTPException
 from fastapi.responses import Response, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pdf_converter import convert_to_pdf, LIBREOFFICE_FORMATS, EPUB_FORMATS
+from ocr_pipeline.layout import selected_engine
 from ocr_pipeline.pipeline import image_to_docx, images_to_docx
 
 app = FastAPI(title="Archeio API")
@@ -50,6 +51,16 @@ app.add_middleware(
 @app.get("/")
 def read_root():
     return {"message": "Welcome to Archeio API"}
+
+
+@app.get("/ocr/engine")
+def ocr_engine_status():
+    """Expose the selected parser generation for rollout and benchmark checks."""
+    import paddleocr
+    return {
+        "engine": selected_engine(),
+        "paddleocr_version": getattr(paddleocr, "__version__", "unknown"),
+    }
 
 @app.post("/convert/to-pdf")
 async def convert_endpoint(file: UploadFile):

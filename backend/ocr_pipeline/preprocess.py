@@ -77,10 +77,14 @@ def upscale_if_small(img: np.ndarray, min_width: int = 1600) -> np.ndarray:
     return cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_CUBIC)
 
 
-def preprocess(image_bytes: bytes) -> np.ndarray:
-    """Full preprocessing pipeline: decode -> upscale -> deskew -> denoise."""
-    img = load_image(image_bytes)
+def preprocess_image(img: np.ndarray) -> np.ndarray:
+    """Apply the OCR working-image transforms to an already decoded page."""
     img = upscale_if_small(img)
     img = deskew(img)
     img = denoise(img)
     return img
+
+
+def preprocess(image_bytes: bytes) -> np.ndarray:
+    """Full preprocessing pipeline: decode -> upscale -> deskew -> denoise."""
+    return preprocess_image(load_image(image_bytes))

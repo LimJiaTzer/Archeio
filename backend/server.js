@@ -2,6 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import cors from 'cors';
 import { execFile, spawn } from 'child_process'; 
+import http from 'http';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -431,6 +432,45 @@ app.post('/convert-to-pdf', upload.single('file'), (req, res) => {
   }
 });
 
+const OCR_PROXY_TIMEOUT_MS = 20 * 60 * 1000;
+
+const sendOcrDocument = ({ fileBuffer, fileName, mimeType }) => new Promise((resolve, reject) => {
+  const boundary = `----archeio-${Date.now().toString(16)}`;
+  const safeFileName = path.basename(fileName).replace(/["\r\n]/g, '_');
+  const preamble = Buffer.from(
+    `--${boundary}\r\n`
+      + `Content-Disposition: form-data; name="file"; filename="${safeFileName}"\r\n`
+      + `Content-Type: ${mimeType || 'application/octet-stream'}\r\n\r\n`,
+    'utf8'
+  );
+  const closing = Buffer.from(`\r\n--${boundary}--\r\n`, 'utf8');
+  const body = Buffer.concat([preamble, fileBuffer, closing]);
+
+  const request = http.request({
+    hostname: '127.0.0.1',
+    port: 8000,
+    path: '/convert/image-to-docx',
+    method: 'POST',
+    headers: {
+      'Content-Type': `multipart/form-data; boundary=${boundary}`,
+      'Content-Length': body.length,
+    },
+  }, (response) => {
+    const chunks = [];
+    response.on('data', (chunk) => chunks.push(chunk));
+    response.on('end', () => resolve({
+      status: response.statusCode || 500,
+      body: Buffer.concat(chunks),
+    }));
+  });
+
+  request.setTimeout(OCR_PROXY_TIMEOUT_MS, () => {
+    request.destroy(new Error('OCR conversion timed out after 20 minutes.'));
+  });
+  request.on('error', reject);
+  request.end(body);
+});
+
 // OCR Docx Conversion Proxy Route
 app.post('/convert/image-to-docx', upload.single('file'), async (req, res) => {
   try {
@@ -441,29 +481,23 @@ app.post('/convert/image-to-docx', upload.single('file'), async (req, res) => {
     const filePath = req.file.path;
     const fileBuffer = fs.readFileSync(filePath);
     
-    const formData = new FormData();
-    const blob = new Blob([fileBuffer], { type: req.file.mimetype });
-    formData.append('file', blob, req.file.originalname);
-
-    const response = await fetch('http://127.0.0.1:8000/convert/image-to-docx', {
-      method: 'POST',
-      body: formData,
+    const response = await sendOcrDocument({
+      fileBuffer,
+      fileName: req.file.originalname,
+      mimeType: req.file.mimetype,
     });
 
     // Clean up uploaded file
     fs.unlinkSync(filePath);
 
-    if (!response.ok) {
-      const errText = await response.text();
+    if (response.status < 200 || response.status >= 300) {
+      const errText = response.body.toString('utf8');
       return res.status(response.status).send(errText || 'FastAPI image-to-docx conversion failed');
     }
 
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     res.setHeader('Content-Disposition', `attachment; filename="${req.file.originalname.replace(/\.[^/.]+$/, '')}.docx"`);
-    res.send(buffer);
+    res.send(response.body);
   } catch (err) {
     console.error('OCR docx conversion proxy error:', err);
     if (req.file && fs.existsSync(req.file.path)) {

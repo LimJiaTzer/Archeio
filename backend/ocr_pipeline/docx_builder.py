@@ -7,9 +7,10 @@ PP-Structure's table module and get mapped to native docx tables.
 import io
 from typing import List
 from docx import Document
-from docx.shared import Pt, RGBColor
+from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from bs4 import BeautifulSoup
+from PIL import Image
 
 from .layout import Region
 from .style import TextStyle
@@ -43,19 +44,69 @@ def _add_table_from_html(doc: Document, html: str):
             table.cell(i, j).text = cell.get_text(strip=True)
 
 
+def _add_table_from_markdown(doc: Document, markdown: str):
+    """Convert the simple pipe-table format emitted by PP-StructureV3."""
+    rows = []
+    for line in markdown.splitlines():
+        line = line.strip()
+        if "|" not in line:
+            continue
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        # Markdown's second separator row contains only dashes/alignment hints.
+        if cells and all(cell.replace(":", "").replace("-", "") == "" for cell in cells):
+            continue
+        rows.append(cells)
+
+    if not rows:
+        return
+    table = doc.add_table(rows=len(rows), cols=max(len(row) for row in rows))
+    table.style = "Table Grid"
+    for row_index, row in enumerate(rows):
+        for column_index, value in enumerate(row):
+            table.cell(row_index, column_index).text = value
+
+
+def _add_figure(doc: Document, region: Region) -> None:
+    """Embed a detected figure/logo as source pixels, scaled to the page."""
+    if not region.image_bytes:
+        return
+
+    section = doc.sections[-1]
+    max_width = section.page_width - section.left_margin - section.right_margin
+    with Image.open(io.BytesIO(region.image_bytes)) as image:
+        # The OCR working image is 200 DPI for PDFs (and upscaled to a similar
+        # resolution for small scans). Retaining that scale prevents a small
+        # logo from becoming a page-width banner while still fitting large
+        # figures within Word's printable area.
+        preferred_width = Inches(max(0.35, image.width / 200))
+    paragraph = doc.add_paragraph()
+    paragraph.alignment = {
+        "center": WD_ALIGN_PARAGRAPH.CENTER,
+        "right": WD_ALIGN_PARAGRAPH.RIGHT,
+    }.get(region.alignment, WD_ALIGN_PARAGRAPH.LEFT)
+    paragraph.add_run().add_picture(
+        io.BytesIO(region.image_bytes),
+        width=min(preferred_width, max_width),
+    )
+
+
 def add_regions_to_docx(doc: Document, regions: List[Region]) -> None:
     """Append one OCR page's regions to an existing document."""
     for region in regions:
         if region.role == "table":
-            html = (region.res or {}).get("html", "") if isinstance(region.res, dict) else ""
+            content = region.res or {}
+            html = content.get("html", "") if isinstance(content, dict) else ""
+            if not html and isinstance(content, dict):
+                html = content.get("content", "")
             if html:
-                _add_table_from_html(doc, html)
+                if "<table" in html.lower():
+                    _add_table_from_html(doc, html)
+                else:
+                    _add_table_from_markdown(doc, html)
             continue
 
         if region.role == "figure":
-            # Phase 1: figures/diagrams stay as a placeholder paragraph.
-            # Diagram→editable-shape reconstruction is Phase 3.
-            doc.add_paragraph("[figure — diagram reconstruction pending]")
+            _add_figure(doc, region)
             continue
 
         text = region.text.strip()
@@ -64,12 +115,14 @@ def add_regions_to_docx(doc: Document, regions: List[Region]) -> None:
 
         para = doc.add_paragraph()
         if region.role == "heading":
-            para.style = doc.styles["Heading 1"]
+            level = min(max(region.heading_level or 1, 1), 3)
+            para.style = doc.styles[f"Heading {level}"]
         elif region.role == "list":
             para.style = doc.styles["List Bullet"]
         para.alignment = {
             "center": WD_ALIGN_PARAGRAPH.CENTER,
             "right": WD_ALIGN_PARAGRAPH.RIGHT,
+            "justify": WD_ALIGN_PARAGRAPH.JUSTIFY,
         }.get(region.alignment, WD_ALIGN_PARAGRAPH.LEFT)
 
         run = para.add_run(text)
