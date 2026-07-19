@@ -39,8 +39,4 @@ pnpm-debug.log*
 backend/uploads/
 !backend/uploads/.gitkeep
 
-<<<<<<< Updated upstream
 .claude/
-=======
-./claude/
->>>>>>> Stashed changes
