@@ -255,6 +255,7 @@ export const renderImageWithOverlays = async ({
         layer.fontSize || Math.round(fullCanvas.width * 0.06);
 
       fullCtx.save();
+
       fullCtx.font = `700 ${fontSize}px ${
         layer.fontFamily || 'Arial, sans-serif'
       }`;
@@ -266,8 +267,21 @@ export const renderImageWithOverlays = async ({
         layer.strokeColor || 'rgba(0, 0, 0, 0.55)';
       fullCtx.fillStyle = layer.color || '#ffffff';
 
-      fullCtx.strokeText(layer.text, layer.x, layer.y);
-      fullCtx.fillText(layer.text, layer.x, layer.y);
+      fullCtx.translate(layer.x, layer.y);
+      fullCtx.rotate(
+        ((layer.rotation || 0) * Math.PI) / 180
+      );
+      const lines = layer.text.split('\n');
+      const lineHeight = fontSize * 1.2;
+      const totalHeight = (lines.length - 1) * lineHeight;
+
+      lines.forEach((line, index) => {
+        const y =
+          index * lineHeight - totalHeight / 2;
+
+        fullCtx.strokeText(line, 0, y);
+        fullCtx.fillText(line, 0, y);
+      });
 
       fullCtx.restore();
     });

@@ -1,7 +1,7 @@
 // To help compress the preview on the fly as you change the slider 
+// receives file + meta data --> adds them up into left preview --> compress to obtain right preview 
 import { renderImageWithOverlays } from '../../services/imageEditingServices/imageEditService';
 
-// To help compress the preview on the fly as you change the slider 
 export const createImageCompressionPreview = async ({
   file,
   ratio,

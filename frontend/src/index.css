@@ -59,3 +59,41 @@ body {
 .docx-preview-canvas section.docx:last-child {
   margin-bottom: 0 !important;
 }
+
+.colour-slider {
+  height: 18px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    hsl(0, 95%, 55%),
+    hsl(60, 95%, 55%),
+    hsl(120, 95%, 55%),
+    hsl(180, 95%, 55%),
+    hsl(240, 95%, 55%),
+    hsl(300, 95%, 55%),
+    hsl(360, 95%, 55%)
+  );
+}
+
+/* Chrome, Safari and Edge */
+.colour-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 34px;
+  height: 34px;
+  border: 7px solid white;
+  border-radius: 9999px;
+  background: var(--thumb-colour);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 35%);
+  cursor: pointer;
+}
+
+/* Firefox */
+.colour-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 7px solid white;
+  border-radius: 9999px;
+  background: var(--thumb-colour);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 35%);
+  cursor: pointer;
+}

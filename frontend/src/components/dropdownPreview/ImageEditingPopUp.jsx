@@ -64,14 +64,16 @@ export default function ImageEditorModal({
   const [textLayers, setTextLayers] = useState([]);
   const [annotationStrokes, setAnnotationStrokes] = useState([]);
   const [selectedTextId, setSelectedTextId] = useState(null);
+  const [editingTextId, setEditingTextId] = useState(null);
   const [draggingTextId, setDraggingTextId] = useState(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentStroke, setCurrentStroke] = useState(null);
-  const [textDraft, setTextDraft] = useState('Text');
-  const [textColor, setTextColor] = useState('#ffffff');
-  const [textSize, setTextSize] = useState(48);
-  const [brushColor, setBrushColor] = useState('#f97316');
-  const [brushSize, setBrushSize] = useState(8);
+  const [brushHue, setBrushHue] = useState(25);
+  const [brushSliderValue, setBrushSliderValue] = useState(44);
+  const [brushSize, setBrushSize] = useState(10);
+
+  const DEFAULT_TEXT_COLOR = '#ffffff';
+  const DEFAULT_TEXT_SIZE = 48;
   const [naturalImageSize, setNaturalImageSize] = useState({
     width: 0,
     height: 0,
@@ -89,8 +91,28 @@ export default function ImageEditorModal({
   const overlayRedoStackRef = useRef([]);
   const textDragSnapshotRef = useRef(null);
   const textEditSnapshotRef = useRef(null);
+  const textTransformSnapshotRef = useRef(null);
+  const textTransformCleanupRef = useRef(null);
+  const textLayersRef = useRef([]);
+  const annotationStrokesRef = useRef([]);
   const [, setOverlayHistoryVersion] = useState(0);
   const OVERLAY_HISTORY_LIMIT = 50;
+
+  useEffect(() => {
+    textLayersRef.current = textLayers;
+  }, [textLayers]);
+
+  useEffect(() => {
+    annotationStrokesRef.current = annotationStrokes;
+  }, [annotationStrokes]);
+
+  useEffect(() => {
+    return () => {
+      if (textTransformCleanupRef.current) {
+        textTransformCleanupRef.current();
+      }
+    };
+  }, []);
 
   const createLayerId = () => {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -112,8 +134,8 @@ export default function ImageEditorModal({
   };
 
   const createOverlaySnapshot = () => ({
-    textLayers: cloneTextLayers(textLayers),
-    annotationStrokes: cloneAnnotationStrokes(annotationStrokes),
+    textLayers: cloneTextLayers(textLayersRef.current),
+    annotationStrokes: cloneAnnotationStrokes(annotationStrokesRef.current),
   });
 
   const overlaySnapshotsAreEqual = (first, second) => {
@@ -129,6 +151,12 @@ export default function ImageEditorModal({
     overlayRedoStackRef.current = [];
     textDragSnapshotRef.current = null;
     textEditSnapshotRef.current = null;
+    textTransformSnapshotRef.current = null;
+
+    if (textTransformCleanupRef.current) {
+      textTransformCleanupRef.current();
+    }
+
     refreshOverlayHistoryButtons();
   };
 
@@ -149,13 +177,20 @@ export default function ImageEditorModal({
   const restoreOverlaySnapshot = (snapshot) => {
     if (!snapshot) return;
 
-    setTextLayers(cloneTextLayers(snapshot.textLayers));
-    setAnnotationStrokes(
-      cloneAnnotationStrokes(snapshot.annotationStrokes)
+    const restoredTextLayers = cloneTextLayers(snapshot.textLayers);
+    const restoredAnnotationStrokes = cloneAnnotationStrokes(
+      snapshot.annotationStrokes
     );
+
+    textLayersRef.current = restoredTextLayers;
+    annotationStrokesRef.current = restoredAnnotationStrokes;
+
+    setTextLayers(restoredTextLayers);
+    setAnnotationStrokes(restoredAnnotationStrokes);
 
     // Undo/redo restores content, not temporary interaction state.
     setSelectedTextId(null);
+    setEditingTextId(null);
     setDraggingTextId(null);
     setIsDrawing(false);
     setCurrentStroke(null);
@@ -193,19 +228,28 @@ export default function ImageEditorModal({
     refreshOverlayHistoryButtons();
   };
 
-  const beginTextEditHistory = () => {
-    if (!selectedTextId || textEditSnapshotRef.current) return;
+  const beginTextEditHistory = (textId = selectedTextId) => {
+    if (!textId || textEditSnapshotRef.current) return;
 
     textEditSnapshotRef.current = createOverlaySnapshot();
   };
 
-  const commitTextEditHistory = () => {
+  const commitTextEditHistory = (
+    nextTextLayers = textLayersRef.current
+  ) => {
     const beforeChange = textEditSnapshotRef.current;
     textEditSnapshotRef.current = null;
 
+    const afterChange = {
+      textLayers: cloneTextLayers(nextTextLayers),
+      annotationStrokes: cloneAnnotationStrokes(
+        annotationStrokesRef.current
+      ),
+    };
+
     if (
       beforeChange &&
-      !overlaySnapshotsAreEqual(beforeChange, createOverlaySnapshot())
+      !overlaySnapshotsAreEqual(beforeChange, afterChange)
     ) {
       pushOverlayUndoSnapshot(beforeChange);
     }
@@ -293,9 +337,21 @@ export default function ImageEditorModal({
     setCropPreviewUrl(null);
     setCroppedDisplayPreviewUrl(null);
 
-    setTextLayers(initialTextLayers || []);
-    setAnnotationStrokes(initialAnnotationStrokes || []);
+    const startingTextLayers = (initialTextLayers || []).map(
+      (layer) => ({
+        ...layer,
+        rotation: layer.rotation || 0,
+      })
+    );
+    const startingAnnotationStrokes = initialAnnotationStrokes || [];
+
+    textLayersRef.current = startingTextLayers;
+    annotationStrokesRef.current = startingAnnotationStrokes;
+
+    setTextLayers(startingTextLayers);
+    setAnnotationStrokes(startingAnnotationStrokes);
     setSelectedTextId(null);
+    setEditingTextId(null);
     setDraggingTextId(null);
     setIsDrawing(false);
     setCurrentStroke(null);
@@ -306,6 +362,12 @@ export default function ImageEditorModal({
     overlayRedoStackRef.current = [];
     textDragSnapshotRef.current = null;
     textEditSnapshotRef.current = null;
+    textTransformSnapshotRef.current = null;
+
+    if (textTransformCleanupRef.current) {
+      textTransformCleanupRef.current();
+    }
+
     refreshOverlayHistoryButtons();
   }, [
     isOpen,
@@ -521,7 +583,11 @@ const getFilterCss = (filterId) => {
     });
 
     textLayers.forEach((layer) => {
+      if (!layer.text?.trim()) return;
+
       context.save();
+      context.translate(layer.x, layer.y);
+      context.rotate(((layer.rotation || 0) * Math.PI) / 180);
       context.fillStyle = layer.color;
       context.font = `700 ${layer.fontSize}px ${
         layer.fontFamily || 'Arial, sans-serif'
@@ -531,7 +597,7 @@ const getFilterCss = (filterId) => {
       context.shadowColor = 'rgba(0,0,0,0.65)';
       context.shadowBlur = 6;
       context.shadowOffsetY = 2;
-      context.fillText(layer.text, layer.x, layer.y);
+      context.fillText(layer.text, 0, 0);
       context.restore();
     });
 
@@ -754,7 +820,31 @@ const getFilterCss = (filterId) => {
     };
   };
 
+  const updateTextLayer = (textId, patch) => {
+    if (!textId) return;
+
+    setResetToOriginalPending(false);
+
+    setTextLayers((prev) => {
+      const nextLayers = prev.map((layer) =>
+        layer.id === textId ? { ...layer, ...patch } : layer
+      );
+
+      textLayersRef.current = nextLayers;
+      return nextLayers;
+    });
+  };
+
   const addTextLayer = () => {
+    // Do not create several empty text inputs on top of one another.
+    // Clicking the text tool again while typing simply refocuses that input.
+    if (editingTextId) {
+      document.querySelector(
+        `[data-text-input-id="${editingTextId}"]`
+      )?.focus();
+      return;
+    }
+
     const beforeChange = createOverlaySnapshot();
 
     const width =
@@ -768,45 +858,335 @@ const getFilterCss = (filterId) => {
 
     const newLayer = {
       id: createLayerId(),
-      text: textDraft || 'Text',
+      text: '',
       x: width / 2,
       y: height / 2,
-      fontSize: textSize,
-      color: textColor,
+      fontSize: DEFAULT_TEXT_SIZE,
+      color: DEFAULT_TEXT_COLOR,
       fontFamily: 'Arial, sans-serif',
+      rotation: 0,
     };
 
-    setTextLayers((prev) => [...prev, newLayer]);
+    const nextLayers = [...textLayersRef.current, newLayer];
+
+    // Creation and typing are recorded as one undoable text action.
+    textEditSnapshotRef.current = beforeChange;
+    textLayersRef.current = nextLayers;
+
+    setTextLayers(nextLayers);
     setSelectedTextId(newLayer.id);
+    setEditingTextId(newLayer.id);
     setResetToOriginalPending(false);
-    pushOverlayUndoSnapshot(beforeChange);
   };
 
-  const updateSelectedTextLayer = (patch) => {
-    if (!selectedTextId) return;
+  const confirmTextLayer = (textId, textValue = null) => {
+    if (!textId) return;
 
-    setResetToOriginalPending(false);
-
-    setTextLayers((prev) =>
-      prev.map((layer) =>
-        layer.id === selectedTextId ? { ...layer, ...patch } : layer
-      )
+    const currentLayer = textLayersRef.current.find(
+      (layer) => layer.id === textId
     );
+
+    if (!currentLayer) {
+      setEditingTextId(null);
+      setSelectedTextId(null);
+      textEditSnapshotRef.current = null;
+      return;
+    }
+
+    const nextText =
+      typeof textValue === 'string'
+        ? textValue
+        : currentLayer.text;
+
+    const nextLayers = nextText.trim()
+      ? textLayersRef.current.map((layer) =>
+          layer.id === textId
+            ? { ...layer, text: nextText }
+            : layer
+        )
+      : textLayersRef.current.filter(
+          (layer) => layer.id !== textId
+        );
+
+    textLayersRef.current = nextLayers;
+    setTextLayers(nextLayers);
+    setEditingTextId(null);
+
+    // Confirmation deselects the layer. Clicking it again reveals the
+    // rotation and resize handles, matching the WhatsApp-style workflow.
+    setSelectedTextId(null);
+    commitTextEditHistory(nextLayers);
+  };
+
+  const startEditingTextLayer = (textId) => {
+    if (!textId) return;
+
+    beginTextEditHistory(textId);
+    setSelectedTextId(textId);
+    setEditingTextId(textId);
+    setDraggingTextId(null);
   };
 
   const removeSelectedTextLayer = () => {
     if (!selectedTextId) return;
 
     const beforeChange = createOverlaySnapshot();
+    const nextLayers = textLayersRef.current.filter(
+      (layer) => layer.id !== selectedTextId
+    );
 
-    setTextLayers((prev) =>
-      prev.filter((layer) => layer.id !== selectedTextId)
+    textLayersRef.current = nextLayers;
+    setTextLayers(nextLayers);
+    setEditingTextId((currentId) =>
+      currentId === selectedTextId ? null : currentId
     );
     setSelectedTextId(null);
     pushOverlayUndoSnapshot(beforeChange);
   };
 
+  const finishTextTransform = () => {
+    const beforeChange = textTransformSnapshotRef.current;
+    textTransformSnapshotRef.current = null;
+
+    if (
+      beforeChange &&
+      !overlaySnapshotsAreEqual(beforeChange, createOverlaySnapshot())
+    ) {
+      pushOverlayUndoSnapshot(beforeChange);
+    }
+  };
+
+  const beginTextTransform = (event, layer, transformType) => {
+    if (activeTool !== 'text') return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const transformHandle = event.currentTarget;
+    const pointerId = event.pointerId;
+
+    if (textTransformCleanupRef.current) {
+      textTransformCleanupRef.current();
+    }
+
+    const layerElement = transformHandle.closest(
+      '[data-text-layer-id]'
+    );
+
+    if (!layerElement) return;
+
+    transformHandle.setPointerCapture?.(pointerId);
+
+    const bounds = layerElement.getBoundingClientRect();
+    const centreX = bounds.left + bounds.width / 2;
+    const centreY = bounds.top + bounds.height / 2;
+
+    const startRotation = layer.rotation || 0;
+    const startFontSize =
+      layer.fontSize || DEFAULT_TEXT_SIZE;
+
+    const startPointerAngle = Math.atan2(
+      event.clientY - centreY,
+      event.clientX - centreX
+    );
+
+    const startPointerDistance = Math.max(
+      1,
+      Math.hypot(
+        event.clientX - centreX,
+        event.clientY - centreY
+      )
+    );
+
+    setSelectedTextId(layer.id);
+    setEditingTextId(null);
+    setDraggingTextId(null);
+    setResetToOriginalPending(false);
+
+    textTransformSnapshotRef.current =
+      createOverlaySnapshot();
+
+    let hasFinished = false;
+
+    const handlePointerMove = (moveEvent) => {
+      if (
+        hasFinished ||
+        moveEvent.pointerId !== pointerId
+      ) {
+        return;
+      }
+
+      moveEvent.preventDefault();
+
+      if (transformType === 'resize') {
+        const currentDistance = Math.max(
+          1,
+          Math.hypot(
+            moveEvent.clientX - centreX,
+            moveEvent.clientY - centreY
+          )
+        );
+
+        const scale =
+          currentDistance / startPointerDistance;
+
+        const nextFontSize = Math.min(
+          160,
+          Math.max(12, startFontSize * scale)
+        );
+
+        updateTextLayer(layer.id, {
+          fontSize: nextFontSize,
+        });
+
+        return;
+      }
+
+      const currentPointerAngle = Math.atan2(
+        moveEvent.clientY - centreY,
+        moveEvent.clientX - centreX
+      );
+
+      const angleDifference =
+        ((currentPointerAngle - startPointerAngle) *
+          180) /
+        Math.PI;
+
+      updateTextLayer(layer.id, {
+        rotation: startRotation + angleDifference,
+      });
+    };
+
+    const cleanup = () => {
+      window.removeEventListener(
+        'pointermove',
+        handlePointerMove,
+        true
+      );
+
+      window.removeEventListener(
+        'pointerup',
+        handlePointerUp,
+        true
+      );
+
+      window.removeEventListener(
+        'pointercancel',
+        handlePointerUp,
+        true
+      );
+
+      window.removeEventListener(
+        'blur',
+        handleWindowBlur
+      );
+
+      if (
+        transformHandle.hasPointerCapture?.(pointerId)
+      ) {
+        transformHandle.releasePointerCapture(pointerId);
+      }
+
+      if (
+        textTransformCleanupRef.current === cleanup
+      ) {
+        textTransformCleanupRef.current = null;
+      }
+    };
+
+    const finishTransform = (finishEvent = null) => {
+      if (hasFinished) return;
+
+      if (
+        finishEvent?.pointerId !== undefined &&
+        finishEvent.pointerId !== pointerId
+      ) {
+        return;
+      }
+
+      hasFinished = true;
+
+      cleanup();
+      finishTextTransform();
+    };
+
+    const handlePointerUp = (upEvent) => {
+      finishTransform(upEvent);
+    };
+
+    const handleWindowBlur = () => {
+      finishTransform();
+    };
+
+    textTransformCleanupRef.current = cleanup;
+
+    window.addEventListener(
+      'pointermove',
+      handlePointerMove,
+      {
+        capture: true,
+        passive: false,
+      }
+    );
+
+    window.addEventListener(
+      'pointerup',
+      handlePointerUp,
+      true
+    );
+
+    window.addEventListener(
+      'pointercancel',
+      handlePointerUp,
+      true
+    );
+
+    window.addEventListener(
+      'blur',
+      handleWindowBlur
+    );
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleDeleteSelectedText = (event) => {
+      const target = event.target;
+      const isTyping =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target?.isContentEditable;
+
+      if (
+        isTyping ||
+        activeTool !== 'text' ||
+        !selectedTextId ||
+        (event.key !== 'Delete' && event.key !== 'Backspace')
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      removeSelectedTextLayer();
+    };
+
+    window.addEventListener('keydown', handleDeleteSelectedText);
+
+    return () => {
+      window.removeEventListener('keydown', handleDeleteSelectedText);
+    };
+  }, [isOpen, activeTool, selectedTextId]);
+
   const handleCanvasPointerDown = (event) => {
+    if (activeTool === 'text') {
+      if (event.target === event.currentTarget) {
+        document.activeElement?.blur();
+        setSelectedTextId(null);
+      }
+
+      return;
+    }
+
     if (activeTool !== 'draw') return;
 
     const point = getImagePointFromEvent(event);
@@ -830,13 +1210,16 @@ const getFilterCss = (filterId) => {
       const point = getImagePointFromEvent(event);
       if (!point) return;
 
-      setTextLayers((prev) =>
-        prev.map((layer) =>
+      setTextLayers((prev) => {
+        const nextLayers = prev.map((layer) =>
           layer.id === draggingTextId
             ? { ...layer, x: point.x, y: point.y }
             : layer
-        )
-      );
+        );
+
+        textLayersRef.current = nextLayers;
+        return nextLayers;
+      });
       return;
     }
 
@@ -974,9 +1357,13 @@ const getFilterCss = (filterId) => {
     setResetToOriginalPending(true);
     setSelectedFilter('none');
 
+    textLayersRef.current = [];
+    annotationStrokesRef.current = [];
+
     setTextLayers([]);
     setAnnotationStrokes([]);
     setSelectedTextId(null);
+    setEditingTextId(null);
     setDraggingTextId(null);
     setIsDrawing(false);
     setCurrentStroke(null);
@@ -1064,6 +1451,84 @@ const getFilterCss = (filterId) => {
       setIsEditing(false);
     }
   };
+
+  const brushColourStops = [
+    { position: 0, colour: '#f43f5e' },
+    { position: 11, colour: '#d946ef' },
+    { position: 22, colour: '#6366f1' },
+    { position: 33, colour: '#3b82f6' },
+    { position: 44, colour: '#22d3ee' },
+    { position: 54, colour: '#84cc16' },
+    { position: 64, colour: '#fde047' },
+    { position: 74, colour: '#fb923c' },
+    { position: 84, colour: '#000000' },
+    { position: 92, colour: '#737373' },
+    { position: 100, colour: '#ffffff' },
+  ];
+
+  const BRUSH_SIZES = [
+    { value: 3, iconSize: 5 },
+    { value: 10, iconSize: 8 },
+    { value: 16, iconSize: 11 },
+    { value: 30, iconSize: 15 },
+    { value: 50, iconSize: 19 },
+  ];
+
+  const getBrushColorFromSlider = (value) => {
+    const safeValue = Math.min(Math.max(Number(value), 0), 100);
+
+    // Find the two colour stops surrounding the slider position.
+    const rightStop =
+      brushColourStops.find(
+        (stop) => stop.position >= safeValue
+      ) || brushColourStops[brushColourStops.length - 1];
+
+    const rightIndex = brushColourStops.indexOf(rightStop);
+    const leftStop =
+      brushColourStops[Math.max(0, rightIndex - 1)];
+
+    if (leftStop.position === rightStop.position) {
+      return leftStop.colour;
+    }
+
+    // Position between the left and right stops, from 0 to 1.
+    const progress =
+      (safeValue - leftStop.position) /
+      (rightStop.position - leftStop.position);
+
+    const leftRgb = hexToRgb(leftStop.colour);
+    const rightRgb = hexToRgb(rightStop.colour);
+
+    const red = Math.round(
+      leftRgb.red +
+        (rightRgb.red - leftRgb.red) * progress
+    );
+
+    const green = Math.round(
+      leftRgb.green +
+        (rightRgb.green - leftRgb.green) * progress
+    );
+
+    const blue = Math.round(
+      leftRgb.blue +
+        (rightRgb.blue - leftRgb.blue) * progress
+    );
+
+    return `rgb(${red}, ${green}, ${blue})`;
+  };
+
+  const hexToRgb = (hex) => {
+    const value = hex.replace('#', '');
+
+    return {
+      red: parseInt(value.slice(0, 2), 16),
+      green: parseInt(value.slice(2, 4), 16),
+      blue: parseInt(value.slice(4, 6), 16),
+    };
+  };
+
+  const brushColor =
+    getBrushColorFromSlider(brushSliderValue);
 
   return createPortal(
     <AnimatePresence>
@@ -1194,8 +1659,12 @@ const getFilterCss = (filterId) => {
 
               <button
                 type="button"
-                onClick={() => {
-                  changeTool(activeTool === 'text' ? null : 'text');
+                onClick={async () => {
+                  if (activeTool !== 'text') {
+                    await changeTool('text');
+                  }
+
+                  addTextLayer();
                 }}
                 className={`flex h-10 w-10 items-center justify-center rounded-full transition ${
                   activeTool === 'text'
@@ -1221,6 +1690,7 @@ const getFilterCss = (filterId) => {
             <div className="grid min-h-0 flex-1 grid-cols-1 bg-stone-50 md:grid-cols-[minmax(0,1fr)_320px]">
               {/* Image canvas area */}
               <div className="flex min-h-0 h-full flex-col items-center justify-center overflow-hidden p-4">
+                {/* Top bar when filter is active */}
                 {activeTool === 'filter' && (
                   <div className="mb-4 flex w-full justify-center overflow-x-auto px-2">
                     <div className="flex items-center gap-5">
@@ -1273,6 +1743,8 @@ const getFilterCss = (filterId) => {
                     </div>
                   </div>
                 )}
+
+                {/* Image display */}
                 <div ref={imageStageRef} className="relative flex min-h-0 max-h-full w-full max-w-full flex-1 items-center justify-center rounded-2xl bg-white p-4 shadow-xl">
                   {imageUrl ? (
                     activeTool === 'crop' ? (
@@ -1371,13 +1843,24 @@ const getFilterCss = (filterId) => {
 
                               {textLayers.map((layer) => {
                                 const isSelected = selectedTextId === layer.id;
+                                const isEditingText = editingTextId === layer.id;
+                                const displayFontSize = Math.max(
+                                  12,
+                                  (layer.fontSize / cropViewBox.width) *
+                                    overlayBounds.width
+                                );
 
                                 return (
-                                  <button
+                                  <div
                                     key={layer.id}
-                                    type="button"
+                                    data-text-layer-id={layer.id}
                                     onPointerDown={(event) => {
-                                      if (activeTool !== 'text') return;
+                                      if (
+                                        activeTool !== 'text' ||
+                                        isEditingText
+                                      ) {
+                                        return;
+                                      }
 
                                       event.stopPropagation();
                                       event.currentTarget.setPointerCapture(
@@ -1389,16 +1872,26 @@ const getFilterCss = (filterId) => {
                                       setDraggingTextId(layer.id);
                                     }}
                                     onPointerUp={(event) => {
+                                      if (isEditingText) return;
+
                                       event.stopPropagation();
                                       finishTextDrag();
                                     }}
                                     onPointerCancel={(event) => {
+                                      if (isEditingText) return;
+
                                       event.stopPropagation();
                                       finishTextDrag();
                                     }}
-                                    className={`absolute -translate-x-1/2 -translate-y-1/2 select-none rounded-md px-1 font-bold ${
-                                      isSelected
-                                        ? 'ring-2 ring-orange-500'
+                                    onDoubleClick={(event) => {
+                                      if (activeTool !== 'text') return;
+
+                                      event.stopPropagation();
+                                      startEditingTextLayer(layer.id);
+                                    }}
+                                    className={`absolute select-none rounded-xl px-2 py-1 font-bold ${
+                                      isSelected && activeTool === 'text'
+                                        ? 'ring-2 ring-lime-400'
                                         : ''
                                     }`}
                                     style={{
@@ -1415,22 +1908,156 @@ const getFilterCss = (filterId) => {
                                       color: layer.color,
                                       fontFamily:
                                         layer.fontFamily || 'Arial, sans-serif',
-                                      fontSize: `${Math.max(
-                                        12,
-                                        (layer.fontSize /
-                                          cropViewBox.width) *
-                                          overlayBounds.width
-                                      )}px`,
+                                      fontSize: `${displayFontSize}px`,
                                       textShadow:
                                         '0 2px 6px rgba(0,0,0,0.65)',
+                                      transform: `translate(-50%, -50%) rotate(${
+                                        layer.rotation || 0
+                                      }deg)`,
+                                      transformOrigin: 'center',
                                       pointerEvents:
                                         activeTool === 'text'
                                           ? 'auto'
                                           : 'none',
                                     }}
                                   >
-                                    {layer.text}
-                                  </button>
+                                    {isEditingText ? (
+                                      <>
+                                        <textarea
+                                          autoFocus
+                                          data-text-input-id={layer.id}
+                                          value={layer.text}
+                                          rows={1}
+                                          onPointerDown={(event) => {
+                                            event.stopPropagation();
+                                          }}
+                                          onChange={(event) => {
+                                            updateTextLayer(layer.id, {
+                                              text: event.target.value,
+                                            });
+
+                                            // Automatically expand vertically as more lines are added.
+                                            event.currentTarget.style.height = 'auto';
+                                            event.currentTarget.style.height =
+                                              `${event.currentTarget.scrollHeight}px`;
+                                          }}
+                                          onKeyDown={(event) => {
+                                            if (event.key === 'Escape') {
+                                              event.preventDefault();
+                                              event.stopPropagation();
+                                              event.currentTarget.blur();
+                                              return;
+                                            }
+
+                                            if (event.key === 'Enter') {
+                                              const wantsNewLine =
+                                                event.shiftKey ||
+                                                event.altKey ||
+                                                event.ctrlKey ||
+                                                event.metaKey;
+
+                                              if (wantsNewLine) {
+                                                // Do nothing: textarea inserts a newline naturally.
+                                                return;
+                                              }
+
+                                              // Plain Enter confirms the text.
+                                              event.preventDefault();
+                                              event.stopPropagation();
+                                              event.currentTarget.blur();
+                                            }
+                                          }}
+                                          onBlur={(event) => {
+                                            confirmTextLayer(
+                                              layer.id,
+                                              event.currentTarget.value
+                                            );
+                                          }}
+                                          className="
+                                            min-w-[180px]
+                                            max-w-[70vw]
+                                            resize-none
+                                            overflow-hidden
+                                            rounded-xl
+                                            border-2
+                                            border-lime-400
+                                            bg-transparent
+                                            px-3
+                                            py-2
+                                            text-center
+                                            font-bold
+                                            outline-none
+                                            placeholder:text-white/70
+                                          "
+                                          placeholder="Type something"
+                                          style={{
+                                            color: layer.color,
+                                            fontFamily:
+                                              layer.fontFamily || 'Arial, sans-serif',
+                                            fontSize: `${displayFontSize}px`,
+                                            textShadow:
+                                              '0 2px 6px rgba(0,0,0,0.65)',
+                                          }}
+                                        />
+
+                                        <button
+                                          type="button"
+                                          onPointerDown={(event) => {
+                                            event.preventDefault();
+                                            event.stopPropagation();
+                                            confirmTextLayer(
+                                              layer.id,
+                                              layer.text
+                                            );
+                                          }}
+                                          className="absolute -top-12 left-1/2 flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full border-2 border-stone-900 bg-white text-stone-900 shadow-lg"
+                                          aria-label="Confirm text"
+                                        >
+                                          <Check className="h-5 w-5" />
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <span className="block cursor-move whitespace-pre">
+                                        {layer.text}
+                                      </span>
+                                    )}
+
+                                    {isSelected &&
+                                      !isEditingText &&
+                                      activeTool === 'text' && (
+                                        <>
+                                          <button
+                                            type="button"
+                                            onPointerDown={(event) =>
+                                              beginTextTransform(
+                                                event,
+                                                layer,
+                                                'rotate'
+                                              )
+                                            }
+                                            className="absolute -top-12 left-1/2 flex h-9 w-9 -translate-x-1/2 cursor-grab items-center justify-center rounded-full border-2 border-stone-900 bg-white text-stone-900 shadow-lg active:cursor-grabbing"
+                                            aria-label="Rotate text"
+                                          >
+                                            <RotateCw className="h-5 w-5" />
+                                          </button>
+
+                                          <button
+                                            type="button"
+                                            onPointerDown={(event) =>
+                                              beginTextTransform(
+                                                event,
+                                                layer,
+                                                'resize'
+                                              )
+                                            }
+                                            className="absolute -bottom-4 -right-4 flex h-8 w-8 cursor-nwse-resize items-center justify-center rounded-full border-2 border-stone-900 bg-white text-sm font-black text-stone-900 shadow-lg"
+                                            aria-label="Resize text"
+                                          >
+                                            ↘
+                                          </button>
+                                        </>
+                                      )}
+                                  </div>
                                 );
                               })}
                             </div>
@@ -1444,6 +2071,7 @@ const getFilterCss = (filterId) => {
                   )}
                 </div>
 
+                {/* Bottom bar when crop is active */}
                 {activeTool === 'crop' && (
                   <div className="mt-4 flex items-center justify-center gap-3">
                     <button
@@ -1482,27 +2110,65 @@ const getFilterCss = (filterId) => {
                   </div>
                 )}
 
+                {/* Bottom bar when annotation is active */}
                 {activeTool === 'draw' && (
                   <div className="mt-4 flex w-full max-w-2xl items-center justify-center gap-4 rounded-full bg-stone-950 px-5 py-3 shadow-lg">
                     <input
-                      type="color"
-                      value={brushColor}
-                      onChange={(event) => setBrushColor(event.target.value)}
-                      className="h-10 w-10 cursor-pointer rounded-full border-0 bg-transparent"
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={brushSliderValue}
+                      onChange={(event) =>
+                        setBrushSliderValue(Number(event.target.value))
+                      }
+                      className="colour-slider w-full cursor-pointer appearance-none"
+                      style={{
+                        '--thumb-colour': brushColor,
+                        background: `
+                          linear-gradient(
+                            to right,
+                            #f43f5e 0%,
+                            #d946ef 11%,
+                            #6366f1 22%,
+                            #3b82f6 33%,
+                            #22d3ee 44%,
+                            #84cc16 54%,
+                            #fde047 64%,
+                            #fb923c 74%,
+                            #000000 84%,
+                            #737373 92%,
+                            #ffffff 100%
+                          )
+                        `,
+                      }}
                       aria-label="Brush colour"
                     />
 
-                    <input
-                      type="range"
-                      min="2"
-                      max="60"
-                      value={brushSize}
-                      onChange={(event) =>
-                        setBrushSize(Number(event.target.value))
-                      }
-                      className="w-full accent-orange-500"
-                      aria-label="Brush size"
-                    />
+                    <div className="flex items-center justify-center gap-3">
+                      {BRUSH_SIZES.map(({ value, iconSize }) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setBrushSize(value)}
+                          className={`flex h-10 w-10 items-center justify-center rounded-full border transition ${
+                            brushSize === value
+                              ? 'border-orange-500 bg-gray-700 ring-2 ring-orange-500'
+                              : 'border-gray-600 bg-gray-800 hover:bg-gray-700'
+                          }`}
+                          aria-label={`Brush size ${value}`}
+                        >
+                          {/* The span IS the white circle icon */}
+                          <span
+                            className="rounded-full bg-white"
+                            style={{
+                              width: `${iconSize}px`,
+                              height: `${iconSize}px`,
+                            }}
+                          />
+                        </button>
+                      ))}
+                    </div>
+
 
                     <button
                       type="button"
@@ -1588,7 +2254,7 @@ const getFilterCss = (filterId) => {
                       </p>
                     ) : activeTool === 'text' ? (
                       <p className="text-xs leading-relaxed text-stone-500">
-                        Add text, select it, then drag it around the image.
+                        Type directly on the image. Click confirmed text to move, resize, or rotate it.
                       </p>
                     ) : (
                       <p className="text-xs leading-relaxed text-stone-500">
@@ -1597,100 +2263,6 @@ const getFilterCss = (filterId) => {
                     )}
                   </div>
 
-                  {activeTool === 'text' && (
-                    <div className="rounded-2xl border border-stone-200 p-4">
-                      <p className="mb-2 text-sm font-bold text-stone-800">
-                        Text
-                      </p>
-
-                      <input
-                        type="text"
-                        value={
-                          selectedTextId
-                            ? textLayers.find(
-                                (layer) => layer.id === selectedTextId
-                              )?.text || ''
-                            : textDraft
-                        }
-                        onFocus={beginTextEditHistory}
-                        onBlur={commitTextEditHistory}
-                        onChange={(event) => {
-                          const value = event.target.value;
-
-                          if (selectedTextId) {
-                            updateSelectedTextLayer({ text: value });
-                          } else {
-                            setTextDraft(value);
-                          }
-                        }}
-                        className="mb-3 w-full rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-orange-500"
-                        placeholder="Enter text"
-                      />
-
-                      <div className="mb-3 grid grid-cols-2 gap-2">
-                        <input
-                          type="color"
-                          value={
-                            selectedTextId
-                              ? textLayers.find(
-                                  (layer) => layer.id === selectedTextId
-                                )?.color || textColor
-                              : textColor
-                          }
-                          onFocus={beginTextEditHistory}
-                          onPointerDown={beginTextEditHistory}
-                          onBlur={commitTextEditHistory}
-                          onChange={(event) => {
-                            setTextColor(event.target.value);
-                            updateSelectedTextLayer({
-                              color: event.target.value,
-                            });
-                          }}
-                          className="h-10 w-full rounded-lg"
-                        />
-
-                        <input
-                          type="number"
-                          min="12"
-                          max="160"
-                          value={
-                            selectedTextId
-                              ? textLayers.find(
-                                  (layer) => layer.id === selectedTextId
-                                )?.fontSize || textSize
-                              : textSize
-                          }
-                          onFocus={beginTextEditHistory}
-                          onBlur={commitTextEditHistory}
-                          onChange={(event) => {
-                            const size = Number(event.target.value);
-
-                            setTextSize(size);
-                            updateSelectedTextLayer({ fontSize: size });
-                          }}
-                          className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-orange-500"
-                        />
-                      </div>
-
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={addTextLayer}
-                          className="flex-1 rounded-xl bg-orange-600 px-3 py-2 text-xs font-bold text-white hover:bg-orange-700"
-                        >
-                          Add text
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={removeSelectedTextLayer}
-                          className="rounded-xl bg-stone-100 px-3 py-2 text-xs font-bold text-stone-600 hover:bg-stone-200"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -1761,8 +2333,12 @@ const getFilterCss = (filterId) => {
                       }
                     }
 
+                    const committedTextLayers = textLayers.filter(
+                      (layer) => layer.text?.trim()
+                    );
+
                     if (
-                      textLayers.length > 0 ||
+                      committedTextLayers.length > 0 ||
                       annotationStrokes.length > 0
                     ) {
                       shouldResetToOriginal = false;
@@ -1787,7 +2363,7 @@ const getFilterCss = (filterId) => {
                       previewUrl: latestPreviewUrl,
                       cropPercent: cropPercentToApply,
                       resetToOriginal: shouldResetToOriginal,
-                      textLayers,
+                      textLayers: committedTextLayers,
                       annotationStrokes,
                     });
                   } catch (error) {
