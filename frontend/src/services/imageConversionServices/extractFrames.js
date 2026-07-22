@@ -9,7 +9,16 @@ const { parseGIF, decompressFrames } = gifuct.default ? gifuct.default : gifuct;
  * Reconstructs each frame by handling GIF disposal methods.
  */
 export async function extractGifFrames(file) {
-  // ... (keep extractGifFrames as is)
+  const { frames } = await extractGifFrameData(file);
+  return frames.map((frame) => frame.blob);
+}
+
+/**
+ * Extracts fully composed GIF frames together with their playback metadata.
+ * The metadata is used when an animated GIF is edited or compressed so the
+ * resulting file keeps the original animation speed and loop behaviour.
+ */
+export async function extractGifFrameData(file) {
   const buffer = await file.arrayBuffer();
   const gif = parseGIF(buffer);
   const frames = decompressFrames(gif, true);
@@ -22,7 +31,11 @@ export async function extractGifFrames(file) {
   masterCanvas.height = height;
   const masterCtx = masterCanvas.getContext('2d');
   
-  const frameBlobs = [];
+  if (!masterCtx) {
+    throw new Error('Could not create a GIF frame canvas.');
+  }
+
+  const frameData = [];
   
   for (let i = 0; i < frames.length; i++) {
     const frame = frames[i];
@@ -32,6 +45,10 @@ export async function extractGifFrames(file) {
     frameCanvas.width = width;
     frameCanvas.height = height;
     const frameCtx = frameCanvas.getContext('2d');
+
+    if (!frameCtx) {
+      throw new Error('Could not create a GIF frame canvas.');
+    }
     
     // Draw the current accumulated master state
     frameCtx.drawImage(masterCanvas, 0, 0);
@@ -41,13 +58,34 @@ export async function extractGifFrames(file) {
     const patchCanvas = document.createElement('canvas');
     patchCanvas.width = frame.dims.width;
     patchCanvas.height = frame.dims.height;
-    patchCanvas.getContext('2d').putImageData(patchData, 0, 0);
+    const patchCtx = patchCanvas.getContext('2d');
+
+    if (!patchCtx) {
+      throw new Error('Could not create a GIF patch canvas.');
+    }
+
+    patchCtx.putImageData(patchData, 0, 0);
     
     frameCtx.drawImage(patchCanvas, frame.dims.left, frame.dims.top);
     
     // Convert to Blob
-    const blob = await new Promise(resolve => frameCanvas.toBlob(resolve, 'image/png'));
-    frameBlobs.push(blob);
+    const blob = await new Promise((resolve, reject) => {
+      frameCanvas.toBlob((frameBlob) => {
+        if (!frameBlob) {
+          reject(new Error('Could not extract GIF frame.'));
+          return;
+        }
+
+        resolve(frameBlob);
+      }, 'image/png');
+    });
+
+    frameData.push({
+      blob,
+      delay: Math.max(20, Number(frame.delay) || 100),
+      disposalType: frame.disposalType,
+      index: i,
+    });
     
     // Update master canvas based on disposal type
     if (frame.disposalType === 2) {
@@ -57,8 +95,32 @@ export async function extractGifFrames(file) {
     }
   }
   
-  return frameBlobs;
+  const loopExtension = gif.frames.find(
+    (frame) => frame.application?.id === 'NETSCAPE2.0'
+  )?.application;
+  const loopBytes = loopExtension?.blocks;
+  const repeat =
+    loopBytes?.length >= 3
+      ? loopBytes[1] | (loopBytes[2] << 8)
+      : 0;
+
+  return {
+    width,
+    height,
+    repeat,
+    frames: frameData,
+  };
 }
+
+export const isGifFile = (file) => {
+  if (!file) return false;
+
+  if (file.type) {
+    return file.type.toLowerCase() === 'image/gif';
+  }
+
+  return file.name?.toLowerCase().endsWith('.gif') ?? false;
+};
 
 /**
  * Extracts all images from an ICO file as an array of Blobs.

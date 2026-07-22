@@ -16,6 +16,7 @@ import {
 import { getFileInfo } from '../lib/fileTypes';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { convertMedia, extractFrames, zipBlobs } from '../services/conversionService';
+import { EditableFileName } from '../components/EditableFileName';
 import Layout from '../components/Layout';
 import FrameSelector from '../components/FrameSelector';
 import FilePreview from '../components/FilePreview';
@@ -559,9 +560,17 @@ export default function Convert() {
                           <span className="block text-xs text-green-700/70 font-bold uppercase tracking-wide">
                             Converted File
                           </span>
-                          <span className="text-sm font-black text-green-950 truncate max-w-[200px] block" title={item.result.convertedFileName}>
-                            {item.result.convertedFileName}
-                          </span>
+                          <EditableFileName
+                            fileName={item.result.convertedFileName}
+                            onSave={(fileName) =>
+                              updateItem(item.id, {
+                                result: {
+                                  ...item.result,
+                                  convertedFileName: fileName,
+                                },
+                              })
+                            }
+                          />
                           <span className="text-xs text-stone-500 font-bold">
                             {formatSize(item.result.size)}
                           </span>
@@ -614,9 +623,18 @@ export default function Convert() {
                         className="bg-white border border-green-100 rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
                       >
                         <div className="min-w-0 flex-1">
-                          <p className="font-bold text-green-950 text-sm truncate max-w-md" title={item.result.convertedFileName}>
-                            {item.result.convertedFileName}
-                          </p>
+                          <EditableFileName
+                            fileName={item.result?.convertedFileName || item.file.name}
+                            onSave={(fileName) =>
+                              updateItem(item.id, {
+                                result: {
+                                  ...item.result,
+                                  convertedFileName: fileName,
+                                },
+                              })
+                            }
+                            className="mb-3"
+                          />
 
                           <div className="flex gap-8 text-sm mt-3">
                             <FilePreview

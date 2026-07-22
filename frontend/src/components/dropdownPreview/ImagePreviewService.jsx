@@ -1,6 +1,8 @@
 // To help compress the preview on the fly as you change the slider 
 // receives file + meta data --> adds them up into left preview --> compress to obtain right preview 
 import { renderImageWithOverlays } from '../../services/imageEditingServices/imageEditService';
+import { compressAnimatedGif } from '../../services/compressionHelpers/imageCompressionHelper';
+import { isGifFile } from '../../services/imageConversionServices/extractFrames';
 
 export const createImageCompressionPreview = async ({
   file,
@@ -13,6 +15,7 @@ export const createImageCompressionPreview = async ({
   cropPercent = null,
   textLayers = [],
   annotationStrokes = [],
+  selectedFrames = null,
 }) => {
   if (!file) {
     throw new Error('No image file provided');
@@ -48,11 +51,13 @@ export const createImageCompressionPreview = async ({
       maxWidth,
       maxHeight,
       maintainAspectRatio,
+      selectedFrames,
     });
 
     return {
       ...compressedPreview,
       sourcePreviewUrl: renderedEditResult?.previewUrl || null,
+      sourceBlob: previewSourceFile,
       sourceSizeBytes: previewSourceFile.size,
       sourceWidth:
         renderedEditResult?.width ?? compressedPreview.originalWidth,
@@ -68,7 +73,7 @@ export const createImageCompressionPreview = async ({
   }
 };
 
-const compressPreviewFile = ({
+const compressPreviewFile = async ({
   file,
   ratio,
   format,
@@ -76,7 +81,30 @@ const compressPreviewFile = ({
   maxWidth,
   maxHeight,
   maintainAspectRatio,
+  selectedFrames,
 }) => {
+  if (format?.toLowerCase() === 'gif' && isGifFile(file)) {
+    const result = await compressAnimatedGif({
+      file,
+      ratio,
+      resizeEnabled,
+      maxWidth,
+      maxHeight,
+      maintainAspectRatio,
+      selectedFrames,
+    });
+
+    return {
+      blob: result.blob,
+      previewUrl: URL.createObjectURL(result.blob),
+      sizeBytes: result.blob.size,
+      width: result.width,
+      height: result.height,
+      originalWidth: result.originalWidth,
+      originalHeight: result.originalHeight,
+    };
+  }
+
   return new Promise((resolve, reject) => {
     const imageUrl = URL.createObjectURL(file);
     const img = new Image();
@@ -119,10 +147,11 @@ const compressPreviewFile = ({
 
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
+      const normalisedFormat = format?.toLowerCase();
       const outputMimeType =
-        format === 'png'
+        normalisedFormat === 'png'
           ? 'image/png'
-          : format === 'webp'
+          : normalisedFormat === 'webp'
             ? 'image/webp'
             : 'image/jpeg';
 
@@ -138,6 +167,7 @@ const compressPreviewFile = ({
           const previewUrl = URL.createObjectURL(blob);
 
           resolve({
+            blob,
             previewUrl,
             sizeBytes: blob.size,
             width: canvas.width,

@@ -16,6 +16,7 @@ import * as docx from 'docx-preview';
 import JSZip from 'jszip';
 import Layout from '../components/Layout';
 import FilePreview from '../components/FilePreview';
+import { EditableFileName } from '../components/EditableFileName';
 import { API_URL } from '../config/api';
 
 const ZOOM_PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
@@ -32,11 +33,11 @@ const isSupportedSource = (file) => {
 const clampZoom = (value) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
 const documentNameFor = (file) => `${file.name.replace(/\.[^/.]+$/, '')}.docx`;
 
-const downloadFile = (file) => {
+const downloadFile = (file, fileName = file.name) => {
   const url = URL.createObjectURL(file);
   const link = document.createElement('a');
   link.href = url;
-  link.download = file.name;
+  link.download = fileName;
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -65,6 +66,7 @@ export default function Ocr() {
   );
   const activeItem = sourceItems.find((item) => item.id === activeDocumentId) || null;
   const documentFile = activeItem?.documentFile || null;
+  const documentFileName = activeItem?.outputFileName || documentFile?.name || '';
   const hasPendingItems = sourceItems.some((item) => !item.documentFile && item.status !== 'converting');
 
   useEffect(() => {
@@ -175,6 +177,7 @@ export default function Ocr() {
           status: 'idle',
           error: '',
           documentFile: null,
+          outputFileName: '',
         }));
       return newItems.length ? [...items, ...newItems] : items;
     });
@@ -244,7 +247,12 @@ export default function Ocr() {
         const file = new File([blob], documentNameFor(item.file), {
           type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         });
-        updateItem(item.id, { status: 'completed', documentFile: file, error: '' });
+        updateItem(item.id, {
+          status: 'completed',
+          documentFile: file,
+          outputFileName: file.name,
+          error: '',
+        });
         if (!activeDocumentIdRef.current) selectDocument(item.id);
       } catch (conversionError) {
         console.error('OCR conversion failed:', conversionError);
@@ -260,7 +268,9 @@ export default function Ocr() {
   const downloadAllAsZip = async () => {
     if (!convertedItems.length) return;
     const zip = new JSZip();
-    convertedItems.forEach((item) => zip.file(item.documentFile.name, item.documentFile));
+    convertedItems.forEach((item) =>
+      zip.file(item.outputFileName || item.documentFile.name, item.documentFile)
+    );
     const archive = await zip.generateAsync({ type: 'blob' });
     downloadFile(new File([archive], 'archeio-ocr-documents.zip', { type: 'application/zip' }));
   };
@@ -423,17 +433,28 @@ export default function Ocr() {
                               selectDocument(item.id);
                             }
                           }}
-                          className="flex items-center gap-3 min-w-0 flex-1 text-left cursor-pointer"
-                          aria-label={`Preview ${item.documentFile.name}`}
+                          className="flex shrink-0 items-center text-left cursor-pointer"
+                          aria-label={`Preview ${item.outputFileName || item.documentFile.name}`}
                         >
                           <FilePreview file={item.documentFile} size="sm" showInfo={false} />
-                          <span className="text-xs font-semibold text-green-950 truncate">{item.documentFile.name}</span>
                         </div>
+                        <EditableFileName
+                          fileName={item.outputFileName || item.documentFile.name}
+                          onSave={(fileName) =>
+                            updateItem(item.id, { outputFileName: fileName })
+                          }
+                          className="min-w-0 flex-1"
+                        />
                         <button
                           type="button"
-                          onClick={() => downloadFile(item.documentFile)}
+                          onClick={() =>
+                            downloadFile(
+                              item.documentFile,
+                              item.outputFileName || item.documentFile.name,
+                            )
+                          }
                           className="w-8 h-8 shrink-0 inline-flex items-center justify-center rounded-md text-green-800 hover:bg-green-100"
-                          aria-label={`Download ${item.documentFile.name}`}
+                          aria-label={`Download ${item.outputFileName || item.documentFile.name}`}
                           title="Download document"
                         >
                           <Download className="w-4 h-4" />
@@ -450,7 +471,7 @@ export default function Ocr() {
             <div className="flex items-center justify-between gap-4 mb-4">
               <div className="min-w-0">
                 <h2 className="font-bold text-stone-900">Document Preview</h2>
-                {documentFile && <p className="text-xs text-stone-500 truncate mt-0.5">{documentFile.name}</p>}
+                {documentFile && <p className="text-xs text-stone-500 truncate mt-0.5">{documentFileName}</p>}
               </div>
               {documentFile && (
                 <div className="flex items-center gap-1 text-stone-600 shrink-0">

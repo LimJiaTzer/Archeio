@@ -1,3 +1,12 @@
+import {
+  extractGifFrameData,
+  isGifFile,
+} from '../imageConversionServices/extractFrames';
+import {
+  encodeGifFrames,
+  loadBlobImage,
+} from '../imageConversionServices/rasterToGif';
+
 export const applyImageQuickAction = async ({
   file,
   action,
@@ -5,6 +14,10 @@ export const applyImageQuickAction = async ({
 }) => {
   if (!file) {
     throw new Error('No image file provided');
+  }
+
+  if (isGifFile(file)) {
+    return applyAnimatedGifQuickAction({ file, action });
   }
 
   const imageUrl = URL.createObjectURL(file);
@@ -139,6 +152,10 @@ export const applyImageFilter = async ({
     throw new Error('No image file provided');
   }
 
+  if (isGifFile(file)) {
+    return applyAnimatedGifFilter({ file, filter });
+  }
+
   const imageUrl = URL.createObjectURL(file);
 
   try {
@@ -206,6 +223,15 @@ export const renderImageWithOverlays = async ({
 }) => {
   if (!file) {
     throw new Error('No image file provided');
+  }
+
+  if (isGifFile(file)) {
+    return renderAnimatedGifWithOverlays({
+      file,
+      textLayers,
+      annotationStrokes,
+      cropPercent,
+    });
   }
 
   const imageUrl = URL.createObjectURL(file);
@@ -346,6 +372,247 @@ export const renderImageWithOverlays = async ({
   } finally {
     URL.revokeObjectURL(imageUrl);
   }
+};
+
+const applyAnimatedGifQuickAction = async ({ file, action }) => {
+  const gif = await extractGifFrameData(file);
+  const swapsDimensions =
+    action === 'rotate-left' || action === 'rotate-right';
+  const width = swapsDimensions ? gif.height : gif.width;
+  const height = swapsDimensions ? gif.width : gif.height;
+
+  const blob = await encodeGifFrames({
+    frames: gif.frames,
+    width,
+    height,
+    repeat: gif.repeat,
+    quality: 5,
+    drawFrame: async (frame) => {
+      const image = await loadBlobImage(frame.blob);
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+
+      if (!context) {
+        throw new Error('Could not create image canvas');
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      context.save();
+
+      if (action === 'rotate-right') {
+        context.translate(canvas.width, 0);
+        context.rotate(Math.PI / 2);
+      }
+
+      if (action === 'rotate-left') {
+        context.translate(0, canvas.height);
+        context.rotate(-Math.PI / 2);
+      }
+
+      if (action === 'flip-horizontal') {
+        context.translate(canvas.width, 0);
+        context.scale(-1, 1);
+      }
+
+      if (action === 'flip-vertical') {
+        context.translate(0, canvas.height);
+        context.scale(1, -1);
+      }
+
+      context.drawImage(image, 0, 0);
+      context.restore();
+      return canvas;
+    },
+  });
+
+  return createGifEditResult({ file, blob, width, height });
+};
+
+const applyAnimatedGifFilter = async ({ file, filter }) => {
+  const gif = await extractGifFrameData(file);
+  const cssFilterMap = {
+    none: 'none',
+    pop: 'saturate(1.35) contrast(1.12) brightness(1.04)',
+    bw: 'grayscale(1) contrast(1.18)',
+    cool:
+      'saturate(1.08) contrast(1.08) hue-rotate(190deg) brightness(0.98)',
+    chrome: 'saturate(1.55) contrast(1.2) brightness(1.06)',
+    film:
+      'sepia(0.22) contrast(0.92) brightness(1.06) saturate(0.95)',
+  };
+
+  const blob = await encodeGifFrames({
+    frames: gif.frames,
+    width: gif.width,
+    height: gif.height,
+    repeat: gif.repeat,
+    quality: 5,
+    drawFrame: async (frame) => {
+      const image = await loadBlobImage(frame.blob);
+      const canvas = document.createElement('canvas');
+      canvas.width = gif.width;
+      canvas.height = gif.height;
+
+      const context = canvas.getContext('2d');
+
+      if (!context) {
+        throw new Error('Could not create image canvas');
+      }
+
+      context.filter = cssFilterMap[filter] || 'none';
+      context.drawImage(image, 0, 0);
+      return canvas;
+    },
+  });
+
+  return createGifEditResult({
+    file,
+    blob,
+    width: gif.width,
+    height: gif.height,
+  });
+};
+
+const renderAnimatedGifWithOverlays = async ({
+  file,
+  textLayers,
+  annotationStrokes,
+  cropPercent,
+}) => {
+  const gif = await extractGifFrameData(file);
+  const safeCrop = normaliseCropPercent(cropPercent);
+  const hasCrop = !isFullCropPercent(safeCrop);
+  const width = hasCrop
+    ? Math.max(1, Math.round((gif.width * safeCrop.width) / 100))
+    : gif.width;
+  const height = hasCrop
+    ? Math.max(1, Math.round((gif.height * safeCrop.height) / 100))
+    : gif.height;
+
+  const blob = await encodeGifFrames({
+    frames: gif.frames,
+    width,
+    height,
+    repeat: gif.repeat,
+    quality: 5,
+    drawFrame: async (frame) => {
+      const image = await loadBlobImage(frame.blob);
+      const fullCanvas = document.createElement('canvas');
+      fullCanvas.width = gif.width;
+      fullCanvas.height = gif.height;
+
+      const context = fullCanvas.getContext('2d');
+
+      if (!context) {
+        throw new Error('Could not create image canvas');
+      }
+
+      context.drawImage(image, 0, 0);
+      drawAnnotationStrokes(context, annotationStrokes, fullCanvas.width);
+      drawTextLayers(context, textLayers, fullCanvas.width);
+
+      if (!hasCrop) {
+        return fullCanvas;
+      }
+
+      const croppedCanvas = document.createElement('canvas');
+      croppedCanvas.width = width;
+      croppedCanvas.height = height;
+
+      const croppedContext = croppedCanvas.getContext('2d');
+
+      if (!croppedContext) {
+        throw new Error('Could not create crop canvas');
+      }
+
+      croppedContext.drawImage(
+        fullCanvas,
+        (gif.width * safeCrop.x) / 100,
+        (gif.height * safeCrop.y) / 100,
+        (gif.width * safeCrop.width) / 100,
+        (gif.height * safeCrop.height) / 100,
+        0,
+        0,
+        width,
+        height
+      );
+
+      return croppedCanvas;
+    },
+  });
+
+  return createGifEditResult({ file, blob, width, height });
+};
+
+const drawAnnotationStrokes = (context, strokes, canvasWidth) => {
+  strokes.forEach((stroke) => {
+    if (!stroke.points || stroke.points.length < 2) return;
+
+    context.save();
+    context.strokeStyle = stroke.color || '#f97316';
+    context.lineWidth = stroke.size || Math.max(4, canvasWidth * 0.006);
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+    context.beginPath();
+    context.moveTo(stroke.points[0].x, stroke.points[0].y);
+
+    stroke.points.slice(1).forEach((point) => {
+      context.lineTo(point.x, point.y);
+    });
+
+    context.stroke();
+    context.restore();
+  });
+};
+
+const drawTextLayers = (context, layers, canvasWidth) => {
+  layers.forEach((layer) => {
+    if (!layer.text?.trim()) return;
+
+    const fontSize = layer.fontSize || Math.round(canvasWidth * 0.06);
+    context.save();
+    context.font = `700 ${fontSize}px ${
+      layer.fontFamily || 'Arial, sans-serif'
+    }`;
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.lineWidth = Math.max(2, fontSize * 0.08);
+    context.strokeStyle = layer.strokeColor || 'rgba(0, 0, 0, 0.55)';
+    context.fillStyle = layer.color || '#ffffff';
+    context.translate(layer.x, layer.y);
+    context.rotate(((layer.rotation || 0) * Math.PI) / 180);
+
+    const lines = layer.text.split('\n');
+    const lineHeight = fontSize * 1.2;
+    const totalHeight = (lines.length - 1) * lineHeight;
+
+    lines.forEach((line, index) => {
+      const y = index * lineHeight - totalHeight / 2;
+      context.strokeText(line, 0, y);
+      context.fillText(line, 0, y);
+    });
+
+    context.restore();
+  });
+};
+
+const createGifEditResult = ({ file, blob, width, height }) => {
+  const baseName =
+    file.name?.replace(/\.[^/.]+$/, '') || 'edited-image';
+  const editedFile = new File([blob], `${baseName}.gif`, {
+    type: 'image/gif',
+    lastModified: Date.now(),
+  });
+
+  return {
+    blob,
+    file: editedFile,
+    previewUrl: URL.createObjectURL(blob),
+    width,
+    height,
+    sizeBytes: blob.size,
+  };
 };
 
 const normaliseCropPercent = (cropPercent) => {

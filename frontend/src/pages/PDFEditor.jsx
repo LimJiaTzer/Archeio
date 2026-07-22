@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import Layout from '@/components/Layout';
 import FilePreview from '@/components/FilePreview';
+import { EditableFileName } from '@/components/EditableFileName';
 import { pdfjs } from 'react-pdf'; // re-exports pdfjs-dist, already configured
 import { compilePDF } from '@/services/pdfEditorService';
 
@@ -1797,9 +1798,17 @@ export default function PdfEditor() {
                   <span className="block text-xs text-green-700/70 font-bold uppercase tracking-wide">
                     File Name
                   </span>
-                  <span className="text-sm font-black text-green-950 truncate max-w-[200px] block" title={exportFile.name}>
-                    {exportFile.name}
-                  </span>
+                  <EditableFileName
+                    fileName={exportFile.name}
+                    onSave={(fileName) =>
+                      setExportFile((currentFile) =>
+                        new File([currentFile], fileName, {
+                          type: currentFile.type,
+                          lastModified: currentFile.lastModified,
+                        })
+                      )
+                    }
+                  />
                 </div>
 
                 <div>
@@ -1814,7 +1823,7 @@ export default function PdfEditor() {
             </div>
             <a
               href={exportUrl}
-              download="archeio_edited.pdf"
+              download={exportFile.name}
               className="px-6 py-4 bg-green-800 hover:bg-green-900 text-white rounded-xl font-bold text-sm shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all self-stretch md:self-auto text-center"
             >
               Download Edited PDF

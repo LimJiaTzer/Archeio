@@ -1,7 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Square, CheckSquare } from 'lucide-react';
 
-export default function FrameSelector({ frames, selectedFrames, onToggleFrame, onSelectAll, onDeselectAll }) {
+export default function FrameSelector({
+  frames,
+  selectedFrames = [],
+  onToggleFrame,
+  onSelectAll,
+  onDeselectAll,
+  tip = 'Tip: If multiple frames are selected, they will be downloaded as a ZIP archive.',
+}) {
   const [urls, setUrls] = useState([]);
 
   useEffect(() => {
@@ -21,7 +28,7 @@ export default function FrameSelector({ frames, selectedFrames, onToggleFrame, o
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="font-bold text-stone-900">Select Frames</h3>
-          <p className="text-xs text-stone-500">{frames.length} images found in file</p>
+          <p className="text-xs text-stone-500">{frames.length} frames found in file</p>
         </div>
         <div className="flex gap-4">
           <button 
@@ -69,7 +76,7 @@ export default function FrameSelector({ frames, selectedFrames, onToggleFrame, o
         })}
       </div>
       <p className="mt-2 text-[10px] text-stone-400 italic">
-        Tip: If multiple frames are selected, they will be downloaded as a ZIP archive.
+        {tip}
       </p>
     </div>
   );

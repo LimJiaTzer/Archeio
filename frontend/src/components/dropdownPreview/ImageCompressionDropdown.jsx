@@ -79,6 +79,7 @@ const ImageCompressionDetails = ({
 
     updatePreviewItem(item.id, {
       previewLoading: true,
+      previewError: '',
     });
 
     const timeoutId = setTimeout(async () => {
@@ -91,6 +92,8 @@ const ImageCompressionDetails = ({
           maxWidth: item.maxWidth ? Number(item.maxWidth) : null,
           maxHeight: item.maxHeight ? Number(item.maxHeight) : null,
           maintainAspectRatio: item.maintainAspectRatio,
+          selectedFrames:
+            item.gifFrames?.length > 0 ? item.selectedFrames : null,
 
           // Crop, annotation, and text remain metadata in the editor.
           // The preview service temporarily renders them for both sides.
@@ -122,19 +125,25 @@ const ImageCompressionDetails = ({
 
         updatePreviewItem(item.id, {
           renderedEditPreviewUrl: preview.sourcePreviewUrl || '',
+          renderedEditPreviewBlob: preview.sourceBlob,
           renderedEditSize: preview.sourceSizeBytes,
           compressedPreviewUrl: preview.previewUrl,
+          compressedPreviewBlob: preview.blob,
           estimatedSize: preview.sizeBytes,
           previewWidth: preview.width,
           previewHeight: preview.height,
           previewLoading: false,
+          previewError: '',
         });
       } catch (error) {
-        console.error('Failed to generate edited image preview:', error);
+        if (error.message !== 'Select at least one GIF frame.') {
+          console.error('Failed to generate edited image preview:', error);
+        }
 
         if (!cancelled) {
           updatePreviewItem(item.id, {
             previewLoading: false,
+            previewError: error.message || 'Could not generate preview.',
           });
         }
       }
@@ -166,12 +175,16 @@ const ImageCompressionDetails = ({
     item.maxWidth,
     item.maxHeight,
     item.maintainAspectRatio,
+    item.gifFrames,
+    item.selectedFrames,
   ]);
 
   const compressedSizeText = item.downloadUrl
     ? item.result?.compressedSize
     : item.previewLoading
       ? 'Generating preview...'
+      : item.previewError
+        ? item.previewError
       : item.estimatedSize
         ? formatBytes(item.estimatedSize)
         : 'Preview pending';
@@ -189,10 +202,20 @@ const ImageCompressionDetails = ({
                 sourcePreviewUrl
               }
               compressedUrl={
-                item.downloadUrl ||
                 item.compressedPreviewUrl ||
+                item.downloadUrl ||
                 sourcePreviewUrl
               }
+              originalBlob={
+                item.renderedEditPreviewBlob || sourceFile
+              }
+              compressedBlob={item.compressedPreviewBlob}
+              synchronizePlayback={
+                item.file.type === 'image/gif' &&
+                item.format?.toLowerCase() === 'gif'
+              }
+              loading={item.previewLoading}
+              syncError={item.previewError}
               originalSize={formatBytes(
                 item.renderedEditSize ||
                 sourceFile?.size
@@ -200,6 +223,8 @@ const ImageCompressionDetails = ({
               compressedSize={
                 item.previewLoading
                   ? 'Generating preview...'
+                  : item.previewError
+                    ? item.previewError
                   : item.downloadUrl
                     ? item.result?.compressedSize
                     : item.estimatedSize
@@ -414,12 +439,14 @@ const ImageCompressionDetails = ({
               annotationStrokes: [],
 
               renderedEditPreviewUrl: '',
+              renderedEditPreviewBlob: null,
               renderedEditSize: null,
 
               result: null,
               downloadUrl: '',
               compressedFileName: '',
               compressedPreviewUrl: '',
+              compressedPreviewBlob: null,
               estimatedSize: null,
               previewLoading: false,
               status: 'idle',
@@ -443,12 +470,14 @@ const ImageCompressionDetails = ({
             annotationStrokes: annotationStrokes ?? item.annotationStrokes ?? [],
 
             renderedEditPreviewUrl: '',
+            renderedEditPreviewBlob: null,
             renderedEditSize: null,
 
             result: null,
             downloadUrl: '',
             compressedFileName: '',
             compressedPreviewUrl: '',
+            compressedPreviewBlob: null,
             estimatedSize: null,
             previewLoading: false,
             status: 'idle',

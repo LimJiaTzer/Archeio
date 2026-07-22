@@ -1,6 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';   // useState helps track variables 
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Archive, Sliders, CheckCircle2, ChevronDown } from 'lucide-react'; // icons, can change them 
+import {
+  ArrowLeft,
+  Archive,
+  Sliders,
+  CheckCircle2,
+  ChevronDown,
+  Images,
+  Pencil,
+  Check,
+  X,
+} from 'lucide-react'; // icons, can change them
 import { getFileInfo } from '../lib/fileTypes'; // file types
 import { compressDocument, compressImage, compressAudio, compressVideo } from '../services/compressService';
 import JSZip from 'jszip';
@@ -8,6 +18,9 @@ import Layout from '../components/Layout';
 import FilePreview from '../components/FilePreviewAltered';
 import ImageCompressionDetails from '../components/dropdownPreview/ImageCompressionDropdown';
 import { renderImageWithOverlays } from '../services/imageEditingServices/imageEditService';
+import { extractGifFrames } from '../services/imageConversionServices/extractFrames';
+import { EditableFileName } from '../components/EditableFileName';
+import FrameSelector from '../components/FrameSelector';
 
 const getImageDimensions = (file) => { // for image resizing 
   return new Promise((resolve, reject) => {
@@ -35,6 +48,19 @@ const getImageDimensions = (file) => { // for image resizing
 const getVideoDimensions = () => {
   return null;
 }
+
+const splitFileName = (fileName) => {
+  const extensionStart = fileName.lastIndexOf('.');
+
+  if (extensionStart <= 0) {
+    return { baseName: fileName, extension: '' };
+  }
+
+  return {
+    baseName: fileName.slice(0, extensionStart),
+    extension: fileName.slice(extensionStart),
+  };
+};
 
 export default function Compress() {
   // input & output file(s) state
@@ -133,6 +159,7 @@ export default function Compress() {
 
           // Flattened preview of crop + text + annotations before compression
           renderedEditPreviewUrl: '',
+          renderedEditPreviewBlob: null,
           renderedEditSize: null,
 
           result: null,
@@ -149,10 +176,17 @@ export default function Compress() {
           maintainAspectRatio: true,
 
           compressedPreviewUrl: '',
+          compressedPreviewBlob: null,
           estimatedSize: null,
           previewWidth: null,
           previewHeight: null,
           previewLoading: false,
+          previewError: '',
+
+          gifFrames: [],
+          selectedFrames: null,
+          showFrameSelector: false,
+          extractingFrames: false,
         };
       })
     );
@@ -187,6 +221,72 @@ export default function Compress() {
         item.id === id ? { ...item, ...patch } : item
       )
     );
+  };
+
+  const toggleGifFrameSelector = async (id) => {
+    const item = fileItems.find((fileItem) => fileItem.id === id);
+
+    if (!item) return;
+
+    if (item.showFrameSelector) {
+      updateFileItem(id, { showFrameSelector: false });
+      return;
+    }
+
+    if (item.gifFrames.length > 0) {
+      updateFileItem(id, { showFrameSelector: true });
+      return;
+    }
+
+    updateFileItem(id, { extractingFrames: true });
+
+    try {
+      const frames = await extractGifFrames(item.file);
+      updateFileItem(id, {
+        gifFrames: frames,
+        selectedFrames: frames.map((_, index) => index),
+        showFrameSelector: true,
+        extractingFrames: false,
+      });
+    } catch (error) {
+      console.error('Failed to extract GIF frames:', error);
+      updateFileItem(id, { extractingFrames: false });
+      alert('Failed to read frames from this GIF.');
+    }
+  };
+
+  const toggleGifFrame = (id, frameIndex) => {
+    setFileItems((previousItems) =>
+      previousItems.map((item) => {
+        if (item.id !== id) return item;
+
+        const selectedFrames = item.selectedFrames.includes(frameIndex)
+          ? item.selectedFrames.filter((index) => index !== frameIndex)
+          : [...item.selectedFrames, frameIndex];
+
+        return {
+          ...item,
+          selectedFrames,
+          result: null,
+          downloadUrl: '',
+          status: 'idle',
+        };
+      })
+    );
+  };
+
+  const selectAllGifFrames = (id) => {
+    const item = fileItems.find((fileItem) => fileItem.id === id);
+
+    if (!item) return;
+
+    updateFileCompressionSettings(id, {
+      selectedFrames: item.gifFrames.map((_, index) => index),
+    });
+  };
+
+  const deselectAllGifFrames = (id) => {
+    updateFileCompressionSettings(id, { selectedFrames: [] });
   };
 
   const removeFileItem = (id) => {
@@ -282,6 +382,16 @@ export default function Compress() {
     setWarning('');
 
     for (const item of fileItems) {
+      if (
+        item.file.type === 'image/gif' &&
+        item.gifFrames.length > 0 &&
+        item.selectedFrames.length === 0
+      ) {
+        alert(`Select at least one frame from ${item.file.name}.`);
+        updateFileItem(item.id, { status: 'error' });
+        continue;
+      }
+
       updateFileItem(item.id, {
         status: 'compressing',
         result: null,
@@ -336,6 +446,8 @@ export default function Compress() {
           maxWidth: item.maxWidth ? Number(item.maxWidth) : null,
           maxHeight: item.maxHeight ? Number(item.maxHeight) : null,
           maintainAspectRatio: item.maintainAspectRatio,
+          selectedFrames:
+            item.gifFrames.length > 0 ? item.selectedFrames : null,
 
           setDownloadUrl: (url) => {
             updateFileItem(item.id, { downloadUrl: url });
@@ -481,7 +593,13 @@ export default function Compress() {
               <div className="mt-6 space-y-3 min-w-0"> 
                 {fileItems.map((item) => {
                   const isImage = item.fileInfo.category === 'images';
+                  const isGif = item.file.type === 'image/gif';
                   const isOpen = openSettings[item.id];
+                  const hasOpenedImageSettings =
+                    Object.prototype.hasOwnProperty.call(
+                      openSettings,
+                      item.id
+                    );
 
                   return (
                     <div key={item.id} className="rounded-xl overflow-hidden min-w-0">
@@ -543,6 +661,26 @@ export default function Compress() {
                             </button>
                           )}
 
+                          {isGif && (
+                            <button
+                              type="button"
+                              onClick={() => toggleGifFrameSelector(item.id)}
+                              className={`rounded-lg p-2 transition-colors ${
+                                item.showFrameSelector
+                                  ? 'bg-orange-100 text-orange-700'
+                                  : 'text-stone-400 hover:bg-stone-200 hover:text-orange-600'
+                              }`}
+                              title="Select GIF frames"
+                              aria-label="Select GIF frames"
+                            >
+                              <Images
+                                className={`h-5 w-5 ${
+                                  item.extractingFrames ? 'animate-pulse' : ''
+                                }`}
+                              />
+                            </button>
+                          )}
+
                           <button
                             onClick={() => removeFileItem(item.id)}
                             className="text-stone-400 hover:text-stone-600 text-xs font-semibold"
@@ -553,8 +691,12 @@ export default function Compress() {
                       </div>
 
                       {/* EXTRA IMAGE DROPDOWN DETAILS */}
-                      {isImage && isOpen && (
-                        <div className="mt-3 min-w-0">
+                      {isImage && hasOpenedImageSettings && (
+                        <div
+                          className={
+                            isOpen ? 'mt-3 min-w-0' : 'hidden'
+                          }
+                        >
                           <ImageCompressionDetails
                             item={item}
                             effectiveRatio={getEffectiveRatio(item)}
@@ -562,6 +704,19 @@ export default function Compress() {
                             updatePreviewItem={updateFileItem}
                           />
                         </div>
+                      )}
+
+                      {isGif && item.showFrameSelector && (
+                        <FrameSelector
+                          frames={item.gifFrames}
+                          selectedFrames={item.selectedFrames || []}
+                          onToggleFrame={(index) =>
+                            toggleGifFrame(item.id, index)
+                          }
+                          onSelectAll={() => selectAllGifFrames(item.id)}
+                          onDeselectAll={() => deselectAllGifFrames(item.id)}
+                          tip="Selected frames stay in the compressed GIF and keep their original timing."
+                        />
                       )}
                     </div>
                   );
@@ -615,26 +770,27 @@ export default function Compress() {
               </div>
             </div>
 
-            
-            {/* Link to Zip Compression */}
-            {multipleUploads && (
+            {/* Dont think we'll be needing this anymore */}
+            {/* Link to Zip Compression */} 
+            {/* {multipleUploads && (
               <Link
                 to="/zip-compression"
                 className="block mt-4 text-sm font-semibold text-orange-600 hover:text-orange-700"
               >
                 Zip compression
               </Link>
-            )}
+            )} */}
 
+            {/* Dont think we'll be needing this anymore */}
             {/* Link to Manipulation */}
-            {hasManipulatableFile && (
+            {/* {hasManipulatableFile && (
                 <Link
                   to="/manipulation"
                   className="block mt-4 text-sm font-semibold text-orange-600 hover:text-orange-700"
                 >
                   file manipulation available
                 </Link>
-            )}
+            )} */}
 
           
 
@@ -677,6 +833,16 @@ export default function Compress() {
                           Compression Complete! Saved {item.result.ratio}
                         </h4>
                       </div>
+
+                      <EditableFileName
+                        fileName={item.compressedFileName || item.file.name}
+                        onSave={(fileName) =>
+                          updateFileItem(item.id, {
+                            compressedFileName: fileName,
+                          })
+                        }
+                        className="mb-3"
+                      />
 
                       <div className="flex gap-12 text-sm border-t border-green-200/50 pt-4">
                         <FilePreview
@@ -761,9 +927,14 @@ export default function Compress() {
                       className="bg-white border border-green-200 rounded-xl p-4 flex flex-col md:flex-row justify-between gap-4"
                     >
                       <div>
-                        <p className="font-bold text-green-950 text-sm truncate max-w-xs">
-                          {item.file.name}
-                        </p>
+                        <EditableFileName
+                          fileName={item.compressedFileName || item.file.name}
+                          onSave={(fileName) =>
+                            updateFileItem(item.id, {
+                              compressedFileName: fileName,
+                            })
+                          }
+                        />
 
                         <div className="flex gap-8 text-sm mt-3">
                         <FilePreview

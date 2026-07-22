@@ -53,3 +53,80 @@ export function rasterToGif(file) {
     img.src = url;
   });
 }
+
+/**
+ * Encodes multiple already-composited frames as an animated GIF.
+ * `drawFrame` may return a transformed canvas for crop/filter/edit workflows.
+ */
+export async function encodeGifFrames({
+  frames,
+  width,
+  height,
+  repeat = 0,
+  quality = 10,
+  drawFrame,
+}) {
+  if (!frames?.length) {
+    throw new Error('Select at least one GIF frame.');
+  }
+
+  const GIFEncoder = typeof GIF === 'function' ? GIF : GIF.default;
+  const gif = new GIFEncoder({
+    workers: 2,
+    quality: Math.max(1, Math.min(20, Math.round(quality))),
+    width,
+    height,
+    repeat,
+    workerScript: '/gif.worker.js',
+  });
+
+  for (let index = 0; index < frames.length; index += 1) {
+    const frame = frames[index];
+    const canvas = drawFrame
+      ? await drawFrame(frame, index)
+      : await drawGifFrame(frame, width, height);
+
+    gif.addFrame(canvas, {
+      copy: true,
+      delay: Math.max(20, Number(frame.delay) || 100),
+    });
+  }
+
+  return await new Promise((resolve, reject) => {
+    gif.on('finished', resolve);
+    gif.on('abort', () => reject(new Error('GIF encoding was cancelled.')));
+    gif.on('error', reject);
+    gif.render();
+  });
+}
+
+const drawGifFrame = async (frame, width, height) => {
+  const image = await loadBlobImage(frame.blob || frame);
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext('2d');
+
+  if (!context) {
+    throw new Error('Could not create a GIF encoding canvas.');
+  }
+
+  context.drawImage(image, 0, 0, width, height);
+  return canvas;
+};
+
+export const loadBlobImage = async (blob) => {
+  const url = URL.createObjectURL(blob);
+
+  try {
+    return await new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error('Could not load a GIF frame.'));
+      image.src = url;
+    });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+};

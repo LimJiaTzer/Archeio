@@ -10,9 +10,14 @@ import { extractGifFrames, extractIcoFrames } from './imageConversionServices/ex
 import { rasterToRaster } from './imageConversionServices/rasterToRaster';
 import { rasterToGif } from './imageConversionServices/rasterToGif';
 import { pngToIco } from './imageConversionServices/pngToIco';
-import { normalizeImageForCompression, compressRasterWithCanvas } from './compressionHelpers/imageCompressionHelper';
+import {
+  normalizeImageForCompression,
+  compressRasterWithCanvas,
+  compressAnimatedGif,
+} from './compressionHelpers/imageCompressionHelper';
 import { convertDocument } from './conversionService';
 import { rasterToAvif } from './compressionHelpers/rasterToAvif';
+import { isGifFile } from './imageConversionServices/extractFrames';
 
 // Helps with Audio and Video compression 
 const ffmpeg = new FFmpeg();
@@ -139,6 +144,11 @@ export const compressImage = async ({
   setResult,
   setCompressing,
   setWarning,
+  resizeEnabled = false,
+  maxWidth = null,
+  maxHeight = null,
+  maintainAspectRatio = true,
+  selectedFrames = null,
 }) => {
   try {
     const outputType = getOutputInfo(format, 'images');
@@ -150,49 +160,76 @@ export const compressImage = async ({
     const inputFormat = fileInfo.format.toLowerCase();
     const outputFormat = outputType.ext.toLowerCase();
 
-    // Step 1: normalize awkward image types into something canvas can load
-    const normalizedBlob = await normalizeImageForCompression(file);
+    const isAnimatedGifOutput =
+      outputType.mime === 'image/gif' && isGifFile(file);
 
-    // Step 2: compress into an intermediate raster format
-    // Use PNG as intermediate for GIF/ICO because canvas cannot really encode GIF/ICO.
-    const needsSpecialOutput =
-      outputType.mime === 'image/gif' ||
-      outputType.mime === 'image/x-icon' ||
-      outputType.mime === 'image/vnd.microsoft.icon' ||
-      outputType.mime === 'image/avif';
+    let finalBlob;
 
-    const canvasOutputMime = needsSpecialOutput
-      ? 'image/png'
-      : outputType.mime;
+    if (isAnimatedGifOutput) {
+      const animatedResult = await compressAnimatedGif({
+        file,
+        ratio,
+        resizeEnabled,
+        maxWidth,
+        maxHeight,
+        maintainAspectRatio,
+        selectedFrames,
+      });
 
-    const compressedRasterBlob = await compressRasterWithCanvas(
-      normalizedBlob,
-      canvasOutputMime,
-      ratio
-    );
+      finalBlob = animatedResult.blob;
+    } else {
+      // Normalize awkward image types into something canvas can load. A GIF
+      // only becomes a still image when the requested output is not GIF.
+      const normalizedBlob = await normalizeImageForCompression(
+        file,
+        selectedFrames
+      );
 
-    // Step 3: convert compressed raster into final requested output if needed
-    let finalBlob = compressedRasterBlob;
+      // Use PNG as an intermediate for formats canvas cannot encode.
+      const needsSpecialOutput =
+        outputType.mime === 'image/gif' ||
+        outputType.mime === 'image/x-icon' ||
+        outputType.mime === 'image/vnd.microsoft.icon' ||
+        outputType.mime === 'image/avif';
 
-    if (outputType.mime === 'image/gif') {
-      finalBlob = await rasterToGif(compressedRasterBlob);
-    }
+      const canvasOutputMime = needsSpecialOutput
+        ? 'image/png'
+        : outputType.mime;
 
-    if (
-      outputType.mime === 'image/x-icon' ||
-      outputType.mime === 'image/vnd.microsoft.icon'
-    ) {
-      finalBlob = await pngToIco(compressedRasterBlob);
-    }
+      const compressedRasterBlob = await compressRasterWithCanvas(
+        normalizedBlob,
+        canvasOutputMime,
+        ratio,
+        {
+          resizeEnabled,
+          maxWidth,
+          maxHeight,
+          maintainAspectRatio,
+        }
+      );
 
-    if (outputType.mime === 'image/avif') {
-      finalBlob = await rasterToAvif(compressedRasterBlob, ratio);
+      finalBlob = compressedRasterBlob;
+
+      if (outputType.mime === 'image/gif') {
+        finalBlob = await rasterToGif(compressedRasterBlob);
+      }
+
+      if (
+        outputType.mime === 'image/x-icon' ||
+        outputType.mime === 'image/vnd.microsoft.icon'
+      ) {
+        finalBlob = await pngToIco(compressedRasterBlob);
+      }
+
+      if (outputType.mime === 'image/avif') {
+        finalBlob = await rasterToAvif(compressedRasterBlob, ratio);
+      }
     }
 
     const actualCompressedBytes = finalBlob.size;
 
     if (actualCompressedBytes >= file.size) {
-      if (inputFormat === outputFormat) {
+      if (inputFormat === outputFormat && !isAnimatedGifOutput) {
         throw new Error('This image file is already highly compressed');
       } else {
         setWarning('File size may have increased due to format type');

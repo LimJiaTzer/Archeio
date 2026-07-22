@@ -2,6 +2,8 @@
 // OCR / Conversion / Compression should link here if it is an IMAGE/VIDEO 
 // Can add a 4th option for this page but for now, leave it as it is 
 
+
+// PROBABLY WONT BE NEEDING THIS ANYMORE 
 import { getFileInfo } from '../lib/fileTypes'; // file types
 import React from 'react';
 import Layout from '../components/Layout';

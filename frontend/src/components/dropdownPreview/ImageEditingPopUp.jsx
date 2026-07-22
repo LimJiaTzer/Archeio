@@ -1,6 +1,11 @@
 import { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { applyImageQuickAction, applyImageFilter } from '../../services/imageEditingServices/imageEditService';
+import {
+  applyImageQuickAction,
+  applyImageFilter,
+  renderImageWithOverlays,
+} from '../../services/imageEditingServices/imageEditService';
+import { isGifFile } from '../../services/imageConversionServices/extractFrames';
 import { AnimatePresence, motion } from 'framer-motion';
 import ReactCrop from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
@@ -646,6 +651,10 @@ const getFilterCss = (filterId) => {
     const sourceUrl = resetToOriginalPending
       ? originalPreviewUrl || item.previewUrl || previewUrl
       : editedPreviewUrl || basePreviewUrl || previewUrl;
+    const sourceFile =
+      editedFile ||
+      (resetToOriginalPending ? originalFile : baseFile) ||
+      item.file;
 
     const cropPercent =
       appliedCropPercent ||
@@ -671,6 +680,37 @@ const getFilterCss = (filterId) => {
       }
 
       try {
+        if (isGifFile(sourceFile)) {
+          const animatedCrop = await renderImageWithOverlays({
+            file: sourceFile,
+            cropPercent,
+            outputType: 'image/gif',
+          });
+
+          generatedUrl = animatedCrop.previewUrl;
+
+          if (cancelled) {
+            URL.revokeObjectURL(generatedUrl);
+            return;
+          }
+
+          setNaturalImageSize({
+            width: animatedCrop.width,
+            height: animatedCrop.height,
+          });
+          setCroppedDisplayPreviewUrl((previousUrl) => {
+            if (
+              previousUrl &&
+              previousUrl !== handedOffPreviewUrlRef.current
+            ) {
+              URL.revokeObjectURL(previousUrl);
+            }
+
+            return generatedUrl;
+          });
+          return;
+        }
+
         const image = await loadImageFromUrl(sourceUrl);
 
         if (cancelled) return;
@@ -740,6 +780,9 @@ const getFilterCss = (filterId) => {
   }, [
     isOpen,
     resetToOriginalPending,
+    editedFile,
+    baseFile,
+    originalFile,
     editedPreviewUrl,
     basePreviewUrl,
     previewUrl,
@@ -2017,7 +2060,7 @@ const getFilterCss = (filterId) => {
                                         </button>
                                       </>
                                     ) : (
-                                      <span className="block cursor-move whitespace-pre">
+                                      <span className="block cursor-move whitespace-pre text-center">
                                         {layer.text}
                                       </span>
                                     )}
