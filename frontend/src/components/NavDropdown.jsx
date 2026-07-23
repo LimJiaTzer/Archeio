@@ -31,7 +31,7 @@ export default function NavDropdown({ item }) {
                   <h3 className="text-sm font-bold text-stone-900 px-4">
                     {cat.title}
                   </h3>
-                  <div className="flex flex-col space-y-1">
+                  {/* <div className="flex flex-col space-y-1">
                     {cat.options.map((opt, j) => (
                       <a
                         key={j}
@@ -40,6 +40,30 @@ export default function NavDropdown({ item }) {
                       >
                         {opt.label}
                       </a>
+                    ))}
+                  </div> */}
+                  <div className="flex flex-col gap-2">
+                    {cat.options.map((opt, j) => (
+                      <div key={j}>
+                        {/* TOOL */}
+                        <a
+                          href={opt.href}
+                          className="px-4 py-1 pb-0 hover:bg-white/85 rounded-2xl text-stone-700 hover:text-stone-900 transition-all text-sm font-medium block"
+                        >
+                          {opt.label}
+                        </a>
+
+                        {/* Features of tool */}
+                        {opt.features && opt.features.length > 0 && (
+                          <ul className="mt-1 ml-6 space-y-1 text-xs text-stone-500">
+                            {opt.features.map((feature, featureIndex) => (
+                              <li key={featureIndex} className="flex items-start gap-1">
+                                <span>{feature}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
                     ))}
                   </div>
                 </div>
