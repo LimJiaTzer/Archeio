@@ -104,6 +104,8 @@ export default function Header() {
 
   return (
     <header className="fixed left-0 top-0 z-50 w-full px-4 pt-4 sm:px-6 sm:pt-6">
+      <div className="header-top-blur" aria-hidden="true" />
+
       <div className="header-glass relative z-[2] mx-auto flex w-full max-w-6xl items-center justify-between rounded-2xl px-4 py-2 sm:px-5">
         <Link
           to="/"

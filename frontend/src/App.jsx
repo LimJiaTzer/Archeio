@@ -138,6 +138,40 @@ function ToolCard({ tool, featured = false }) {
   );
 }
 
+function handleWorkflowTilt(event) {
+  if (
+    event.pointerType !== 'mouse'
+    || window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  ) return;
+
+  const card = event.currentTarget;
+  const bounds = card.getBoundingClientRect();
+  const pointerX = Math.min(Math.max((event.clientX - bounds.left) / bounds.width, 0), 1);
+  const pointerY = Math.min(Math.max((event.clientY - bounds.top) / bounds.height, 0), 1);
+  const rotateX = (0.5 - pointerY) * 6;
+  const rotateY = (pointerX - 0.5) * 8;
+  const shadowX = (0.5 - pointerX) * 18;
+  const shadowY = 42 + (0.5 - pointerY) * 12;
+
+  card.style.setProperty('--card-rotate-x', `${rotateX.toFixed(2)}deg`);
+  card.style.setProperty('--card-rotate-y', `${rotateY.toFixed(2)}deg`);
+  card.style.setProperty('--card-shadow-x', `${shadowX.toFixed(1)}px`);
+  card.style.setProperty('--card-shadow-y', `${shadowY.toFixed(1)}px`);
+  card.style.setProperty('--card-light-x', `${(pointerX * 100).toFixed(1)}%`);
+  card.style.setProperty('--card-light-y', `${(pointerY * 100).toFixed(1)}%`);
+}
+
+function resetWorkflowTilt(event) {
+  const card = event.currentTarget;
+
+  card.style.removeProperty('--card-rotate-x');
+  card.style.removeProperty('--card-rotate-y');
+  card.style.removeProperty('--card-shadow-x');
+  card.style.removeProperty('--card-shadow-y');
+  card.style.removeProperty('--card-light-x');
+  card.style.removeProperty('--card-light-y');
+}
+
 function Home() {
   return (
     <div className="home-shell min-h-screen text-stone-800 font-sans selection:bg-orange-200 selection:text-stone-950 relative overflow-hidden">
@@ -146,8 +180,8 @@ function Home() {
       <Header />
 
       <main className="relative z-10">
-        <section className="mx-auto grid min-h-[780px] w-full max-w-7xl items-center gap-14 px-6 pb-20 pt-36 lg:grid-cols-[1.02fr_0.98fr] lg:px-10 lg:pt-32">
-          <div className="hero-copy">
+        <section className="mx-auto grid min-h-[780px] w-full max-w-7xl items-center gap-14 px-6 pb-20 pt-36 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)] lg:gap-10 lg:px-10 lg:pt-32 xl:gap-14">
+          <div className="hero-copy min-w-0">
             <div className="eyebrow">
               <Sparkles className="h-4 w-4" />
               One calm workspace for every file
@@ -160,7 +194,7 @@ function Home() {
 
             <p className="hero-description">
               Extract text, change formats, shrink heavy files, organize PDFs,
-              and create QR codes—without stitching together five different tools.
+              and create QR codes—all in one site, without ads.
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -180,45 +214,52 @@ function Home() {
             </div>
           </div>
 
-          <div className="workflow-window">
-            <div className="workflow-window-header">
-              <div>
-                <span className="workflow-kicker">YOUR FILE WORKSPACE</span>
-                <h2>What do you want to do?</h2>
+          <div className="workflow-window-stage">
+            <div
+              className="workflow-window"
+              onPointerMove={handleWorkflowTilt}
+              onPointerLeave={resetWorkflowTilt}
+              onPointerCancel={resetWorkflowTilt}
+            >
+              <div className="workflow-window-header">
+                <div>
+                  <span className="workflow-kicker">YOUR FILE WORKSPACE</span>
+                  <h2>What do you want to do?</h2>
+                </div>
+                <div className="window-status">
+                  <span />
+                  Ready
+                </div>
               </div>
-              <div className="window-status">
-                <span />
-                Ready
+
+              <div className="workflow-list">
+                {primaryActions.map((action, index) => {
+                  const Icon = action.icon;
+
+                  return (
+                    <Link to={action.link} className="workflow-action group" key={action.label}>
+                      <span className="workflow-number">0{index + 1}</span>
+                      <span className="workflow-action-icon">
+                        <Icon className="h-5 w-5" strokeWidth={1.8} />
+                      </span>
+                      <span className="workflow-action-copy">
+                        <strong>{action.title}</strong>
+                        <small>{action.description}</small>
+                      </span>
+                      <ArrowRight className="workflow-arrow h-5 w-5" />
+                    </Link>
+                  );
+                })}
               </div>
-            </div>
 
-            <div className="workflow-list">
-              {primaryActions.map((action, index) => {
-                const Icon = action.icon;
-
-                return (
-                  <Link to={action.link} className="workflow-action group" key={action.label}>
-                    <span className="workflow-number">0{index + 1}</span>
-                    <span className="workflow-action-icon">
-                      <Icon className="h-5 w-5" strokeWidth={1.8} />
-                    </span>
-                    <span className="workflow-action-copy">
-                      <strong>{action.title}</strong>
-                      <small>{action.description}</small>
-                    </span>
-                    <ArrowRight className="workflow-arrow h-5 w-5" />
-                  </Link>
-                );
-              })}
-            </div>
-
-            <div className="workflow-footer">
-              <div className="file-stack" aria-hidden="true">
-                <span>PDF</span>
-                <span>JPG</span>
-                <span>MP4</span>
+              <div className="workflow-footer">
+                <div className="file-stack" aria-hidden="true">
+                  <span>PDF</span>
+                  <span>JPG</span>
+                  <span>MP4</span>
+                </div>
+                <p><strong>30+ formats</strong> across documents, images, audio, and video.</p>
               </div>
-              <p><strong>30+ formats</strong> across documents, images, audio, and video.</p>
             </div>
           </div>
         </section>
@@ -231,7 +272,7 @@ function Home() {
                 <h2>From “I have this” to<br />“I need that.”</h2>
               </div>
               <p>
-                Pick the result you need. Archeío handles the formats,
+                Pick the output you need. Archeío handles the formats,
                 previews, and exports in one consistent flow.
               </p>
             </div>

@@ -29,6 +29,24 @@ a {
   background: #faf8f5;
 }
 
+.header-top-blur {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 0;
+  height: 5.25rem;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgb(250 248 245 / 78%) 0%,
+    rgb(250 248 245 / 36%) 52%,
+    transparent 100%
+  );
+  -webkit-backdrop-filter: blur(16px) saturate(125%);
+  backdrop-filter: blur(16px) saturate(125%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 48%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 48%, transparent 100%);
+}
+
 .header-glass {
   background: rgb(255 255 255 / 66%);
   border: 1px solid rgb(255 255 255 / 74%);
@@ -284,7 +302,10 @@ a {
   background:
     radial-gradient(circle at 50% 45%, rgb(255 255 255 / 82%), transparent 54%),
     linear-gradient(145deg, #faf8f5 0%, #fff9f1 44%, #f9f5f3 100%);
+  background-position: 48% 44%, 34% 42%;
+  background-size: 135% 135%, 165% 165%;
   pointer-events: none;
+  animation: gradient-canvas-drift 28s ease-in-out infinite alternate;
 }
 
 .gradient-orb {
@@ -303,7 +324,7 @@ a {
   min-width: 480px;
   min-height: 480px;
   background: rgb(251 191 36 / 42%);
-  animation: gradient-drift-one 18s ease-in-out infinite alternate;
+  animation: gradient-drift-one 22s ease-in-out -6s infinite alternate;
 }
 
 .gradient-orb-peach {
@@ -314,7 +335,7 @@ a {
   min-width: 500px;
   min-height: 500px;
   background: rgb(251 146 60 / 38%);
-  animation: gradient-drift-two 22s ease-in-out infinite alternate;
+  animation: gradient-drift-two 27s ease-in-out -14s infinite alternate;
 }
 
 .gradient-orb-lilac {
@@ -325,7 +346,7 @@ a {
   min-width: 460px;
   min-height: 460px;
   background: rgb(196 181 253 / 30%);
-  animation: gradient-drift-three 20s ease-in-out infinite alternate;
+  animation: gradient-drift-three 25s ease-in-out -9s infinite alternate;
 }
 
 .gradient-orb-gold {
@@ -336,7 +357,7 @@ a {
   min-width: 360px;
   min-height: 360px;
   background: rgb(253 230 138 / 35%);
-  animation: gradient-drift-four 16s ease-in-out infinite alternate;
+  animation: gradient-drift-four 20s ease-in-out -4s infinite alternate;
 }
 
 .gradient-soft-light {
@@ -345,27 +366,32 @@ a {
   background:
     linear-gradient(115deg, transparent 22%, rgb(255 255 255 / 35%) 45%, transparent 66%);
   background-size: 200% 100%;
-  animation: gradient-sheen 16s ease-in-out infinite;
+  animation: gradient-sheen 22s ease-in-out infinite;
+}
+
+@keyframes gradient-canvas-drift {
+  from { background-position: 46% 42%, 34% 40%; }
+  to { background-position: 54% 50%, 62% 58%; }
 }
 
 @keyframes gradient-drift-one {
-  from { transform: translate3d(-6%, -4%, 0) scale(1); }
-  to { transform: translate3d(23%, 18%, 0) scale(1.16); }
+  from { transform: translate3d(-4%, -3%, 0) scale(1); }
+  to { transform: translate3d(9%, 7%, 0) scale(1.06); }
 }
 
 @keyframes gradient-drift-two {
-  from { transform: translate3d(8%, -8%, 0) scale(1.08); }
-  to { transform: translate3d(-28%, 22%, 0) scale(0.92); }
+  from { transform: translate3d(5%, -4%, 0) scale(1.04); }
+  to { transform: translate3d(-10%, 8%, 0) scale(0.97); }
 }
 
 @keyframes gradient-drift-three {
-  from { transform: translate3d(-10%, 8%, 0) scale(0.96); }
-  to { transform: translate3d(32%, -24%, 0) scale(1.15); }
+  from { transform: translate3d(-5%, 6%, 0) scale(0.98); }
+  to { transform: translate3d(11%, -8%, 0) scale(1.06); }
 }
 
 @keyframes gradient-drift-four {
-  from { transform: translate3d(-18%, 20%, 0) scale(0.9); }
-  to { transform: translate3d(20%, -20%, 0) scale(1.18); }
+  from { transform: translate3d(-7%, 8%, 0) scale(0.95); }
+  to { transform: translate3d(8%, -8%, 0) scale(1.07); }
 }
 
 @keyframes gradient-sheen {
@@ -402,12 +428,12 @@ a {
 
 .hero-copy h1 {
   margin-top: 1.5rem;
-  max-width: 720px;
+  max-width: 100%;
   color: #292524;
-  font-size: clamp(3.6rem, 6.2vw, 5.2rem);
+  font-size: clamp(3.5rem, 5.7vw, 5rem);
   font-weight: 780;
-  letter-spacing: -0.065em;
-  line-height: 0.91;
+  letter-spacing: -0.058em;
+  line-height: 0.94;
 }
 
 .hero-copy h1 span {
@@ -420,13 +446,25 @@ a {
 
 .hero-title-accent {
   background: linear-gradient(110deg, #c65f19 5%, #ed9b2d 52%, #b9654b 96%);
+  -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  -webkit-text-fill-color: transparent;
+  line-height: 1;
+  margin-bottom: -0.14em;
+  overflow: visible;
+  padding-bottom: 0.14em;
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 1280px) {
   .hero-title-primary {
     white-space: nowrap;
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .hero-copy h1 {
+    font-size: clamp(3.25rem, 5vw, 4rem);
   }
 }
 
@@ -493,7 +531,23 @@ a {
   gap: 0.35rem;
 }
 
+.workflow-window-stage {
+  width: 100%;
+  max-width: 610px;
+  margin-inline: auto;
+  perspective: 1200px;
+  perspective-origin: 50% 45%;
+}
+
 .workflow-window {
+  --card-depth: 0px;
+  --card-lift: 0px;
+  --card-light-x: 50%;
+  --card-light-y: 35%;
+  --card-rotate-x: 0deg;
+  --card-rotate-y: 0deg;
+  --card-shadow-x: 0px;
+  --card-shadow-y: 40px;
   position: relative;
   width: 100%;
   max-width: 610px;
@@ -503,17 +557,72 @@ a {
   border-radius: 2rem;
   background: rgb(255 255 255 / 58%);
   box-shadow:
-    0 40px 100px rgb(91 52 22 / 16%),
+    var(--card-shadow-x) var(--card-shadow-y) 105px rgb(91 52 22 / 18%),
     inset 0 1px 0 rgb(255 255 255 / 88%);
   backdrop-filter: blur(28px) saturate(135%);
+  transform:
+    translate3d(0, var(--card-lift), var(--card-depth))
+    rotateX(var(--card-rotate-x))
+    rotateY(var(--card-rotate-y));
+  transform-style: preserve-3d;
+  transition:
+    transform 180ms cubic-bezier(0.2, 0.72, 0.2, 1),
+    box-shadow 220ms ease;
+  will-change: transform;
 }
 
 .workflow-window::before {
   position: absolute;
   inset: 0 0 auto 0;
+  z-index: 3;
   height: 5px;
   background: linear-gradient(90deg, #e88a27, #f4c16d 52%, #ca775d);
   content: "";
+}
+
+.workflow-window::after {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    radial-gradient(
+      circle at var(--card-light-x) var(--card-light-y),
+      rgb(255 255 255 / 48%) 0%,
+      rgb(255 255 255 / 16%) 24%,
+      transparent 52%
+    );
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 240ms ease;
+}
+
+.workflow-window-header,
+.workflow-list,
+.workflow-footer {
+  position: relative;
+  z-index: 2;
+  transform-style: preserve-3d;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .workflow-window:hover {
+    --card-depth: 24px;
+    --card-lift: -7px;
+  }
+
+  .workflow-window:hover::after {
+    opacity: 1;
+  }
+
+  .workflow-window-header,
+  .workflow-footer {
+    transform: translateZ(16px);
+  }
+
+  .workflow-list {
+    transform: translateZ(26px);
+  }
 }
 
 .workflow-window-header {
@@ -1063,8 +1172,24 @@ a {
   }
 
   .gradient-orb,
-  .gradient-soft-light {
+  .gradient-soft-light,
+  .animated-gradient-background {
     animation: none;
+  }
+
+  .workflow-window {
+    transform: none;
+    transition: none;
+  }
+
+  .workflow-window::after {
+    display: none;
+  }
+
+  .workflow-window-header,
+  .workflow-list,
+  .workflow-footer {
+    transform: none;
   }
 }
 
