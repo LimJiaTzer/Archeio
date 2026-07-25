@@ -2,9 +2,6 @@ export const backendToPdf = async (file) => {
   const formData = new FormData();
   formData.append('file', file);
 
-  // Using the Express backend port 3001
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-  
   try {
     const response = await fetch(`${API_URL}/convert-to-pdf`, {
       method: 'POST',
@@ -25,3 +22,4 @@ export const backendToPdf = async (file) => {
     throw error;
   }
 };
+import { API_URL } from '../../config/api';

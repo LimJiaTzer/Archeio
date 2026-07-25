@@ -442,8 +442,6 @@ export const compressDocument = async ({
       'epub',
     ];
 
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-
     const baseName =
       file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
 
@@ -817,3 +815,4 @@ export const compressVideo = async ({
     setCompressing(false);
   }
 };
+import { API_URL } from '../config/api';
