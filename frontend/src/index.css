@@ -27,6 +27,31 @@ body {
   object-fit: contain !important;
 }
 
+/*
+ * The standalone editor uses a shorter responsive canvas than the popup.
+ * Keep ReactCrop and its image at the same contained size so flexbox cannot
+ * squash the crop overlay independently from the image.
+ */
+.archeio-crop--page {
+  display: block !important;
+  flex: none !important;
+  max-width: none !important;
+  max-height: none !important;
+}
+
+.archeio-crop--page .ReactCrop__child-wrapper {
+  width: 100% !important;
+  height: 100% !important;
+  max-height: none !important;
+}
+
+.archeio-crop--page img {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+}
+
 .archeio-crop .ReactCrop__crop-selection {
   border: 2px solid white !important;
   background-image: none !important;

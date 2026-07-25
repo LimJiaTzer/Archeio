@@ -205,7 +205,7 @@ export const navMenus = [
       options: [
         {
           label: 'Image Editor',
-          href: '#',
+          href: '/image-editor',
           features: [
             'Crop and resize',
             'Rotate and flip',

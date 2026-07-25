@@ -12,6 +12,7 @@ import Features from './pages/Features';
 import Convert from './pages/Convert';
 import Ocr from './pages/Ocr';
 import Compress from './pages/Compress';
+import ImageEditor from './pages/ImageEditor';
 import ZipCompression from './pages/ZipCompression';
 import Manipulation from './pages/Manipulation';
 import PDFEditor from './pages/PDFEditor';
@@ -131,6 +132,7 @@ function App() {
         <Route path="/convert" element={<Convert />} />
         <Route path="/ocr" element={<Ocr />} />
         <Route path="/compress" element={<Compress />} />
+        <Route path="/image-editor" element={<ImageEditor />} />
         <Route path="/manipulation" element={<Manipulation />} />
         <Route path="/zip-compression" element={<ZipCompression />} />
         <Route path='/pdfEditor' element={<PDFEditor />} />
