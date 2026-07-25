@@ -18,20 +18,17 @@ import Layout from '../components/Layout';
 import FilePreview from '../components/FilePreview';
 import { EditableFileName } from '../components/EditableFileName';
 import { API_URL } from '../config/api';
+import {
+  MAX_OCR_ZOOM,
+  MIN_OCR_ZOOM,
+  clampOcrZoom,
+  isSupportedOcrSource,
+  ocrDocumentName,
+  ocrSourceKey,
+} from '../lib/ocrUtils';
 
 const ZOOM_PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
-const MIN_ZOOM = 0.25;
-const MAX_ZOOM = 3;
 const ZOOM_STEP = 0.1;
-const SUPPORTED_IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.tif', '.tiff'];
-
-const isPdfFile = (file) => file?.type === 'application/pdf' || file?.name.toLowerCase().endsWith('.pdf');
-const isSupportedSource = (file) => {
-  const name = file?.name.toLowerCase() || '';
-  return isPdfFile(file) || SUPPORTED_IMAGE_EXTENSIONS.some((extension) => name.endsWith(extension));
-};
-const clampZoom = (value) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
-const documentNameFor = (file) => `${file.name.replace(/\.[^/.]+$/, '')}.docx`;
 
 const downloadFile = (file, fileName = file.name) => {
   const url = URL.createObjectURL(file);
@@ -92,7 +89,7 @@ export default function Ocr() {
     const handleWheel = (event) => {
       if (!event.ctrlKey) return;
       event.preventDefault();
-      setZoom(clampZoom(liveScaleRef.current - event.deltaY * 0.01));
+      setZoom(clampOcrZoom(liveScaleRef.current - event.deltaY * 0.01));
     };
 
     const handleTouchStart = (event) => {
@@ -107,7 +104,7 @@ export default function Ocr() {
       if (event.touches.length !== 2 || !pinchStateRef.current) return;
       event.preventDefault();
       const { startDistance, startScale } = pinchStateRef.current;
-      setZoom(clampZoom(startScale * (touchDistance(event.touches) / startDistance)));
+      setZoom(clampOcrZoom(startScale * (touchDistance(event.touches) / startDistance)));
     };
 
     const clearPinch = (event) => {
@@ -163,13 +160,13 @@ export default function Ocr() {
   }, [documentFile]);
 
   const addSourceFiles = useCallback((files) => {
-    const supported = Array.from(files || []).filter(isSupportedSource);
+    const supported = Array.from(files || []).filter(isSupportedOcrSource);
     if (!supported.length) return;
 
     setSourceItems((items) => {
-      const existingKeys = new Set(items.map((item) => `${item.file.name}:${item.file.size}:${item.file.lastModified}`));
+      const existingKeys = new Set(items.map((item) => ocrSourceKey(item.file)));
       const newItems = supported
-        .filter((file) => !existingKeys.has(`${file.name}:${file.size}:${file.lastModified}`))
+        .filter((file) => !existingKeys.has(ocrSourceKey(file)))
         .map((file) => ({
           id: crypto.randomUUID(),
           file,
@@ -188,7 +185,7 @@ export default function Ocr() {
       const target = event.target;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
 
-      const images = Array.from(event.clipboardData?.files || []).filter(isSupportedSource);
+      const images = Array.from(event.clipboardData?.files || []).filter(isSupportedOcrSource);
       if (!images.length) return;
       event.preventDefault();
       addSourceFiles(images);
@@ -244,7 +241,7 @@ export default function Ocr() {
         }
 
         const blob = await response.blob();
-        const file = new File([blob], documentNameFor(item.file), {
+        const file = new File([blob], ocrDocumentName(item.file), {
           type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         });
         updateItem(item.id, {
@@ -293,11 +290,11 @@ export default function Ocr() {
   const zoomPercent = Math.round(effectiveScale * 100);
   const presetPercents = ZOOM_PRESETS.map((preset) => Math.round(preset * 100));
 
-  const zoomOut = () => setZoom(clampZoom(effectiveScale - ZOOM_STEP));
-  const zoomIn = () => setZoom(clampZoom(effectiveScale + ZOOM_STEP));
+  const zoomOut = () => setZoom(clampOcrZoom(effectiveScale - ZOOM_STEP));
+  const zoomIn = () => setZoom(clampOcrZoom(effectiveScale + ZOOM_STEP));
   const handleZoomSelect = (event) => {
     const { value } = event.target;
-    setZoom(value === 'fit' ? 'fit' : clampZoom(Number(value) / 100));
+    setZoom(value === 'fit' ? 'fit' : clampOcrZoom(Number(value) / 100));
   };
 
   return (
@@ -478,7 +475,7 @@ export default function Ocr() {
                   <button
                     type="button"
                     onClick={zoomOut}
-                    disabled={effectiveScale <= MIN_ZOOM || isRendering}
+                    disabled={effectiveScale <= MIN_OCR_ZOOM || isRendering}
                     className="w-8 h-8 inline-flex items-center justify-center rounded-md hover:bg-stone-100 disabled:text-stone-300"
                     aria-label="Zoom out"
                     title="Zoom out"
@@ -500,7 +497,7 @@ export default function Ocr() {
                   <button
                     type="button"
                     onClick={zoomIn}
-                    disabled={effectiveScale >= MAX_ZOOM || isRendering}
+                    disabled={effectiveScale >= MAX_OCR_ZOOM || isRendering}
                     className="w-8 h-8 inline-flex items-center justify-center rounded-md hover:bg-stone-100 disabled:text-stone-300"
                     aria-label="Zoom in"
                     title="Zoom in"

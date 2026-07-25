@@ -12,13 +12,6 @@ import { anyToHeic } from './imageConversionServices/anyToHeic';
 import { rasterToAvif } from './compressionHelpers/rasterToAvif'; // Import AVIF helper
 
 // Document conversion services
-import { htmlToPdf } from './documentConversionServices/htmlToPdf';
-import { txtToPdf } from './documentConversionServices/txtToPdf';
-import { docxToPdf } from './documentConversionServices/docxToPdf';
-import { xlsxToPdf } from './documentConversionServices/xlsxToPdf';
-import { rtfToPdf } from './documentConversionServices/rtfToPdf';
-import { epubToPdf } from './documentConversionServices/epubToPdf';
-import { pptxToPdf } from './documentConversionServices/pptxToPdf';
 import { backendToPdf } from './documentConversionServices/backendToPdf';
 import { csvToXlsx } from './documentConversionServices/csvToXlsx';
 import { xlsxToCsv } from './documentConversionServices/xlsxToCsv';
@@ -319,20 +312,7 @@ export const convertDocument = async (file, format) => {
     return convertImage(file, format);
   }
 
-  // Fallback: return original file data URL with new extension
-  const ext = info?.ext || (format || '').toLowerCase();
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
-      const dataUrl = e.target?.result || '';
-      const head = dataUrl.indexOf(',');
-      const size = head !== -1 ? Math.round((dataUrl.length - head - 1) * 3 / 4) : file.size;
-      resolve({ downloadUrl: dataUrl, convertedFileName: `${baseName}_converted.${ext}`, size });
-    };
-    reader.onerror = () => reject(new Error('Error reading file.'));
-    reader.readAsDataURL(file);
-  });
+  throw new Error(`Conversion from ${fromType || 'unknown'} to ${toType} is not supported.`);
 };
 
 export const convertMedia = async (file, format, ffmpegRef) => {

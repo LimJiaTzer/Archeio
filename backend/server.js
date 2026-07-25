@@ -14,7 +14,7 @@ import sharp from 'sharp';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const app = express();
+export const app = express();
 // Keep the proxy and FastAPI OCR upload limits identical by default. The
 // legacy MAX_UPLOAD_BYTES name remains an override for existing deployments.
 const configuredUploadBytes = Number(
@@ -482,7 +482,7 @@ const isArcheioOcrService = (port) => new Promise((resolve) => {
   request.on('error', () => resolve(false));
 });
 
-const encodedAttachment = (fileName) => {
+export const encodedAttachment = (fileName) => {
   const cleanName = path.basename(fileName).replace(/[\r\n]/g, '_');
   const asciiName = cleanName
     .normalize('NFKD')
@@ -595,7 +595,8 @@ app.use((error, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, async () => {
+
+export const startServer = () => app.listen(PORT, async () => {
   console.log(`Backend running on http://localhost:${PORT}`);
   
   const pythonPath = resolvePythonPath();
@@ -647,3 +648,7 @@ app.listen(PORT, async () => {
     process.exit();
   });
 });
+
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+  startServer();
+}

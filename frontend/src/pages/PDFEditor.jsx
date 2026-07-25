@@ -134,7 +134,7 @@ export default function PdfEditor() {
   const handleFileAdd = async (e) => {
     const files = Array.from(e.target.files).filter(f => f.type === 'application/pdf');
     if (files.length === 0) return;
-    e.target.value = null;
+    e.target.value = '';
 
     for (const file of files) {
       try {

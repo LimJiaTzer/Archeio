@@ -17,6 +17,12 @@ dist/
 frontend/dist/
 dist-ssr/
 *.local
+coverage/
+frontend/coverage/
+playwright-report/
+frontend/playwright-report/
+test-results/
+frontend/test-results/
 
 # Environment variables & secrets
 .env
