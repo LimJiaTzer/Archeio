@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import { useCallback, useState, useRef, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   ArrowLeft, 
@@ -32,45 +32,11 @@ export default function Convert() {
   // Persist FFmpeg instance
   const ffmpegRef = useRef(new FFmpeg());
 
-    // Handle global paste event (Ctrl+V or Cmd+V)
-  useEffect(() => {
-    const handlePaste = (e) => {
-      // Prevent pasting inside text fields or textareas if you have them elsewhere
-      const target = e.target;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
-        return;
-      }
-
-      if (e.clipboardData && e.clipboardData.files && e.clipboardData.files.length > 0) {
-        e.preventDefault();
-        processFiles(e.clipboardData.files);
-      }
-    };
-
-    window.addEventListener('paste', handlePaste);
-    return () => {
-      window.removeEventListener('paste', handlePaste);
-    };
-  }, []); // Empty dependency array keeps it active for the component's lifetime
-
-  useEffect(() => {
-    itemsRef.current = items;
-  }, [items]);
-
-  // Cleanup object URLs on unmount
-  useEffect(() => {
-    return () => {
-      itemsRef.current.forEach(item => {
-        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
-      });
-    };
-  }, []);
-
   const handleDragOver = (e) => {
     e.preventDefault();
   };
 
-  const createItem = (file) => {
+  const createItem = useCallback((file) => {
     const info = getFileInfo(file.type);
     let availableFormats = [];
     let targetFormat = '';
@@ -98,12 +64,45 @@ export default function Convert() {
       showSelector: false,
       extracting: false
     };
-  };
+  }, []);
 
-  const processFiles = (files) => {
+  const processFiles = useCallback((files) => {
     const newItems = Array.from(files).map(createItem);
     setItems(prev => [...prev, ...newItems]);
-  };
+  }, [createItem]);
+
+  // Handle global paste events outside editable fields.
+  useEffect(() => {
+    const handlePaste = (e) => {
+      const target = e.target;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+
+      if (e.clipboardData && e.clipboardData.files && e.clipboardData.files.length > 0) {
+        e.preventDefault();
+        processFiles(e.clipboardData.files);
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => {
+      window.removeEventListener('paste', handlePaste);
+    };
+  }, [processFiles]);
+
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
+  // Cleanup object URLs on unmount
+  useEffect(() => {
+    return () => {
+      itemsRef.current.forEach(item => {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      });
+    };
+  }, []);
 
   const handleDrop = (e) => {
     e.preventDefault();
@@ -115,7 +114,7 @@ export default function Convert() {
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files.length > 0) {
       processFiles(e.target.files);
-      e.target.value = null;
+      e.target.value = '';
     }
   };
 
@@ -260,7 +259,7 @@ export default function Convert() {
       const downloadUrl = URL.createObjectURL(content);
       const link = document.createElement('a');
       link.href = downloadUrl;
-      link.download = `archeio_converted_${Date.now()}.zip`;
+      link.download = 'archeio_converted_files.zip';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -296,9 +295,9 @@ export default function Convert() {
     return union;
   }, [items]);
 
-  const completedItems = useMemo(() => {
-    return items.filter(item => item.status === 'completed' && item.result && item.result.downloadUrl);
-  }, [items]);
+  const completedItems = items.filter(
+    item => item.status === 'completed' && item.result && item.result.downloadUrl
+  );
 
   const hasCompleted = completedItems.length > 0;
   const singleResult = completedItems.length === 1;

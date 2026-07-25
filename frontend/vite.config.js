@@ -12,6 +12,30 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/setupTests.js',
+    exclude: ['tests/**/*.e2e.spec.js', 'node_modules/**', 'dist/**'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html', 'lcov'],
+      reportsDirectory: './coverage',
+      include: [
+        'src/pages/Convert.jsx',
+        'src/pages/PDFEditor.jsx',
+        'src/pages/QRCodeCreator.jsx',
+        'src/pages/Ocr.jsx',
+        'src/lib/ocrUtils.js',
+        'src/lib/fileTypes.js',
+        'src/lib/qrCodePayload.js',
+        'src/services/conversionService.js',
+        'src/services/pdfEditorService.js',
+      ],
+      exclude: ['tests/**'],
+      thresholds: {
+        statements: 40,
+        branches: 38,
+        functions: 25,
+        lines: 42,
+      },
+    },
   },
   server: {
     headers: {

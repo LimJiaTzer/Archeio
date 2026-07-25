@@ -3,12 +3,13 @@ import Layout from '../components/Layout';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft, Upload, Trash2, Download, AlertTriangle, ShieldCheck, X,
-  Link as LinkIcon, Type, Wifi, Phone, Mail, Loader2
+  Link as LinkIcon, Type, Wifi, Phone, Mail
 } from 'lucide-react';
 import QRCodeStyling from 'qr-code-styling';
 import jsQR from 'jsqr';
 import { toPng, toJpeg, toSvg } from 'html-to-image';
 import { convertImage } from '../services/conversionService';
+import { buildQrPayload } from '../lib/qrCodePayload';
 
 const downloadBlob = (blob, fileName) => {
     const objectUrl = URL.createObjectURL(blob);
@@ -180,27 +181,7 @@ export default function QRCodeCreator() {
     useEffect(() => {
         if (!qrCodeInstanceRef.current) return;
 
-        let qrData = "https://example.com";
-
-        switch (contentType) {
-            case 'link':
-                qrData = contentData.url || "https://example.com";
-                break;
-            case 'text':
-                qrData = contentData.text || "Hello World";
-                break;
-            case 'wifi':
-                qrData = `WIFI:T:${contentData.wifiEncryption};S:${contentData.wifiSsid};P:${contentData.wifiPassword};;`;
-                break;
-            case 'phone':
-                qrData = `tel:${contentData.phone || '1234567890'}`;
-                break;
-            case 'email':
-                qrData = `mailto:${contentData.email}?subject=${encodeURIComponent(contentData.emailSubject)}&body=${encodeURIComponent(contentData.emailBody)}`;
-                break;
-            default:
-                break;
-        }
+        const qrData = buildQrPayload(contentType, contentData);
 
         const hasFrame = options.frameStyle !== 'none';
         
@@ -263,7 +244,7 @@ export default function QRCodeCreator() {
         const isExtendedFormat = extendedFormats.includes(fmt);
         const captureFmt = isExtendedFormat ? "PNG" : fmt;
         
-        let rawBlob = null;
+        let rawBlob;
         
         try {
             if (options.frameStyle !== 'none') {

@@ -18,6 +18,53 @@ export const dataUrlToArrayBuffer = (dataUrl) => {
   return bytes.buffer;
 };
 
+export const annotationPlacementForRotation = ({
+  annotation,
+  canvasSize,
+  pageSize,
+  rotation = 0,
+}) => {
+  if (!canvasSize?.width || !canvasSize?.height) {
+    throw new Error('Canvas dimensions are required to place annotations.');
+  }
+
+  const normalizedRotation = ((rotation % 360) + 360) % 360;
+  const isQuarterTurn = normalizedRotation === 90 || normalizedRotation === 270;
+  const actualWidth = isQuarterTurn ? pageSize.height : pageSize.width;
+  const actualHeight = isQuarterTurn ? pageSize.width : pageSize.height;
+  const pdfX = (annotation.x / 100) * actualWidth;
+  const pdfY = actualHeight
+    - (((annotation.y / 100) + (annotation.height / canvasSize.height)) * actualHeight);
+  const pdfWidth = (annotation.width / canvasSize.width) * actualWidth;
+  const pdfHeight = (annotation.height / canvasSize.height) * actualHeight;
+
+  if (normalizedRotation === 90) {
+    return {
+      x: actualHeight - pdfY - pdfHeight,
+      y: pdfX,
+      width: pdfHeight,
+      height: pdfWidth,
+    };
+  }
+  if (normalizedRotation === 180) {
+    return {
+      x: actualWidth - pdfX - pdfWidth,
+      y: actualHeight - pdfY - pdfHeight,
+      width: pdfWidth,
+      height: pdfHeight,
+    };
+  }
+  if (normalizedRotation === 270) {
+    return {
+      x: pdfY,
+      y: actualHeight - pdfX - pdfWidth,
+      width: pdfHeight,
+      height: pdfWidth,
+    };
+  }
+  return { x: pdfX, y: pdfY, width: pdfWidth, height: pdfHeight };
+};
+
 /**
  * Compiles a new PDF document from a list of pages with rotations and placed signatures on the client-side.
  * 
@@ -65,49 +112,16 @@ export const compilePDF = async (pagesList, placedSignatures, pageDimensions) =>
         
         const embeddedSig = await mergedDoc.embedPng(sigImageBytes);
 
-        const { width: pWidth, height: pHeight } = copiedPage.getSize();
-        
-        // Determine actual dimensions based on rotation
-        const isRotatedOrtho = pageItem.rotation === 90 || pageItem.rotation === 270;
-        const actualPDFWidth = isRotatedOrtho ? pHeight : pWidth;
-        const actualPDFHeight = isRotatedOrtho ? pWidth : pHeight;
-
-        // Map canvas overlay coordinates back to PDF space
-        const pdfX = (sig.x / 100) * actualPDFWidth;
-        const pdfY = actualPDFHeight - (((sig.y / 100) + (sig.height / pageDimensions.height)) * actualPDFHeight);
-        const pdfWidth = (sig.width / pageDimensions.width) * actualPDFWidth;
-        const pdfHeight = (sig.height / pageDimensions.height) * actualPDFHeight;
-
-        // Apply rotation transformation adjustment for drawn signature overlay
-        if (pageItem.rotation === 90) {
-          copiedPage.drawImage(embeddedSig, {
-            x: actualPDFHeight - pdfY - pdfHeight,
-            y: pdfX,
-            width: pdfHeight,
-            height: pdfWidth,
-          });
-        } else if (pageItem.rotation === 180) {
-          copiedPage.drawImage(embeddedSig, {
-            x: actualPDFWidth - pdfX - pdfWidth,
-            y: actualPDFHeight - pdfY - pdfHeight,
-            width: pdfWidth,
-            height: pdfHeight,
-          });
-        } else if (pageItem.rotation === 270) {
-          copiedPage.drawImage(embeddedSig, {
-            x: pdfY,
-            y: actualPDFHeight - pdfX - pdfWidth,
-            width: pdfHeight,
-            height: pdfWidth,
-          });
-        } else {
-          copiedPage.drawImage(embeddedSig, {
-            x: pdfX,
-            y: pdfY,
-            width: pdfWidth,
-            height: pdfHeight,
-          });
-        }
+        const canvasSize = pageItem.width && pageItem.height
+          ? { width: pageItem.width, height: pageItem.height }
+          : pageDimensions;
+        const placement = annotationPlacementForRotation({
+          annotation: sig,
+          canvasSize,
+          pageSize: copiedPage.getSize(),
+          rotation: pageItem.rotation,
+        });
+        copiedPage.drawImage(embeddedSig, placement);
       }
     }
 

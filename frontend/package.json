@@ -7,8 +7,12 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
+    "lint:features": "eslint src/pages/Convert.jsx src/pages/PDFEditor.jsx src/pages/QRCodeCreator.jsx src/pages/Ocr.jsx src/lib/fileTypes.js src/lib/ocrUtils.js src/lib/qrCodePayload.js src/services/conversionService.js src/services/pdfEditorService.js src/setupTests.js tests playwright.config.js",
     "preview": "vite preview",
-    "test": "vitest"
+    "test": "vitest",
+    "test:unit": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@ffmpeg/core": "^0.12.10",
@@ -47,12 +51,14 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.62.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "@vitest/coverage-v8": "^4.1.10",
     "@vitest/ui": "^4.1.10",
     "autoprefixer": "^10.5.0",
     "eslint": "^10.3.0",
