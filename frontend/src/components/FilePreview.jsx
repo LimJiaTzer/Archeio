@@ -122,7 +122,7 @@ export default function FilePreview({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[9999] flex items-center justify-center bg-stone-950/90 backdrop-blur-l p-4 md:p-12"
+              className="fixed inset-0 z-[9999] flex items-center justify-center bg-stone-950/90 backdrop-blur-l p-2 sm:p-4 md:p-12"
               onClick={() => setIsPreviewOpen(false)}
             >
               <motion.button
@@ -130,7 +130,7 @@ export default function FilePreview({
                 initial={{ y: -20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: -20, opacity: 0 }}
-                className="absolute top-6 right-6 p-4 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors z-[10001]"
+                className="absolute top-3 right-3 p-3 sm:top-6 sm:right-6 sm:p-4 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors z-[10001]"
                 onClick={(e) => {
                   e.stopPropagation();
                   setIsPreviewOpen(false);
@@ -145,9 +145,9 @@ export default function FilePreview({
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
                 onClick={(e) => e.stopPropagation()}
-                className="w-full max-w-6xl max-h-full bg-white rounded-[32px] shadow-2xl overflow-hidden flex flex-col relative"
+                className="w-full max-w-6xl max-h-full bg-white rounded-2xl sm:rounded-[32px] shadow-2xl overflow-hidden flex flex-col relative"
               >
-                <div className="p-6 border-b border-stone-100 flex items-center justify-between bg-white">
+                <div className="p-4 pr-16 sm:p-6 border-b border-stone-100 flex items-center justify-between bg-white">
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 bg-[#FAF0E1] rounded-xl flex items-center justify-center">
                       <FileText className="w-5 h-5 text-[#E08E19]" />
@@ -159,7 +159,7 @@ export default function FilePreview({
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-auto bg-stone-50 flex justify-center items-start min-h-[300px]">
+                <div className="flex-1 overflow-auto bg-stone-50 flex justify-center items-start min-h-[220px] sm:min-h-[300px]">
                   <div className="p-4 md:p-12 w-full flex justify-center">
                     {isImage ? (
                       <img 
@@ -184,7 +184,7 @@ export default function FilePreview({
                       blobUrl && (
                         <iframe 
                           src={blobUrl} 
-                          className="w-full h-[75vh] rounded-xl bg-white border-0 shadow-lg"
+                          className="w-full h-[65dvh] sm:h-[75vh] rounded-xl bg-white border-0 shadow-lg"
                           title="PDF Preview"
                         />
                       )

@@ -6,7 +6,7 @@ import Layout from '../components/Layout';
 export default function ZipCompression() {
   return (
     <Layout>
-      <main>
+      <main className="responsive-page mx-auto max-w-4xl">
         Only need zip logic here
       </main>
     </Layout>

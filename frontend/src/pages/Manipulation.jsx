@@ -11,10 +11,9 @@ import Layout from '../components/Layout';
 export default function Manipulation() {
   return (
     <Layout>
-      <main>
+      <main className="responsive-page mx-auto max-w-4xl">
         Elsa? Do you wanna build a snowman? ⛄
       </main>
     </Layout>
   );
 }
-

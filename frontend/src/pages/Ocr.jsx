@@ -299,7 +299,7 @@ export default function Ocr() {
 
   return (
     <Layout>
-      <main className="max-w-screen-xl mx-auto p-6 sm:p-12">
+      <main className="responsive-page ocr-page max-w-screen-xl mx-auto p-6 sm:p-12">
         <nav className="mb-6">
           <Link to="/" className="flex items-center gap-2 text-stone-600 hover:text-stone-900 transition-colors">
             <ArrowLeft className="w-5 h-5" />
@@ -312,9 +312,9 @@ export default function Ocr() {
           <p className="text-stone-600">Turn images and PDFs into editable documents.</p>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)] gap-8 items-start">
+        <div className="grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)] gap-4 sm:gap-8 items-start">
           <div className="space-y-6">
-            <aside className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
+            <aside className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-stone-200">
               <div className="flex items-center justify-between gap-3 mb-4">
                 <h2 className="font-bold text-stone-900">Source Documents</h2>
                 {sourceItems.length > 0 && <span className="text-xs font-semibold text-stone-500">{sourceItems.length}</span>}
@@ -464,14 +464,14 @@ export default function Ocr() {
             )}
           </div>
 
-          <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200 min-w-0">
-            <div className="flex items-center justify-between gap-4 mb-4">
+          <section className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-stone-200 min-w-0">
+            <div className="flex flex-col items-start justify-between gap-3 mb-4 sm:flex-row sm:items-center">
               <div className="min-w-0">
                 <h2 className="font-bold text-stone-900">Document Preview</h2>
                 {documentFile && <p className="text-xs text-stone-500 truncate mt-0.5">{documentFileName}</p>}
               </div>
               {documentFile && (
-                <div className="flex items-center gap-1 text-stone-600 shrink-0">
+                <div className="flex w-full items-center justify-end gap-1 text-stone-600 sm:w-auto sm:shrink-0">
                   <button
                     type="button"
                     onClick={zoomOut}
@@ -510,7 +510,7 @@ export default function Ocr() {
 
             <div
               ref={previewViewportRef}
-              className={`relative h-[75vh] min-h-[420px] max-h-[820px] bg-stone-100 border border-stone-200 rounded-xl overflow-y-auto touch-manipulation ${
+              className={`relative h-[62dvh] min-h-[360px] max-h-[820px] bg-stone-100 border border-stone-200 rounded-xl overflow-y-auto touch-manipulation sm:h-[75vh] sm:min-h-[420px] ${
                 scaledWidth > viewportSize.width ? 'overflow-x-auto' : 'overflow-x-hidden'
               }`}
             >

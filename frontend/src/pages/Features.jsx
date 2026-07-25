@@ -1,6 +1,6 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ScanText, RefreshCw, Archive } from 'lucide-react';
+import Layout from '../components/Layout';
 
 export default function Features() {
   const allFeatures = [
@@ -22,20 +22,21 @@ export default function Features() {
   ];
 
   return (
-    <div className="min-h-screen bg-stone-50 p-6 flex flex-col justify-between">
-      <div className="max-w-3xl mx-auto mt-20">
-        <div className="text-center mb-12">
+    <Layout>
+      <main className="responsive-page mx-auto flex min-h-[calc(100dvh-7rem)] max-w-4xl flex-col justify-between">
+      <div className="w-full py-6 sm:py-12">
+        <div className="text-center mb-8 sm:mb-12">
           <Link to="/" className="inline-flex items-center gap-2 text-stone-600 hover:text-stone-900 mb-8 font-medium">
             <ArrowLeft className="w-5 h-5" />
             <span>Back to Home</span>
           </Link>
-          <h1 className="text-4xl font-extrabold text-stone-900 mb-2">Our Features</h1>
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-stone-900 mb-2">Our Features</h1>
           <p className="text-stone-600">Explore the set of tools curated under the Archeío utility platform.</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {allFeatures.map((f, i) => (
-            <div key={i} className="bg-white p-6 rounded-2xl border border-stone-200 shadow-sm">
+            <div key={i} className="bg-white p-5 sm:p-6 rounded-2xl border border-stone-200 shadow-sm">
               <div className="mb-4">{f.icon}</div>
               <h2 className="font-bold text-stone-800 text-lg mb-2">{f.title}</h2>
               <p className="text-stone-600 text-sm leading-relaxed">{f.description}</p>
@@ -46,6 +47,7 @@ export default function Features() {
       <footer className="text-center text-xs text-stone-400 py-6">
         &copy; {new Date().getFullYear()} Archeío. All rights reserved.
       </footer>
-    </div>
+      </main>
+    </Layout>
   );
 }

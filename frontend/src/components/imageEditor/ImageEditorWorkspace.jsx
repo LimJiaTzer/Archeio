@@ -1777,12 +1777,12 @@ const getFilterCss = (filterId) => {
       onClick={(e) => e.stopPropagation()}
       className={
         presentation === 'page'
-          ? 'relative flex h-[78vh] min-h-[680px] w-full flex-col overflow-hidden rounded-[32px] border border-stone-200 bg-white shadow-sm'
-          : 'relative flex h-[90vh] w-full max-w-7xl flex-col overflow-hidden rounded-[32px] bg-white shadow-2xl'
+          ? 'image-editor-shell image-editor-shell--page relative flex h-auto min-h-0 w-full flex-col overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm md:h-[78vh] md:min-h-[680px] md:rounded-[32px]'
+          : 'image-editor-shell image-editor-shell--modal relative flex h-[calc(100dvh-1rem)] w-full max-w-7xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:h-[90vh] sm:rounded-[32px]'
       }
     >
             {/* Top bar */}
-            <div className="flex items-center justify-between border-b border-stone-200 bg-white px-5 py-4">
+            <div className="flex items-center justify-between border-b border-stone-200 bg-white px-4 py-3 sm:px-5 sm:py-4">
               <div className="min-w-0">
                 <p className="truncate text-sm font-bold text-stone-900">
                   Edit image
@@ -1803,7 +1803,7 @@ const getFilterCss = (filterId) => {
             </div>
 
             {/* Toolbar */}
-            <div className="flex items-center justify-center gap-3 border-b border-stone-200 bg-white px-4 py-3">
+            <div className="mobile-scroll-row flex items-center justify-start gap-2 border-b border-stone-200 bg-white px-3 py-2 sm:justify-center sm:gap-3 sm:px-4 sm:py-3">
               {(activeTool === 'draw' || activeTool === 'text') && (
                 <>
                   <button
@@ -1918,9 +1918,17 @@ const getFilterCss = (filterId) => {
             </div>
 
             {/* Main editor body */}
-            <div className="grid min-h-0 flex-1 grid-cols-1 bg-stone-50 md:grid-cols-[minmax(0,1fr)_320px]">
+            <div className={`image-editor-body grid min-h-0 grid-cols-1 bg-stone-50 md:grid-cols-[minmax(0,1fr)_320px] ${
+              presentation === 'page'
+                ? 'flex-none md:flex-1'
+                : 'flex-1 overflow-y-auto md:overflow-hidden'
+            }`}>
               {/* Image canvas area */}
-              <div className="flex min-h-0 h-full flex-col items-center justify-center overflow-hidden p-4">
+              <div className={`image-editor-canvas flex flex-col items-center justify-center overflow-hidden p-3 sm:p-4 ${
+                presentation === 'page'
+                  ? 'h-auto min-h-[420px] md:h-full md:min-h-0'
+                  : 'h-auto min-h-[380px] md:h-full md:min-h-0'
+              }`}>
                 {/* Top bar when filter is active */}
                 {activeTool === 'filter' && (
                   <div className="mb-4 flex w-full justify-center overflow-x-auto px-2">
@@ -1976,7 +1984,7 @@ const getFilterCss = (filterId) => {
                 )}
 
                 {/* Image display */}
-                <div ref={imageStageRef} className="relative flex min-h-0 max-h-full w-full max-w-full flex-1 items-center justify-center rounded-2xl bg-white p-4 shadow-xl">
+                <div ref={imageStageRef} className="relative flex min-h-[280px] max-h-full w-full max-w-full flex-1 items-center justify-center rounded-2xl bg-white p-2 shadow-xl sm:min-h-[320px] sm:p-4 md:min-h-0">
                   {imageUrl ? (
                     activeTool === 'crop' ? (
                       <div
@@ -2367,7 +2375,7 @@ const getFilterCss = (filterId) => {
 
                 {/* Bottom bar when annotation is active */}
                 {activeTool === 'draw' && (
-                  <div className="mt-4 flex w-full max-w-2xl items-center justify-center gap-4 rounded-full bg-stone-950 px-5 py-3 shadow-lg">
+                  <div className="mt-4 flex w-full max-w-2xl flex-col items-stretch justify-center gap-3 rounded-2xl bg-stone-950 px-4 py-3 shadow-lg sm:flex-row sm:items-center sm:gap-4 sm:rounded-full sm:px-5">
                     <input
                       type="range"
                       min="0"
@@ -2399,7 +2407,7 @@ const getFilterCss = (filterId) => {
                       aria-label="Brush colour"
                     />
 
-                    <div className="flex items-center justify-center gap-3">
+                    <div className="flex items-center justify-center gap-2 sm:gap-3">
                       {BRUSH_SIZES.map(({ value, iconSize }) => (
                         <button
                           key={value}
@@ -2523,8 +2531,8 @@ const getFilterCss = (filterId) => {
             </div>
 
             {/* Bottom action bar */}
-            <div className="flex items-center justify-between border-t border-stone-200 bg-white px-5 py-4">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 bg-white px-3 py-3 sm:px-5 sm:py-4">
+              <div className="flex items-center gap-1 sm:gap-2">
                 <button
                   type="button"
                   onClick={onClose}
@@ -2627,7 +2635,7 @@ const getFilterCss = (filterId) => {
                     setIsEditing(false);
                   }
                 }}
-                className="flex items-center gap-2 rounded-xl bg-orange-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98]"
+                className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98] sm:flex-none sm:px-5"
               >
                 <Check className="h-4 w-4" />
                 {applyLabel}
@@ -2648,7 +2656,7 @@ const getFilterCss = (filterId) => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-stone-950/90 backdrop-blur-2xl p-4 md:p-8"
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-stone-950/90 backdrop-blur-2xl p-1 sm:p-4 md:p-8"
           onClick={onClose}
         >
           {editorContainer}

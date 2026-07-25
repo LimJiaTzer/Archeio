@@ -560,7 +560,7 @@ export default function Compress() {
 
   return (
     <Layout>
-      <main className="max-w-4xl mx-auto p-6 sm:p-12">
+      <main className="responsive-page compress-page max-w-4xl mx-auto p-6 sm:p-12">
         <nav className="mb-6">
           <Link to="/" className="flex items-center gap-2 text-stone-600 hover:text-stone-900 transition-colors">
             <ArrowLeft className="w-5 h-5" />
@@ -574,8 +574,8 @@ export default function Compress() {
 
         {/* Upload / drop box */}
         <div className="grid grid-cols-1 md:grid-cols-[minmax(0,2.2fr)_minmax(0,0.8fr)] gap-8">
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200 min-w-0">
-            <div className="border-2 border-dashed border-stone-300 rounded-xl h-56 flex flex-col items-center justify-center text-center hover:border-orange-500 transition-colors cursor-pointer relative">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-stone-200 min-w-0">
+            <div className="border-2 border-dashed border-stone-300 rounded-xl h-48 sm:h-56 px-4 flex flex-col items-center justify-center text-center hover:border-orange-500 transition-colors cursor-pointer relative">
               <input 
                 type="file" 
                 multiple
@@ -603,7 +603,7 @@ export default function Compress() {
 
                   return (
                     <div key={item.id} className="rounded-xl overflow-hidden min-w-0">
-                      <div className="p-4 bg-stone-100 rounded-xl flex items-center gap-4 min-w-0">
+                      <div className="p-4 bg-stone-100 rounded-xl flex flex-col items-start gap-4 min-w-0 sm:flex-row sm:items-center">
                         <div className="shrink-0">
                           <FilePreview file={item.file} previewUrl={item.previewUrl} />
                         </div>
@@ -621,7 +621,7 @@ export default function Compress() {
                           </p>
                         </div>
 
-                        <div className="flex items-center gap-3 shrink-0">
+                        <div className="mobile-action-row w-full justify-end sm:w-auto sm:shrink-0">
                           {item.fileInfo.outputFormats.length > 0 && (
                             <>
                               <span className="text-stone-400 text-xs font-semibold uppercase tracking-wide">
@@ -725,7 +725,7 @@ export default function Compress() {
             )}
           </div>
 
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200 flex flex-col justify-between min-w-0">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-stone-200 flex flex-col justify-between min-w-0">
             <div>
               <div className="flex items-center gap-2 mb-4 text-stone-900">
                 <Sliders className="w-5 h-5 text-orange-600" />
@@ -844,7 +844,7 @@ export default function Compress() {
                         className="mb-3"
                       />
 
-                      <div className="flex gap-12 text-sm border-t border-green-200/50 pt-4">
+                      <div className="mobile-stat-row text-sm border-t border-green-200/50 pt-4">
                         <FilePreview
                           file={item.file}
                           previewUrl={item.fileInfo.category === 'images' ? item.downloadUrl : null}
@@ -936,7 +936,7 @@ export default function Compress() {
                           }
                         />
 
-                        <div className="flex gap-8 text-sm mt-3">
+                        <div className="mobile-stat-row text-sm mt-3">
                         <FilePreview
                           file={item.file}
                           previewUrl={item.fileInfo.category === 'images' ? item.downloadUrl : null}

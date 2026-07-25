@@ -964,11 +964,11 @@ export default function PdfEditor() {
       });
     };
     const onUp = () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup',   onUp);
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
     };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup',   onUp);
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
   };
 
   const handleSigResizeStart = (e, sigId) => {
@@ -1011,12 +1011,12 @@ export default function PdfEditor() {
     };
 
     const onUp = () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup',   onUp);
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
     };
 
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup',   onUp);
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
   };
 
   // ─── 5. EXPORT ────────────────────────────────────────────────────────────
@@ -1051,7 +1051,7 @@ export default function PdfEditor() {
   // ─── RENDER ───────────────────────────────────────────────────────────────
   return (
     <Layout>
-      <main className="max-w-7xl mx-auto p-4 sm:p-8">
+      <main className="responsive-page pdf-editor-page max-w-7xl mx-auto p-4 sm:p-8">
 
         {/* Nav & Actions */}
         <nav className="mb-6">
@@ -1063,7 +1063,7 @@ export default function PdfEditor() {
 
         {/* Title */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-black text-stone-900 mb-2">PDF Editor &amp; Annotator</h1>
+          <h1 className="text-3xl sm:text-4xl font-black text-stone-900 mb-2">PDF Editor &amp; Annotator</h1>
           <p className="text-stone-600 max-w-xl mx-auto text-sm sm:text-base">
             Easily combine PDFs, reorganize pages, delete empty slots, and sign documents locally.
           </p>
@@ -1071,7 +1071,7 @@ export default function PdfEditor() {
 
         {/* Upload dropzone (shown when no pages loaded) */}
         {pagesList.length === 0 ? (
-          <div className="bg-white rounded-3xl p-16 shadow-sm border border-stone-200 text-center relative max-w-xl mx-auto hover:bg-stone-50 transition-colors cursor-pointer group">
+          <div className="bg-white rounded-3xl p-8 sm:p-16 shadow-sm border border-stone-200 text-center relative max-w-xl mx-auto hover:bg-stone-50 transition-colors cursor-pointer group">
             <input
               type="file"
               accept="application/pdf"
@@ -1089,10 +1089,10 @@ export default function PdfEditor() {
           </div>
 
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-stretch">
 
             {/* ── COLUMN 1: Thumbnail Sidebar ───────────────────────────── */}
-            <div className={`bg-white rounded-2xl p-4 border border-stone-200 flex flex-col max-h-[700px] overflow-hidden transition-all duration-300 ${
+            <div className={`pdf-page-sidebar bg-white rounded-2xl p-4 border border-stone-200 flex flex-col max-h-[420px] lg:max-h-[700px] overflow-hidden transition-all duration-300 ${
               isSidebarExpanded ? 'lg:col-span-6' : 'lg:col-span-3'
             }`}>
                 <div className="flex items-center justify-between mb-4 border-b pb-2">
@@ -1257,7 +1257,7 @@ export default function PdfEditor() {
             </div>
 
             {/* ── COLUMN 2: Main Canvas ─────────────────────────────────── */}
-            <div className={`bg-stone-50 border border-stone-200 rounded-2xl flex flex-col items-center justify-center p-6 min-h-[500px] max-h-[700px] overflow-hidden transition-all duration-300 ${
+            <div className={`pdf-canvas-panel bg-stone-50 border border-stone-200 rounded-2xl flex flex-col items-center justify-center p-3 sm:p-6 min-h-[420px] sm:min-h-[500px] max-h-[700px] overflow-hidden transition-all duration-300 ${
               isSidebarExpanded ? 'lg:col-span-3' : 'lg:col-span-6'
             }`}>
 
@@ -1286,7 +1286,10 @@ export default function PdfEditor() {
               <div
                 ref={containerRef}
                 className="relative bg-white shadow-xl rounded-xl border border-stone-200 overflow-hidden select-none max-w-full flex items-center justify-center"
-                style={{ width: `${pageDimensions.width}px`, height: `${pageDimensions.height}px` }}
+                style={{
+                  width: `min(100%, ${pageDimensions.width}px)`,
+                  aspectRatio: `${pageDimensions.width} / ${pageDimensions.height}`,
+                }}
               >
                 {activePage && (
                   activePage.isRendering || !activePage.previewUrl ? (
@@ -1317,7 +1320,7 @@ export default function PdfEditor() {
                     onTouchStart={startDirectDrawing}
                     onTouchMove={drawDirect}
                     onTouchEnd={stopDirectDrawing}
-                    className="absolute inset-0 cursor-crosshair z-30 touch-none"
+                    className="absolute inset-0 h-full w-full cursor-crosshair z-30 touch-none"
                   />
                 )}
 
@@ -1342,8 +1345,8 @@ export default function PdfEditor() {
                           justifyContent:  'center',
                           pointerEvents:   isDraw ? 'none' : 'auto',
                         }}
-                        onMouseDown={isDraw ? null : (e) => handleSigDragStart(e, sig.id)}
-                        className={isDraw ? '' : 'group'}
+                        onPointerDown={isDraw ? null : (e) => handleSigDragStart(e, sig.id)}
+                        className={isDraw ? '' : 'group touch-none'}
                       >
                         <img
                           src={sig.img}
@@ -1354,15 +1357,15 @@ export default function PdfEditor() {
                           <>
                             <button
                               onClick={() => removePlacedSignature(activePage.id, sig.id)}
-                              className="absolute -top-2.5 -right-2.5 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                              className="absolute -top-3 -right-3 bg-red-500 hover:bg-red-600 text-white rounded-full p-2 sm:p-1 shadow-sm opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                             >
                               <X className="w-3 h-3" />
                             </button>
 
                             {/* Resize handle */}
                             <div
-                              onMouseDown={(e) => handleSigResizeStart(e, sig.id)}
-                              className="absolute bottom-0 right-0 w-3 h-3 bg-[#4f46e5] border border-white rounded-full cursor-se-resize shadow-sm opacity-0 group-hover:opacity-100 transition-opacity z-20"
+                              onPointerDown={(e) => handleSigResizeStart(e, sig.id)}
+                              className="absolute bottom-0 right-0 w-6 h-6 sm:w-3 sm:h-3 bg-[#4f46e5] border border-white rounded-full cursor-se-resize touch-none shadow-sm opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity z-20"
                               style={{ transform: 'translate(50%, 50%)' }}
                             />
                           </>
@@ -1375,7 +1378,7 @@ export default function PdfEditor() {
             </div>
 
             {/* ── COLUMN 3: Right Tools Panel ───────────────────────────── */}
-            <div className="bg-white rounded-2xl p-4 border border-stone-200 lg:col-span-3 flex flex-col justify-between max-h-[700px] overflow-y-auto">
+            <div className="pdf-tools-panel bg-white rounded-2xl p-4 border border-stone-200 lg:col-span-3 flex flex-col justify-between lg:max-h-[700px] overflow-y-auto">
 
               {/* Tool toggle */}
               <div className="flex-1 overflow-y-auto pr-1 mb-4">
@@ -1789,7 +1792,7 @@ export default function PdfEditor() {
                 <h4 className="font-bold text-lg text-green-950">PDF Render Successful!</h4>
               </div>
 
-              <div className="flex gap-12 text-sm border-t border-green-200/50 pt-4">
+              <div className="mobile-stat-row text-sm border-t border-green-200/50 pt-4">
                 <FilePreview
                   file={exportFile}
                   previewUrl={null}

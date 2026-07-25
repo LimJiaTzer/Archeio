@@ -427,8 +427,8 @@ export default function QRCodeCreator() {
 
     return (
         <Layout>
-            <main className="max-w-7xl mx-auto p-4 sm:p-8">
-                <div className="max-w-6xl mx-auto px-4">
+            <main className="responsive-page qr-code-page max-w-7xl mx-auto p-4 sm:p-8">
+                <div className="max-w-6xl mx-auto px-0 sm:px-4">
                     <nav className="mb-6">
                         <Link to="/" className="flex items-center gap-2 text-stone-600 hover:text-stone-900 transition-colors">
                             <ArrowLeft className="w-5 h-5" />
@@ -440,7 +440,7 @@ export default function QRCodeCreator() {
                         <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden lg:col-span-8">
                             
                             {/* Dynamic Content Panel */}
-                            <div className="p-6 border-b border-stone-100">
+                            <div className="p-4 sm:p-6 border-b border-stone-100">
                                 <h2 className="text-lg font-semibold text-stone-800 mb-4 flex items-center gap-2">
                                     <span className="bg-indigo-100 text-indigo-700 w-6 h-6 rounded-full flex items-center justify-center text-sm">1</span>
                                     Content
@@ -497,7 +497,7 @@ export default function QRCodeCreator() {
                                 </div>
                             </div>
 
-                            <div className="p-6">
+                            <div className="p-4 sm:p-6">
                                 <h2 className="text-lg font-semibold text-stone-800 mb-4 flex items-center gap-2">
                                     <span className="bg-indigo-100 text-indigo-700 w-6 h-6 rounded-full flex items-center justify-center text-sm">2</span>
                                     Design
@@ -846,16 +846,18 @@ export default function QRCodeCreator() {
 
                         {/* Preview Panel Column Container (Option 2) */}
                         <div className="lg:col-span-4">
-                            <div className="bg-white rounded-2xl p-6 border border-stone-200 sticky top-32">
+                            <div className="bg-white rounded-2xl p-4 sm:p-6 border border-stone-200 lg:sticky lg:top-32">
                                  <h2 className="text-lg font-semibold text-stone-800 mb-6 flex items-center gap-2">
                                     <span className="bg-indigo-100 text-indigo-700 w-6 h-6 rounded-full flex items-center justify-center text-sm">3</span>
                                     Preview
                                 </h2>
                                 
                                 <div className="flex flex-col items-center">
-                                    <div className="bg-stone-50 p-4 rounded-xl border border-stone-100 mb-4 w-full flex justify-center items-center min-h-[350px]">
+                                    <div className="mobile-scroll-row bg-stone-50 p-2 sm:p-4 rounded-xl border border-stone-100 mb-4 w-full flex justify-start sm:justify-center items-center min-h-[300px] sm:min-h-[350px]">
                                         {/* HTML/CSS Based Frame Preview */}
-                                        {renderPreviewFrame()}
+                                        <div className="mx-auto w-max">
+                                            {renderPreviewFrame()}
+                                        </div>
                                     </div>
 
                                     {/* Scan-ability Indicator */}

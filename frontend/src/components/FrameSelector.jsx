@@ -24,13 +24,13 @@ export default function FrameSelector({
   if (!frames || frames.length === 0) return null;
 
   return (
-    <div className="mt-8 bg-white rounded-2xl p-6 shadow-sm border border-stone-200 animate-in fade-in slide-in-from-top-4 duration-300">
-      <div className="flex items-center justify-between mb-4">
+    <div className="mt-6 sm:mt-8 bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-stone-200 animate-in fade-in slide-in-from-top-4 duration-300">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div>
           <h3 className="font-bold text-stone-900">Select Frames</h3>
           <p className="text-xs text-stone-500">{frames.length} frames found in file</p>
         </div>
-        <div className="flex gap-4">
+        <div className="flex gap-3 sm:gap-4">
           <button 
             type="button"
             onClick={onSelectAll}
@@ -48,7 +48,7 @@ export default function FrameSelector({
         </div>
       </div>
 
-      <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
+      <div className="mobile-scroll-row flex gap-3 sm:gap-4 pb-4 scrollbar-hide">
         {urls.map((url, index) => {
           const isSelected = selectedFrames.includes(index);
           

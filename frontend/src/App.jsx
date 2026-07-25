@@ -154,8 +154,8 @@ function Home() {
             </div>
 
             <h1>
-              Make your files
-              <span> work for you.</span>
+              <span className="hero-title-primary">Make your files</span>
+              <span className="hero-title-accent">work for you.</span>
             </h1>
 
             <p className="hero-description">

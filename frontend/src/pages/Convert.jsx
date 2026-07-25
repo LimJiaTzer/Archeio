@@ -313,7 +313,7 @@ export default function Convert() {
 
   return (
     <Layout>
-      <main className="max-w-4xl mx-auto p-6 sm:p-12">
+      <main className="responsive-page convert-page max-w-4xl mx-auto p-6 sm:p-12">
         <nav className="mb-6">
           <Link to="/" className="flex items-center gap-2 text-stone-600 hover:text-stone-900 transition-colors">
             <ArrowLeft className="w-5 h-5" />
@@ -322,8 +322,8 @@ export default function Convert() {
         </nav>
         
         <div className="text-center mb-12">
-          <h1 className="text-5xl font-black text-stone-900 mb-4 tracking-tight">File Converter</h1>
-          <p className="text-xl text-stone-600">Easily convert files from one format to another, online.</p>
+          <h1 className="text-4xl sm:text-5xl font-black text-stone-900 mb-4 tracking-tight">File Converter</h1>
+          <p className="text-base sm:text-xl text-stone-600">Easily convert files from one format to another, online.</p>
         </div>
 
         <div className="bg-white rounded-3xl shadow-sm border border-stone-200 overflow-hidden">
@@ -346,7 +346,7 @@ export default function Convert() {
             onDragOver={handleDragOver}
             onDrop={handleDrop}
             className={`text-center cursor-pointer hover:bg-stone-50 transition-all group relative border-b border-stone-100 ${
-              items.length === 0 ? 'p-20' : 'p-8'
+              items.length === 0 ? 'p-8 sm:p-20' : 'p-5 sm:p-8'
             }`}
           >
             <input 
@@ -383,11 +383,11 @@ export default function Convert() {
             <div className="divide-y divide-stone-100">
               {items.map((item) => ( 
                 <div key={item.id} className="p-1">
-                  <div className="p-4 flex flex-wrap sm:flex-nowrap items-center gap-4 hover:bg-stone-50/50 transition-colors rounded-2xl">
-                    <FilePreview file={item.file} previewUrl={item.previewUrl} className="flex-1 min-w-[180px]" />
+                  <div className="p-4 flex flex-wrap sm:flex-nowrap items-start sm:items-center gap-4 hover:bg-stone-50/50 transition-colors rounded-2xl">
+                    <FilePreview file={item.file} previewUrl={item.previewUrl} className="w-full sm:w-auto sm:flex-1 sm:min-w-[180px]" />
 
-                    <div className="ml-auto flex items-center gap-4 justify-end shrink-0">
-                      <div className="flex items-center gap-2">
+                    <div className="mobile-action-row w-full sm:w-auto sm:ml-auto sm:justify-end sm:shrink-0">
+                      <div className="flex min-w-0 items-center gap-2">
                         <span className="text-sm font-bold text-stone-400 uppercase tracking-tight">Output:</span>
                         <div className="relative">
                           <select 
@@ -466,8 +466,8 @@ export default function Convert() {
 
           {/* Batch Action Bar (Bottom) */}
           {items.length > 0 && (
-            <div className="bg-stone-50 p-4 border-t border-stone-100 flex items-center justify-between flex-wrap gap-4">
-              <div className="flex items-center gap-4">
+            <div className="bg-stone-50 p-4 border-t border-stone-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="mobile-action-row w-full sm:w-auto">
                 <span className="text-sm font-bold text-stone-600">
                   Convert All({items.length}) to:
                 </span>
@@ -486,11 +486,11 @@ export default function Convert() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex w-full items-center gap-3 sm:w-auto">
                 <button 
                   onClick={startConversionAll}
                   disabled={isConvertingAll}
-                  className="px-8 py-3 bg-amber-400 text-stone-950 rounded-xl font-bold text-sm hover:bg-amber-500 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shadow-md flex items-center gap-2"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-400 px-8 py-3 text-sm font-bold text-stone-950 shadow-md transition-all hover:bg-amber-500 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                 >
                   {isConvertingAll ? (
                     <>
@@ -534,7 +534,7 @@ export default function Convert() {
                         </h4>
                       </div>
 
-                      <div className="flex gap-12 text-sm border-t border-green-200/50 pt-4">
+                      <div className="mobile-stat-row text-sm border-t border-green-200/50 pt-4">
                         <FilePreview
                           file={{
                             name: item.result.convertedFileName,
@@ -581,7 +581,7 @@ export default function Convert() {
                       <a
                         href={item.result.downloadUrl}
                         download={item.result.convertedFileName}
-                        className="inline-flex items-center gap-2 justify-center bg-green-800 hover:bg-green-900 text-white px-6 py-4 rounded-xl font-bold text-center shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all"
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-green-800 px-6 py-4 text-center font-bold text-white shadow-md transition-all hover:scale-[1.02] hover:bg-green-900 active:scale-[0.98] md:w-auto"
                       >
                         Download <Download />
                       </a>
@@ -635,7 +635,7 @@ export default function Convert() {
                             className="mb-3"
                           />
 
-                          <div className="flex gap-8 text-sm mt-3">
+                          <div className="mobile-stat-row text-sm mt-3">
                             <FilePreview
                               file={{
                                 name: item.result.convertedFileName,

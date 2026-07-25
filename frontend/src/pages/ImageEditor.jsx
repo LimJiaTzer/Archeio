@@ -274,7 +274,7 @@ export default function ImageEditor() {
 
   return (
     <Layout>
-      <main className="mx-auto max-w-6xl p-6 sm:p-12">
+      <main className="responsive-page image-editor-page mx-auto max-w-6xl p-6 sm:p-12">
         <nav className="mb-6">
           <Link
             to="/"
@@ -353,7 +353,7 @@ export default function ImageEditor() {
           </div>
         ) : (
           <div className="space-y-6">
-            <div className="flex min-w-0 items-center gap-4 rounded-xl bg-stone-100 p-4">
+            <div className="flex min-w-0 flex-col items-start gap-4 rounded-xl bg-stone-100 p-4 sm:flex-row sm:items-center">
               <FilePreview
                 file={imageItem.file}
                 previewUrl={
@@ -375,7 +375,7 @@ export default function ImageEditor() {
                 </p>
               </div>
 
-              <div className="flex shrink-0 items-center gap-3">
+              <div className="mobile-action-row w-full sm:w-auto sm:shrink-0 sm:justify-end">
                 <span className="text-xs font-semibold uppercase tracking-wide text-stone-400">
                   Output:
                 </span>

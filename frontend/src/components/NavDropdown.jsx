@@ -1,95 +1,59 @@
-import React from 'react';
+import { ArrowRight, ChevronDown } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 export default function NavDropdown({ item }) {
-  const hasCategories = item.categories && item.categories.length > 0;
-  const hasOptions = item.options && item.options.length > 0;
+  const hasLinks = Boolean(item.links?.length);
 
   return (
-    <div className="relative group py-4 -my-4 z-[60]">
-      <button className="hover:text-stone-900 transition-colors font-semibold cursor-pointer">
+    <div className="group relative -my-3 py-3">
+      <button
+        type="button"
+        className="flex cursor-pointer items-center gap-1 font-semibold transition-colors hover:text-stone-950"
+        aria-haspopup="true"
+      >
         {item.title}
+        <ChevronDown className="h-3.5 w-3.5 transition-transform duration-200 group-hover:rotate-180" />
       </button>
 
-      {/* Mega menu for categorized dropdowns */}
-      {hasCategories && (
-        <div className="fixed left-1/2 -translate-x-1/2 top-[20px] pt-6 w-[calc(100vw-4rem)] max-w-7xl opacity-0 invisible pointer-events-none group-hover:opacity-100 group-hover:visible group-hover:pointer-events-auto transition-all duration-300 z-50 origin-top scale-95 group-hover:scale-100">
-          <div className="bg-[#FFFDFA]/100 backdrop-blur-xl border border-white/50 shadow-2xl rounded-3xl p-6">
-            
-            <div
-              className="grid gap-4"
-              style={{
-                gridTemplateColumns: `repeat(${item.categories.length}, minmax(0, 1fr))`,
-              }}
-            >
-              {item.categories.map((cat, i) => (
-                <div
-                  key={i}
-                  className={`space-y-4 ${
-                    i !== 0 ? 'border-l border-stone-200/50 pl-4' : ''
-                  }`}
-                >
-                  <h3 className="text-sm font-bold text-stone-900 px-4">
-                    {cat.title}
-                  </h3>
-                  {/* <div className="flex flex-col space-y-1">
-                    {cat.options.map((opt, j) => (
-                      <a
-                        key={j}
-                        href={opt.href}
-                        className="px-4 py-2 hover:bg-white/85 rounded-2xl text-stone-700 hover:text-stone-900 transition-all text-sm font-medium block"
-                      >
-                        {opt.label}
-                      </a>
-                    ))}
-                  </div> */}
-                  <div className="flex flex-col gap-2">
-                    {cat.options.map((opt, j) => (
-                      <div key={j}>
-                        {/* TOOL */}
-                        <a
-                          href={opt.href}
-                          className="px-4 py-1 pb-0 hover:bg-white/85 rounded-2xl text-stone-700 hover:text-stone-900 transition-all text-sm font-medium block"
-                        >
-                          {opt.label}
-                        </a>
-
-                        {/* Features of tool */}
-                        {opt.features && opt.features.length > 0 && (
-                          <ul className="mt-1 ml-6 space-y-1 text-xs text-stone-500">
-                            {opt.features.map((feature, featureIndex) => (
-                              <li key={featureIndex} className="flex items-start gap-1">
-                                <span>{feature}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
+      <div
+        className={`invisible absolute left-1/2 top-full z-[70] -translate-x-1/2 translate-y-1 pt-3 opacity-0 transition-all duration-200 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100 ${
+          hasLinks ? 'w-[22rem]' : 'w-[19rem]'
+        }`}
+      >
+        <div className="compact-nav-popover rounded-2xl p-3">
+          {hasLinks ? (
+            <div className="grid gap-1">
+              {item.links.map((link) => (
+                <Link to={link.href} className="compact-nav-link group/link" key={link.href}>
+                  <span>
+                    <strong>{link.label}</strong>
+                    <small>{link.description}</small>
+                  </span>
+                  <ArrowRight className="h-4 w-4 shrink-0 transition-transform group-hover/link:translate-x-0.5" />
+                </Link>
               ))}
             </div>
-
-          </div>
+          ) : (
+            <div className="p-2">
+              <span className="compact-nav-eyebrow">{item.eyebrow}</span>
+              <p className="mt-2 text-sm leading-relaxed text-stone-600">
+                {item.description}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {item.highlights.map((highlight) => (
+                  <span className="compact-nav-chip" key={highlight}>
+                    {highlight}
+                  </span>
+                ))}
+              </div>
+              <Link to={item.href} className="compact-nav-cta">
+                Open {item.title}
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          )}
         </div>
-      )}
-
-      {/* Small dropdown for normal options */}
-      {hasOptions && !hasCategories && (
-        <div className="absolute left-1/2 -translate-x-1/2 top-[20px] pt-10 w-56 opacity-0 invisible pointer-events-none group-hover:opacity-100 group-hover:visible group-hover:pointer-events-auto transition-all duration-300 z-50 origin-top scale-95 group-hover:scale-100">
-          <div className="bg-[#FFFDFA]/100 backdrop-blur-xl border border-white/50 shadow-2xl rounded-3xl p-2 flex flex-col">
-            {item.options.map((opt, i) => (
-              <a
-                key={i}
-                href={opt.href}
-                className="px-4 py-2 hover:bg-white/80 rounded-2xl text-stone-700 hover:text-stone-900 transition-colors text-sm font-medium"
-              >
-                {opt.label}
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
