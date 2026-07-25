@@ -57,5 +57,4 @@ mixed text runs, highlights, merged cells, or fallback images.
 
 `npm run setup` initializes the required models up front. Paddle stores them in
 its per-user cache (normally `~/.paddlex/official_models`) and later runs reuse
-them. `npm run setup:without-models` skips this large download, in which case
-the first accurate-mode conversion initializes the cache instead.
+them, so the first accurate-mode conversion is ready to run.

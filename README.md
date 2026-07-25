@@ -13,7 +13,9 @@ Archeio is a comprehensive web-based file manipulation and conversion tool. It s
 
 ## 🛠 Prerequisites (System Dependencies)
 
-Archeio relies on several powerful open-source engines for server-side processing. You **must** install these on your machine (or server) for the conversion and compression features to work.
+Archeio relies on several open-source engines for server-side processing. The
+macOS and Linux launcher can install them after asking for permission. They are
+required for the corresponding conversion and compression features.
 
 ### macOS
 ```bash
@@ -48,8 +50,25 @@ git clone <repository-url>
 cd Archeio
 ```
 
-### 2. Run the Setup Wizard
-Run the setup wizard to automatically install frontend and backend Node dependencies, configure the Python virtual environment, install Python libraries, and create configuration files:
+### 2. Start Archeio
+
+After installing Node.js and Python, use the single launcher. It installs all
+Node and Python dependencies, downloads OCR models, starts the backend and
+frontend, and opens Archeio in your default browser.
+
+| Operating system | Launcher |
+| --- | --- |
+| macOS | Double-click `start.command` (or run `./start.command`) |
+| Linux | Run `./start.sh` |
+| Windows | Double-click `start.bat` |
+
+When LibreOffice, Calibre, or Ghostscript are missing, the launcher asks
+permission to install them on macOS and Linux. On Windows it prints the manual
+download links. You can continue without the related Office, EPUB, and PDF
+conversion features.
+
+You can also run the setup step by itself:
+
 ```bash
 npm run setup
 ```
@@ -61,36 +80,21 @@ downloads the PP-StructureV3 model weights. The initial model download is
 large and may take several minutes. Paddle stores the weights in its user cache
 and reuses them on later runs.
 
-For CI or a limited connection, install packages without preloading weights:
-
-```bash
-npm run setup:without-models
-```
-
-In that mode, Paddle downloads model weights during the first OCR conversion.
-The wizard also checks for LibreOffice, Calibre, and Ghostscript and prints
-platform-specific installation instructions when they are missing. These are
+The launcher also checks for LibreOffice, Calibre, and Ghostscript. These are
 system applications and cannot be installed portably by npm.
 
 ---
 
 ## 🏃‍♂️ Running the Project
 
-You need to run both the frontend and the backend simultaneously.
+After the first setup, start both services from the project root:
 
-### Start the Backend
 ```bash
-cd backend
 npm run dev
 ```
 
-### Start the Frontend
-```bash
-cd frontend
-npm run dev
-```
-
-The application will be available at `http://localhost:5173`.
+This directly starts the backend and frontend. For first-time installation,
+use `start.command` instead.
 
 ---
 
