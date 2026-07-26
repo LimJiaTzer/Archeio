@@ -8,6 +8,8 @@ All maintained frontend tests are grouped by product feature:
 | `pdf-editor` | PDF editing and export |
 | `qr-code` | QR code creation |
 | `ocr` | OCR upload, conversion, and DOCX preview |
+| `compression` | File compression, image previews, and compression settings |
+| `image-editor` | Standalone image editing, state persistence, and export |
 
 Each feature folder owns its component tests, service or helper tests, browser
 smoke test, and documentation. Shared documents are generated in memory by
