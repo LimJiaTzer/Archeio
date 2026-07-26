@@ -4,11 +4,23 @@ test('layers workspace cards and hands their links into the final orbit', async 
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
 
+  const toolboxCards = page.locator('.home-toolbox-card');
+  await expect(toolboxCards).toHaveCount(6);
+
+  const toolboxColumns = await page.locator('.home-toolbox-grid').evaluate(
+    (grid) => getComputedStyle(grid).gridTemplateColumns.split(' ').length,
+  );
+  expect(toolboxColumns).toBe(3);
+  await page.evaluate(() => {
+    document.documentElement.style.scrollBehavior = 'auto';
+    document.getElementById('tools')?.scrollIntoView({ block: 'start' });
+  });
+  await expect(page.locator('.home-toolbox-card[href="/compress"]')).toHaveCSS('opacity', '1');
+
   const workspaceCards = page.locator('.home-workspace-card');
   await expect(workspaceCards).toHaveCount(6);
 
   await page.evaluate(() => {
-    document.documentElement.style.scrollBehavior = 'auto';
     document.getElementById('home-convert')?.scrollIntoView({ block: 'start' });
   });
 
@@ -26,8 +38,51 @@ test('layers workspace cards and hands their links into the final orbit', async 
     };
   });
 
-  expect(cardGeometry.convertTop).toBe(cardGeometry.compressTop);
+  expect(
+    Math.abs(cardGeometry.convertTop - cardGeometry.compressTop),
+    'the incoming card should fully cover the previous card',
+  ).toBeLessThanOrEqual(10);
   expect(cardGeometry.convertZ).toBeGreaterThan(cardGeometry.compressZ);
+  await expect(page.locator('#home-convert')).toHaveAttribute('data-active', 'true');
+
+  const shadowHandoff = await page.evaluate(() => ({
+    previous: getComputedStyle(document.getElementById('home-compress')).boxShadow,
+    active: getComputedStyle(document.getElementById('home-convert')).boxShadow,
+  }));
+  expect(shadowHandoff.active).not.toBe(shadowHandoff.previous);
+
+  const cardOverflow = await workspaceCards.evaluateAll((cards) => cards.map((card) => {
+    const content = card.querySelector('.home-workspace-card-scroll');
+
+    return {
+      card: card.dataset.workspace,
+      contentHeight: content.scrollHeight,
+      visibleHeight: content.clientHeight,
+      overflowY: getComputedStyle(content).overflowY,
+    };
+  }));
+
+  expect(cardOverflow).toEqual(
+    expect.arrayContaining(
+      cardOverflow.map(() => expect.objectContaining({
+        card: expect.any(String),
+        overflowY: 'hidden',
+      })),
+    ),
+  );
+  cardOverflow.forEach(({ card, contentHeight, visibleHeight }) => {
+    expect(
+      contentHeight,
+      `${card} content should fit without internal scrolling`,
+    ).toBeLessThanOrEqual(visibleHeight + 1);
+  });
+
+  const previousCardShortcut = page.getByRole('link', {
+    name: 'Jump to Smart Compression',
+  });
+  await previousCardShortcut.click();
+  await expect(page.locator('#home-compress')).toHaveAttribute('data-active', 'true');
+  await expect(page.locator('.home-workspace-rail-link .home-workspace-icon-label')).toHaveCount(0);
 
   await page.evaluate(() => {
     document.getElementById('home-feature-map-title')?.scrollIntoView({ block: 'center' });
@@ -43,7 +98,7 @@ test('uses an expanded, overflow-safe workspace layout on mobile', async ({ page
   await page.goto('/');
   await page.evaluate(() => {
     document.documentElement.style.scrollBehavior = 'auto';
-    document.getElementById('tools')?.scrollIntoView({ block: 'start' });
+    document.getElementById('workspace-tour')?.scrollIntoView({ block: 'start' });
   });
 
   const mobileLayout = await page.evaluate(() => {
