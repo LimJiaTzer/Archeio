@@ -4,7 +4,6 @@ import {
   Routes,
   Route,
 } from 'react-router-dom';
-import { motion, useReducedMotion } from 'framer-motion';
 
 // Other html pages 
 import About from './pages/About';
@@ -20,20 +19,16 @@ import QRCodeCreator from './pages/QRCodeCreator';
 
 // Grouped helpers
 import Header from './components/Header';
+import WorkspaceStackShowcase from './components/WorkspaceStackShowcase';
 import { AnimatedGradientBackground } from './components/ui/animated-gradient-background';
 import {
   ArrowRight,
   Archive,
-  FileImage,
-  FileText,
   Layers3,
-  QrCode,
   RefreshCw,
   ScanText,
   ShieldCheck,
   Sparkles,
-  Video,
-  WandSparkles,
   Zap,
 } from 'lucide-react';
 
@@ -63,217 +58,6 @@ const primaryActions = [
     link: '/ocr',
   },
 ];
-
-const tools = [
-  {
-    icon: Archive,
-    label: 'Smart Compression',
-    description: 'Shrink large documents and media with controls that help preserve visible quality.',
-    detail: '30+ file formats',
-    link: '/compress',
-    accent: 'rose',
-  },
-  {
-    icon: RefreshCw,
-    label: 'Universal Converter',
-    description: 'Convert documents, images, audio, and video without bouncing between different apps.',
-    detail: '30+ file formats',
-    link: '/convert',
-    accent: 'amber',
-  },
-  {
-    icon: ScanText,
-    label: 'OCR & Unlock',
-    description: 'Extract editable text from images and scanned PDFs, then export clean DOCX files.',
-    detail: 'Images · Scanned PDFs · DOCX',
-    link: '/ocr',
-    accent: 'orange',
-  },
-  {
-    icon: FileText,
-    label: 'PDF Workspace',
-    description: 'Merge, split, reorder, rotate, annotate, and sign PDF pages in one focused editor.',
-    detail: 'Organize · Mark up · Export',
-    link: '/PDFEditor',
-    accent: 'violet',
-  },
-  {
-    icon: QrCode,
-    label: 'QR Code Creator',
-    description: 'Turn links and useful information into polished, scannable QR codes.',
-    detail: 'Custom and downloadable',
-    link: '/QRCodeCreator',
-    accent: 'sky',
-  },
-];
-
-const formatGroups = [
-  { icon: FileText, label: 'Documents', detail: 'PDF, DOCX, XLSX, PPTX, EPUB' },
-  { icon: FileImage, label: 'Images', detail: 'PNG, JPG, SVG, HEIC, AVIF' },
-  { icon: Video, label: 'Media', detail: 'MP4, MOV, MP3, WAV, GIF' },
-  { icon: Layers3, label: 'Batch work', detail: 'Process and download together' },
-];
-
-const headingSequenceVariants = {
-  hidden: {},
-  visible: {
-    transition: {
-      delayChildren: 0.08,
-      staggerChildren: 0.18,
-    },
-  },
-};
-
-const headingFadeVariants = {
-  hidden: { opacity: 0, y: 18 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] },
-  },
-};
-
-const typedHeadingVariants = {
-  hidden: {},
-  visible: {
-    transition: {
-      staggerChildren: 0.14,
-    },
-  },
-};
-
-const typedLineVariants = {
-  hidden: {},
-  visible: {
-    transition: {
-      staggerChildren: 0.075,
-    },
-  },
-};
-
-const typedWordVariants = {
-  hidden: {},
-  visible: {
-    transition: {
-      staggerChildren: 0.028,
-    },
-  },
-};
-
-const typedCharacterVariants = {
-  hidden: {
-    opacity: 0,
-    y: '0.28em',
-    filter: 'blur(4px)',
-  },
-  visible: {
-    opacity: 1,
-    y: 0,
-    filter: 'blur(0px)',
-    transition: {
-      duration: 0.18,
-      ease: [0.22, 1, 0.36, 1],
-    },
-  },
-};
-
-const toolCardVariants = {
-  hidden: {
-    opacity: 0,
-    y: 76,
-  },
-  visible: (delay = 0) => ({
-    opacity: 1,
-    y: 0,
-    transition: {
-      delay,
-      duration: 0.72,
-      ease: [0.22, 1, 0.36, 1],
-    },
-  }),
-};
-
-const MotionLink = motion.create(Link);
-
-function TypedLine({ text, showCaret = false }) {
-  return (
-    <motion.span className="section-type-line" variants={typedLineVariants}>
-      {text.split(' ').map((word, wordIndex, words) => (
-        <span key={`${word}-${wordIndex}`}>
-          <motion.span className="section-type-word" variants={typedWordVariants}>
-            {Array.from(word).map((character, characterIndex) => (
-              <motion.span
-                className="section-type-character"
-                variants={typedCharacterVariants}
-                key={`${character}-${characterIndex}`}
-              >
-                {character}
-              </motion.span>
-            ))}
-          </motion.span>
-          {wordIndex < words.length - 1 ? ' ' : ''}
-        </span>
-      ))}
-      {showCaret && (
-        <motion.span
-          className="section-type-caret"
-          variants={typedCharacterVariants}
-          aria-hidden="true"
-        />
-      )}
-    </motion.span>
-  );
-}
-
-function TypedToolboxHeading() {
-  return (
-    <motion.h2
-      aria-label="From “I have this” to “I need that.”"
-      variants={typedHeadingVariants}
-    >
-      <span aria-hidden="true">
-        <TypedLine text="From “I have this” to" />
-        <TypedLine text="“I need that.”" showCaret />
-      </span>
-    </motion.h2>
-  );
-}
-
-function ToolCard({
-  tool,
-  featured = false,
-  reducedMotion = false,
-  revealDelay = 0,
-}) {
-  const Icon = tool.icon;
-
-  return (
-    <MotionLink
-      to={tool.link}
-      className={`tool-card group ${featured ? 'tool-card-featured' : ''}`}
-      variants={toolCardVariants}
-      custom={revealDelay}
-      initial={reducedMotion ? false : 'hidden'}
-      whileInView="visible"
-      viewport={{ once: true, amount: 0.18 }}
-      whileHover={reducedMotion ? undefined : { y: -5 }}
-    >
-      <div className={`tool-icon tool-icon-${tool.accent}`}>
-        <Icon className="h-5 w-5" strokeWidth={1.8} />
-      </div>
-      <div className="min-w-0">
-        <h3>{tool.label}</h3>
-        <p>{tool.description}</p>
-      </div>
-      <div className="tool-card-footer">
-        <span>{tool.detail}</span>
-        <span className="tool-card-arrow" aria-hidden="true">
-          <ArrowRight className="h-4 w-4" />
-        </span>
-      </div>
-    </MotionLink>
-  );
-}
 
 function handleWorkflowTilt(event) {
   if (
@@ -310,10 +94,8 @@ function resetWorkflowTilt(event) {
 }
 
 function Home() {
-  const shouldReduceMotion = useReducedMotion();
-
   return (
-    <div className="home-shell min-h-screen text-stone-800 font-sans selection:bg-orange-200 selection:text-stone-950 relative overflow-hidden">
+    <div className="home-shell min-h-screen text-stone-800 font-sans selection:bg-orange-200 selection:text-stone-950 relative overflow-x-clip">
       <AnimatedGradientBackground className="fixed inset-0 z-0" />
 
       <Header />
@@ -403,99 +185,7 @@ function Home() {
           </div>
         </section>
 
-        <section id="tools" className="scroll-mt-32 px-6 py-24 lg:px-10">
-          <div className="mx-auto max-w-7xl">
-            <motion.div
-              className="section-heading"
-              variants={headingSequenceVariants}
-              initial={shouldReduceMotion ? false : 'hidden'}
-              whileInView="visible"
-              viewport={{ once: true, amount: 0.55 }}
-            >
-              <div>
-                <motion.span className="section-label" variants={headingFadeVariants}>
-                  THE TOOLBOX
-                </motion.span>
-                <TypedToolboxHeading />
-              </div>
-              <motion.p variants={headingFadeVariants}>
-                Pick the output you need. Archeío handles the formats,
-                previews, and exports in one consistent flow.
-              </motion.p>
-            </motion.div>
-
-            <div className="tools-grid mt-12">
-              {tools.map((tool, index) => (
-                <ToolCard
-                  key={tool.label}
-                  tool={tool}
-                  featured={index < 2}
-                  reducedMotion={shouldReduceMotion}
-                  revealDelay={
-                    index < 2 ? index * 0.1 : (index - 2) * 0.1
-                  }
-                />
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="px-6 py-12 lg:px-10">
-          <div className="format-strip mx-auto max-w-7xl">
-            <div className="format-intro">
-              <WandSparkles className="h-5 w-5" />
-              <div>
-                <strong>Built for the files you actually use</strong>
-                <span>Broad format support, without the clutter.</span>
-              </div>
-            </div>
-            <div className="format-grid">
-              {formatGroups.map(({ icon: Icon, label, detail }) => (
-                <div className="format-item" key={label}>
-                  <Icon className="h-5 w-5" strokeWidth={1.8} />
-                  <div>
-                    <strong>{label}</strong>
-                    <span>{detail}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="px-6 py-24 lg:px-10">
-          <div className="process-panel mx-auto max-w-7xl">
-            <div className="process-copy">
-              <span className="section-label">ONE SIMPLE RHYTHM</span>
-              <h2>Less setup.<br />More finished files.</h2>
-              <p>Every tool follows the same focused flow, so you always know what happens next.</p>
-            </div>
-
-            <ol className="process-steps">
-              <li>
-                <span>1</span>
-                <div>
-                  <strong>Choose the outcome</strong>
-                  <p>Extract, convert, compress, or edit.</p>
-                </div>
-              </li>
-              <li>
-                <span>2</span>
-                <div>
-                  <strong>Add your files</strong>
-                  <p>Work with one file or an entire batch.</p>
-                </div>
-              </li>
-              <li>
-                <span>3</span>
-                <div>
-                  <strong>Preview and export</strong>
-                  <p>Check the result, rename it, and download.</p>
-                </div>
-              </li>
-            </ol>
-          </div>
-        </section>
+        <WorkspaceStackShowcase />
 
         <section className="px-6 pb-12 lg:px-10">
           <div className="final-cta mx-auto max-w-7xl">
