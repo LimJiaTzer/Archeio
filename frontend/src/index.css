@@ -2068,10 +2068,6 @@ a {
   position: absolute;
   top: var(--orbit-y);
   left: var(--orbit-x);
-  transform: translate(-50%, -50%);
-  transition:
-    left 110ms cubic-bezier(0.22, 0.61, 0.36, 1),
-    top 110ms cubic-bezier(0.22, 0.61, 0.36, 1);
   pointer-events: auto;
 }
 
@@ -2216,8 +2212,6 @@ a {
 
   .home-feature-orbit-motion {
     position: static;
-    transform: none;
-    transition: none;
   }
 
   .home-feature-orbit-link {
@@ -2342,7 +2336,6 @@ a {
   }
 
   .home-workspace-rail-link,
-  .home-feature-orbit-motion,
   .home-feature-orbit-link,
   .workspace-journey-token {
     transition: none;
