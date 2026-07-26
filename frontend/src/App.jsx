@@ -19,6 +19,7 @@ import QRCodeCreator from './pages/QRCodeCreator';
 
 // Grouped helpers
 import Header from './components/Header';
+import HomeToolboxGrid from './components/HomeToolboxGrid';
 import WorkspaceStackShowcase from './components/WorkspaceStackShowcase';
 import { AnimatedGradientBackground } from './components/ui/animated-gradient-background';
 import {
@@ -185,20 +186,8 @@ function Home() {
           </div>
         </section>
 
+        <HomeToolboxGrid />
         <WorkspaceStackShowcase />
-
-        <section className="px-6 pb-12 lg:px-10">
-          <div className="final-cta mx-auto max-w-7xl">
-            <div>
-              <span className="section-label">YOUR NEXT FILE IS WAITING</span>
-              <h2>One workspace. Countless outcomes.</h2>
-            </div>
-            <Link to="/convert" className="primary-cta">
-              Open Archeío
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-        </section>
       </main>
 
       <footer className="relative z-10 px-6 pb-8 pt-4 text-sm text-stone-500 lg:px-10">

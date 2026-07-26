@@ -14,7 +14,7 @@ const orbitPositions = [
   { x: '79%', y: '78%' },
 ];
 
-function WorkspaceIcon({ feature, compact = false }) {
+function WorkspaceIcon({ feature, compact = false, showLabel = true }) {
   const Icon = feature.icon;
 
   return (
@@ -26,7 +26,7 @@ function WorkspaceIcon({ feature, compact = false }) {
           aria-hidden="true"
         />
       </span>
-      <span className="home-workspace-icon-label">{feature.kicker}</span>
+      {showLabel && <span className="home-workspace-icon-label">{feature.kicker}</span>}
     </>
   );
 }
@@ -37,6 +37,27 @@ export default function WorkspaceStackShowcase() {
   const finaleRef = useRef(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [showOrbit, setShowOrbit] = useState(false);
+
+  const handleRailJump = (event, index) => {
+    const sentinel = sentinelsRef.current[index];
+    if (!sentinel) return;
+
+    event.preventDefault();
+    setActiveIndex(index);
+    const card = document.getElementById(`home-${orderedWorkspaceFeatures[index].id}`);
+    const stickyTop = card ? Number.parseFloat(getComputedStyle(card).top) || 0 : 0;
+    const targetTop = window.scrollY + sentinel.getBoundingClientRect().top - stickyTop;
+
+    window.scrollTo({
+      top: targetTop,
+      behavior: shouldReduceMotion ? 'auto' : 'smooth',
+    });
+    window.history.replaceState(
+      null,
+      '',
+      `#home-${orderedWorkspaceFeatures[index].id}`,
+    );
+  };
 
   useEffect(() => {
     if (typeof IntersectionObserver === 'undefined') return undefined;
@@ -55,7 +76,7 @@ export default function WorkspaceStackShowcase() {
           });
       },
       {
-        rootMargin: '-16% 0px -74% 0px',
+        rootMargin: '-10% 0px -80% 0px',
         threshold: 0,
       },
     );
@@ -83,14 +104,14 @@ export default function WorkspaceStackShowcase() {
 
   return (
     <section
-      id="tools"
+      id="workspace-tour"
       className="home-workspace-showcase"
       aria-labelledby="workspace-showcase-title"
     >
       <div className="home-workspace-intro">
-        <span className="section-label">THE COMPLETE TOOLBOX</span>
+        <span className="section-label">A CLOSER LOOK</span>
         <div>
-          <h2 id="workspace-showcase-title">Six workspaces. One fluid tour.</h2>
+          <h2 id="workspace-showcase-title">Six workspaces. One tool.</h2>
           <p>
             Scroll through every Archeío workspace, then open the one that fits
             what you need to do next.
@@ -120,8 +141,9 @@ export default function WorkspaceStackShowcase() {
                       data-tone={feature.tone}
                       aria-current={activeIndex === index ? 'step' : undefined}
                       aria-label={`Jump to ${feature.title}`}
+                      onClick={(event) => handleRailJump(event, index)}
                     >
-                      <WorkspaceIcon feature={feature} compact />
+                      <WorkspaceIcon feature={feature} compact showLabel={false} />
                     </a>
                   </motion.div>
                 ))}
@@ -147,7 +169,9 @@ export default function WorkspaceStackShowcase() {
 
                     <article
                       className="home-workspace-card"
+                      data-active={activeIndex === index}
                       data-tone={feature.tone}
+                      data-workspace={feature.id}
                       id={`home-${feature.id}`}
                       style={{ '--workspace-stack-index': index + 1 }}
                     >
