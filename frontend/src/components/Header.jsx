@@ -6,29 +6,27 @@ import archeioIcon from '../assets/archeioIcon.png';
 
 const navMenus = [
   {
-    title: 'Unlock',
-    eyebrow: 'OCR & Unlock',
-    description: 'Extract editable text from images and scanned PDFs.',
-    href: '/ocr',
-    highlights: ['Batch processing', 'DOCX export'],
-  },
-  {
-    title: 'Convert',
-    eyebrow: 'Universal converter',
-    description: 'Change documents, images, audio, and video across 30+ formats.',
-    href: '/convert',
-    highlights: ['30+ formats', 'Batch conversion'],
-  },
-  {
     title: 'Compress',
     eyebrow: 'Smart compression',
-    description: 'Reduce file sizes while keeping control of output quality.',
+    description: 'Reduce documents, images, audio, and video size across 30+ formats.',
     href: '/compress',
     highlights: ['Quality controls', 'Batch downloads'],
   },
   {
+    title: 'Convert',
+    eyebrow: 'Universal converter',
+    description: 'Change documents, images, audio, and video across 20+ formats.',
+    href: '/convert',
+    highlights: ['30+ formats', 'Batch conversion'],
+  },
+  {
     title: 'Tools',
     links: [
+      {
+        label: 'OCR & unlock',
+        description: 'Extract editable text from scans.',
+        href: '/ocr',
+      },
       {
         label: 'Image editor',
         description: 'Crop, filter, draw, and add text.',
@@ -50,9 +48,9 @@ const navMenus = [
 
 const mobileLinks = [
   {
-    label: 'OCR & Unlock',
-    description: 'Extract editable text from scans',
-    href: '/ocr',
+    label: 'Compress files',
+    description: 'Reduce file sizes while keeping quality',
+    href: '/compress',
   },
   {
     label: 'Convert files',
@@ -60,9 +58,9 @@ const mobileLinks = [
     href: '/convert',
   },
   {
-    label: 'Compress files',
-    description: 'Reduce file sizes while keeping quality',
-    href: '/compress',
+    label: 'OCR & Unlock',
+    description: 'Extract editable text from scans',
+    href: '/ocr',
   },
   {
     label: 'Image editor',
