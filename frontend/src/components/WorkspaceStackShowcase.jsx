@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { LayoutGroup, motion, useReducedMotion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowUpRight, Layers3, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import FeatureDetailGroup from './features/FeatureDetailGroup';
+import WorkspaceJourneyIcon from './WorkspaceJourneyIcon';
 import { orderedWorkspaceFeatures } from '../data/workspaceFeatures';
 
 const orbitPositions = [
@@ -14,29 +15,33 @@ const orbitPositions = [
   { x: '79%', y: '78%' },
 ];
 
-function WorkspaceIcon({ feature, compact = false, showLabel = true }) {
-  const Icon = feature.icon;
-
+function WorkspaceIcon({
+  feature,
+  compact = false,
+  layoutId,
+  showLabel = true,
+}) {
   return (
     <>
-      <span className="home-workspace-icon">
-        <Icon
-          className={compact ? 'h-4 w-4' : 'h-5 w-5'}
-          strokeWidth={1.9}
-          aria-hidden="true"
-        />
-      </span>
+      <WorkspaceJourneyIcon
+        className="home-workspace-icon"
+        compact={compact}
+        feature={feature}
+        layoutId={layoutId}
+      />
       {showLabel && <span className="home-workspace-icon-label">{feature.kicker}</span>}
     </>
   );
 }
 
-export default function WorkspaceStackShowcase() {
+export default function WorkspaceStackShowcase({
+  iconPhase,
+  overviewRef,
+  stackRef,
+}) {
   const shouldReduceMotion = useReducedMotion();
   const sentinelsRef = useRef([]);
-  const finaleRef = useRef(null);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [showOrbit, setShowOrbit] = useState(false);
 
   const handleWorkspaceJump = (event, index) => {
     const sentinel = sentinelsRef.current[index];
@@ -81,24 +86,12 @@ export default function WorkspaceStackShowcase() {
       },
     );
 
-    const finaleObserver = new IntersectionObserver(
-      ([entry]) => setShowOrbit(entry.isIntersecting),
-      {
-        rootMargin: '-18% 0px -18% 0px',
-        threshold: 0.08,
-      },
-    );
-
     sentinelsRef.current.forEach((sentinel) => {
       if (sentinel) cardObserver.observe(sentinel);
     });
 
-    const finale = finaleRef.current;
-    if (finale) finaleObserver.observe(finale);
-
     return () => {
       cardObserver.disconnect();
-      finaleObserver.disconnect();
     };
   }, []);
 
@@ -108,6 +101,80 @@ export default function WorkspaceStackShowcase() {
       className="home-workspace-showcase"
       aria-labelledby="workspace-showcase-title"
     >
+      <section
+        className="home-feature-map-stage"
+        id="home-feature-map"
+        ref={overviewRef}
+        aria-labelledby="home-feature-map-title"
+      >
+        <motion.div
+          className="home-feature-map-card"
+          initial={shouldReduceMotion ? false : { opacity: 0, y: 34, scale: 0.98 }}
+          whileInView={{ opacity: 1, y: 0, scale: 1 }}
+          viewport={{ once: true, amount: 0.35 }}
+          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <span className="features-eyebrow">
+            <Sparkles className="h-4 w-4" aria-hidden="true" />
+            The complete toolbox
+          </span>
+          <h2 id="home-feature-map-title">Every feature, clearly mapped.</h2>
+          <p>
+            See exactly what each Archeío workspace can do, which formats
+            work together, and where to start.
+          </p>
+
+          <div className="features-stats" aria-label="Product overview">
+            <div>
+              <strong>6</strong>
+              <span>focused workspaces</span>
+            </div>
+            <div>
+              <strong>30+</strong>
+              <span>supported formats</span>
+            </div>
+            <div>
+              <strong>0</strong>
+              <span>ads in your workflow</span>
+            </div>
+          </div>
+        </motion.div>
+
+        {iconPhase === 'orbit' && (
+          <nav className="home-feature-orbit" aria-label="Jump to a workspace">
+            {orderedWorkspaceFeatures.map((feature, index) => (
+              <motion.div
+                className="home-feature-orbit-motion"
+                style={{
+                  '--orbit-x': orbitPositions[index].x,
+                  '--orbit-y': orbitPositions[index].y,
+                  '--orbit-delay': `${index * -1.15}s`,
+                }}
+                initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.92 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.25, delay: index * 0.035 }}
+                key={feature.id}
+              >
+                <a
+                  href={`#home-${feature.id}`}
+                  className="home-feature-orbit-link"
+                  data-tone={feature.tone}
+                  aria-label={`Jump to ${feature.title}`}
+                  onClick={(event) => handleWorkspaceJump(event, index)}
+                >
+                  <WorkspaceIcon
+                    feature={feature}
+                    layoutId={
+                      shouldReduceMotion ? undefined : `home-workspace-icon-${feature.id}`
+                    }
+                  />
+                </a>
+              </motion.div>
+            ))}
+          </nav>
+        )}
+      </section>
+
       <div className="home-workspace-intro">
         <span className="section-label">A CLOSER LOOK</span>
         <div>
@@ -119,174 +186,106 @@ export default function WorkspaceStackShowcase() {
         </div>
       </div>
 
-      <LayoutGroup id="home-workspace-icons">
-        <div className="home-workspace-experience">
-          <aside className="home-workspace-rail">
-            {!showOrbit && (
-              <nav className="home-workspace-rail-list" aria-label="Workspace shortcuts">
-                {orderedWorkspaceFeatures.map((feature, index) => (
-                  <motion.div
-                    className="home-workspace-rail-motion"
-                    layoutId={
-                      shouldReduceMotion ? undefined : `home-workspace-icon-${feature.id}`
-                    }
-                    transition={{ type: 'spring', stiffness: 220, damping: 26 }}
-                    key={feature.id}
+      <div className="home-workspace-experience" ref={stackRef}>
+        <aside className="home-workspace-rail">
+          {iconPhase === 'stack' && (
+            <nav className="home-workspace-rail-list" aria-label="Workspace shortcuts">
+              {orderedWorkspaceFeatures.map((feature, index) => (
+                <motion.div
+                  className="home-workspace-rail-motion"
+                  key={feature.id}
+                >
+                  <a
+                    href={`#home-${feature.id}`}
+                    className="home-workspace-rail-link"
+                    data-active={activeIndex === index}
+                    data-reached={index <= activeIndex}
+                    data-tone={feature.tone}
+                    aria-current={activeIndex === index ? 'step' : undefined}
+                    aria-label={`Jump to ${feature.title}`}
+                    onClick={(event) => handleWorkspaceJump(event, index)}
                   >
-                    <a
-                      href={`#home-${feature.id}`}
-                      className="home-workspace-rail-link"
-                      data-active={activeIndex === index}
-                      data-reached={index <= activeIndex}
-                      data-tone={feature.tone}
-                      aria-current={activeIndex === index ? 'step' : undefined}
-                      aria-label={`Jump to ${feature.title}`}
-                      onClick={(event) => handleWorkspaceJump(event, index)}
-                    >
-                      <WorkspaceIcon feature={feature} compact showLabel={false} />
-                    </a>
-                  </motion.div>
-                ))}
-              </nav>
-            )}
-          </aside>
-
-          <div className="home-workspace-content">
-            <div className="home-workspace-list">
-              {orderedWorkspaceFeatures.map((feature, index) => {
-                const Icon = feature.icon;
-
-                return (
-                  <div className="home-workspace-stack-entry" key={feature.id}>
-                    <span
-                      className="home-workspace-sentinel"
-                      data-index={index}
-                      ref={(node) => {
-                        sentinelsRef.current[index] = node;
-                      }}
-                      aria-hidden="true"
-                    />
-
-                    <article
-                      className="home-workspace-card"
-                      data-active={activeIndex === index}
-                      data-tone={feature.tone}
-                      data-workspace={feature.id}
-                      id={`home-${feature.id}`}
-                      style={{ '--workspace-stack-index': index + 1 }}
-                    >
-                      <header className="feature-card-header">
-                        <div className="feature-card-heading">
-                          <span className="feature-card-number">0{index + 1}</span>
-                          <span className="feature-card-icon">
-                            <Icon className="h-6 w-6" strokeWidth={1.8} aria-hidden="true" />
-                          </span>
-                          <div>
-                            <span className="feature-card-kicker">{feature.kicker}</span>
-                            <h2>{feature.title}</h2>
-                            <p>{feature.description}</p>
-                          </div>
-                        </div>
-
-                        <Link to={feature.href} className="feature-card-action">
-                          <span>{feature.action}</span>
-                          <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
-                        </Link>
-                      </header>
-
-                      <div className="home-workspace-card-scroll">
-                        <div className="feature-badge-list">
-                          {feature.badges.map((badge) => (
-                            <span key={badge}>
-                              <Layers3 className="h-3.5 w-3.5" aria-hidden="true" />
-                              {badge}
-                            </span>
-                          ))}
-                        </div>
-
-                        <div className="feature-detail-grid">
-                          {feature.groups.map((group) => (
-                            <FeatureDetailGroup group={group} key={group.title} />
-                          ))}
-                        </div>
-                      </div>
-                    </article>
-                  </div>
-                );
-              })}
-            </div>
-
-            <section
-              className="home-feature-map-stage"
-              ref={finaleRef}
-              aria-labelledby="home-feature-map-title"
-            >
-              <motion.div
-                className="home-feature-map-card"
-                initial={shouldReduceMotion ? false : { opacity: 0, y: 34, scale: 0.98 }}
-                whileInView={{ opacity: 1, y: 0, scale: 1 }}
-                viewport={{ once: true, amount: 0.35 }}
-                transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-              >
-                <span className="features-eyebrow">
-                  <Sparkles className="h-4 w-4" aria-hidden="true" />
-                  The complete toolbox
-                </span>
-                <h2 id="home-feature-map-title">Every feature, clearly mapped.</h2>
-                <p>
-                  See exactly what each Archeío workspace can do, which formats
-                  work together, and where to start.
-                </p>
-
-                <div className="features-stats" aria-label="Product overview">
-                  <div>
-                    <strong>6</strong>
-                    <span>focused workspaces</span>
-                  </div>
-                  <div>
-                    <strong>30+</strong>
-                    <span>supported formats</span>
-                  </div>
-                  <div>
-                    <strong>0</strong>
-                    <span>ads in your workflow</span>
-                  </div>
-                </div>
-              </motion.div>
-
-              {showOrbit && (
-                <nav className="home-feature-orbit" aria-label="Jump to a workspace">
-                  {orderedWorkspaceFeatures.map((feature, index) => (
-                    <motion.div
-                      className="home-feature-orbit-motion"
+                    <WorkspaceIcon
+                      feature={feature}
+                      compact
                       layoutId={
                         shouldReduceMotion ? undefined : `home-workspace-icon-${feature.id}`
                       }
-                      style={{
-                        '--orbit-x': orbitPositions[index].x,
-                        '--orbit-y': orbitPositions[index].y,
-                        '--orbit-delay': `${index * -1.15}s`,
-                      }}
-                      transition={{ type: 'spring', stiffness: 185, damping: 24 }}
-                      key={feature.id}
-                    >
-                      <a
-                        href={`#home-${feature.id}`}
-                        className="home-feature-orbit-link"
-                        data-tone={feature.tone}
-                        aria-label={`Jump to ${feature.title}`}
-                        onClick={(event) => handleWorkspaceJump(event, index)}
-                      >
-                        <WorkspaceIcon feature={feature} />
-                      </a>
-                    </motion.div>
-                  ))}
-                </nav>
-              )}
-            </section>
+                      showLabel={false}
+                    />
+                  </a>
+                </motion.div>
+              ))}
+            </nav>
+          )}
+        </aside>
+
+        <div className="home-workspace-content">
+          <div className="home-workspace-list">
+            {orderedWorkspaceFeatures.map((feature, index) => {
+              const Icon = feature.icon;
+
+              return (
+                <div className="home-workspace-stack-entry" key={feature.id}>
+                  <span
+                    className="home-workspace-sentinel"
+                    data-index={index}
+                    ref={(node) => {
+                      sentinelsRef.current[index] = node;
+                    }}
+                    aria-hidden="true"
+                  />
+
+                  <article
+                    className="home-workspace-card"
+                    data-active={activeIndex === index}
+                    data-tone={feature.tone}
+                    data-workspace={feature.id}
+                    id={`home-${feature.id}`}
+                    style={{ '--workspace-stack-index': index + 1 }}
+                  >
+                    <header className="feature-card-header">
+                      <div className="feature-card-heading">
+                        <span className="feature-card-number">0{index + 1}</span>
+                        <span className="feature-card-icon">
+                          <Icon className="h-6 w-6" strokeWidth={1.8} aria-hidden="true" />
+                        </span>
+                        <div>
+                          <span className="feature-card-kicker">{feature.kicker}</span>
+                          <h2>{feature.title}</h2>
+                          <p>{feature.description}</p>
+                        </div>
+                      </div>
+
+                      <Link to={feature.href} className="feature-card-action">
+                        <span>{feature.action}</span>
+                        <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+                      </Link>
+                    </header>
+
+                    <div className="home-workspace-card-scroll">
+                      <div className="feature-badge-list">
+                        {feature.badges.map((badge) => (
+                          <span key={badge}>
+                            <Layers3 className="h-3.5 w-3.5" aria-hidden="true" />
+                            {badge}
+                          </span>
+                        ))}
+                      </div>
+
+                      <div className="feature-detail-grid">
+                        {feature.groups.map((group) => (
+                          <FeatureDetailGroup group={group} key={group.title} />
+                        ))}
+                      </div>
+                    </div>
+                  </article>
+                </div>
+              );
+            })}
           </div>
         </div>
-      </LayoutGroup>
+      </div>
     </section>
   );
 }
