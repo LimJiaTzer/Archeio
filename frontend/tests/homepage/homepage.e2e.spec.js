@@ -15,10 +15,29 @@ test('moves workspace icons from the toolbox into the overview and stack', async
     document.documentElement.style.scrollBehavior = 'auto';
     document.getElementById('tools')?.scrollIntoView({ block: 'start' });
   });
-  await expect(page.locator('.tool-card[href="/compress"]')).toHaveCSS('opacity', '1');
-  await expect(page.locator('.tool-icon')).toHaveCount(6);
-  const toolboxIconColors = await page.locator('.tool-icon').evaluateAll(
-    (icons) => icons.map((icon) => getComputedStyle(icon).color),
+  await expect(page.locator('.tool-card-motion')).toHaveCount(6);
+  await page.waitForTimeout(1500);
+
+  const toolboxGeometry = await toolboxCards.evaluateAll((cards) => cards.map((card) => {
+    const bounds = card.getBoundingClientRect();
+
+    return {
+      height: Math.round(bounds.height),
+      href: card.getAttribute('href'),
+      left: Math.round(bounds.left),
+      top: Math.round(bounds.top),
+      width: Math.round(bounds.width),
+    };
+  }));
+  const toolboxTokens = page.locator(
+    '.workspace-journey-token[data-phase="toolbox"]',
+  );
+  await expect(toolboxTokens).toHaveCount(6);
+  const toolboxIconColors = await toolboxTokens.evaluateAll(
+    (tokens) => tokens.map((token) => getComputedStyle(token).color),
+  );
+  const toolboxTokenWidths = await toolboxTokens.evaluateAll(
+    (tokens) => tokens.map((token) => token.getBoundingClientRect().width),
   );
 
   const workspaceCards = page.locator('.home-workspace-card');
@@ -50,11 +69,25 @@ test('moves workspace icons from the toolbox into the overview and stack', async
   const orbit = page.getByRole('navigation', { name: 'Jump to a workspace' });
   await expect(orbit).toBeVisible();
   await expect(orbit.getByRole('link')).toHaveCount(6);
-  await expect(page.locator('.tool-icon')).toHaveCount(0);
+  await expect(toolboxTokens).toHaveCount(0);
+  const orbitTokens = page.locator(
+    '.home-feature-orbit .workspace-journey-token[data-phase="orbit"]',
+  );
+  await expect(orbitTokens).toHaveCount(6);
+  await expect(
+    page.locator('.home-feature-orbit .workspace-journey-token-label'),
+  ).toHaveCount(6);
+  await page.waitForTimeout(900);
   const orbitIconColors = await page
-    .locator('.home-feature-orbit .workspace-journey-icon')
+    .locator('.home-feature-orbit .workspace-journey-token')
     .evaluateAll((icons) => icons.map((icon) => getComputedStyle(icon).color));
   expect(orbitIconColors).toEqual(toolboxIconColors);
+  const orbitTokenWidths = await orbitTokens.evaluateAll(
+    (tokens) => tokens.map((token) => token.getBoundingClientRect().width),
+  );
+  orbitTokenWidths.forEach((width, index) => {
+    expect(width).toBeGreaterThan(toolboxTokenWidths[index] + 50);
+  });
   await expect(
     page.getByRole('navigation', { name: 'Workspace shortcuts' }),
   ).toHaveCount(0);
@@ -67,9 +100,15 @@ test('moves workspace icons from the toolbox into the overview and stack', async
     page.getByRole('navigation', { name: 'Workspace shortcuts' }),
   ).toBeVisible();
   const railIconColors = await page
-    .locator('.home-workspace-rail .workspace-journey-icon')
+    .locator('.home-workspace-rail .workspace-journey-token')
     .evaluateAll((icons) => icons.map((icon) => getComputedStyle(icon).color));
   expect(railIconColors).toEqual(toolboxIconColors);
+  const railTokenWidths = await page
+    .locator('.home-workspace-rail .workspace-journey-token')
+    .evaluateAll((tokens) => tokens.map((token) => token.getBoundingClientRect().width));
+  railTokenWidths.forEach((width, index) => {
+    expect(width).toBeLessThan(orbitTokenWidths[index]);
+  });
 
   await page.evaluate(() => {
     document.getElementById('home-convert')?.scrollIntoView({ block: 'start' });
@@ -133,7 +172,9 @@ test('moves workspace icons from the toolbox into the overview and stack', async
   });
   await previousCardShortcut.click();
   await expect(page.locator('#home-compress')).toHaveAttribute('data-active', 'true');
-  await expect(page.locator('.home-workspace-rail-link .home-workspace-icon-label')).toHaveCount(0);
+  await expect(
+    page.locator('.home-workspace-rail-link .workspace-journey-token-label'),
+  ).toHaveCount(0);
 
   await page.evaluate(() => {
     document.getElementById('home-qr')?.scrollIntoView({ block: 'start' });
@@ -153,6 +194,51 @@ test('moves workspace icons from the toolbox into the overview and stack', async
     'the final card should fully cover the previous card',
   ).toBeLessThanOrEqual(10);
 
+  await page.evaluate(() => {
+    document.getElementById('tools')?.scrollIntoView({ block: 'start' });
+  });
+  await expect(page.locator('.home-feature-journey')).toHaveAttribute(
+    'data-icon-phase',
+    'toolbox',
+  );
+  await expect(toolboxTokens).toHaveCount(6);
+  await page.waitForTimeout(900);
+
+  const returnedToolboxGeometry = await toolboxCards.evaluateAll((cards) => cards.map((card) => {
+    const bounds = card.getBoundingClientRect();
+
+    return {
+      height: Math.round(bounds.height),
+      href: card.getAttribute('href'),
+      left: Math.round(bounds.left),
+      top: Math.round(bounds.top),
+      width: Math.round(bounds.width),
+    };
+  }));
+  expect(returnedToolboxGeometry).toEqual(toolboxGeometry);
+
+  const convertCard = page.locator('.tool-card[href="/convert"]');
+  const convertBeforeHover = await convertCard.evaluate((card) => {
+    const bounds = card.getBoundingClientRect();
+    return { left: bounds.left + window.scrollX, top: bounds.top + window.scrollY };
+  });
+  await convertCard.hover();
+  await page.waitForTimeout(300);
+  const convertDuringHover = await convertCard.evaluate((card) => {
+    const bounds = card.getBoundingClientRect();
+    return { left: bounds.left + window.scrollX, top: bounds.top + window.scrollY };
+  });
+  expect(Math.abs(convertDuringHover.left - convertBeforeHover.left)).toBeLessThan(1);
+  expect(convertDuringHover.top).toBeLessThan(convertBeforeHover.top - 4);
+
+  await page.mouse.move(0, 0);
+  await page.waitForTimeout(300);
+  const convertAfterHover = await convertCard.evaluate((card) => {
+    const bounds = card.getBoundingClientRect();
+    return { left: bounds.left + window.scrollX, top: bounds.top + window.scrollY };
+  });
+  expect(Math.abs(convertAfterHover.left - convertBeforeHover.left)).toBeLessThan(1);
+  expect(Math.abs(convertAfterHover.top - convertBeforeHover.top)).toBeLessThan(1);
 });
 
 test('uses an expanded, overflow-safe workspace layout on mobile', async ({ page }) => {

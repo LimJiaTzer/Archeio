@@ -3,7 +3,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowUpRight, Layers3, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import FeatureDetailGroup from './features/FeatureDetailGroup';
-import WorkspaceJourneyIcon from './WorkspaceJourneyIcon';
+import WorkspaceJourneyToken from './WorkspaceJourneyToken';
 import { orderedWorkspaceFeatures } from '../data/workspaceFeatures';
 
 const orbitPositions = [
@@ -14,25 +14,6 @@ const orbitPositions = [
   { x: '7%', y: '78%' },
   { x: '79%', y: '78%' },
 ];
-
-function WorkspaceIcon({
-  feature,
-  compact = false,
-  layoutId,
-  showLabel = true,
-}) {
-  return (
-    <>
-      <WorkspaceJourneyIcon
-        className="home-workspace-icon"
-        compact={compact}
-        feature={feature}
-        layoutId={layoutId}
-      />
-      {showLabel && <span className="home-workspace-icon-label">{feature.kicker}</span>}
-    </>
-  );
-}
 
 export default function WorkspaceStackShowcase({
   iconPhase,
@@ -143,16 +124,13 @@ export default function WorkspaceStackShowcase({
         {iconPhase === 'orbit' && (
           <nav className="home-feature-orbit" aria-label="Jump to a workspace">
             {orderedWorkspaceFeatures.map((feature, index) => (
-              <motion.div
+              <div
                 className="home-feature-orbit-motion"
                 style={{
                   '--orbit-x': orbitPositions[index].x,
                   '--orbit-y': orbitPositions[index].y,
                   '--orbit-delay': `${index * -1.15}s`,
                 }}
-                initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.92 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.25, delay: index * 0.035 }}
                 key={feature.id}
               >
                 <a
@@ -162,14 +140,16 @@ export default function WorkspaceStackShowcase({
                   aria-label={`Jump to ${feature.title}`}
                   onClick={(event) => handleWorkspaceJump(event, index)}
                 >
-                  <WorkspaceIcon
+                  <WorkspaceJourneyToken
                     feature={feature}
                     layoutId={
-                      shouldReduceMotion ? undefined : `home-workspace-icon-${feature.id}`
+                      shouldReduceMotion ? undefined : `home-workspace-token-${feature.id}`
                     }
+                    phase="orbit"
+                    reducedMotion={shouldReduceMotion}
                   />
                 </a>
-              </motion.div>
+              </div>
             ))}
           </nav>
         )}
@@ -191,7 +171,7 @@ export default function WorkspaceStackShowcase({
           {iconPhase === 'stack' && (
             <nav className="home-workspace-rail-list" aria-label="Workspace shortcuts">
               {orderedWorkspaceFeatures.map((feature, index) => (
-                <motion.div
+                <div
                   className="home-workspace-rail-motion"
                   key={feature.id}
                 >
@@ -205,16 +185,16 @@ export default function WorkspaceStackShowcase({
                     aria-label={`Jump to ${feature.title}`}
                     onClick={(event) => handleWorkspaceJump(event, index)}
                   >
-                    <WorkspaceIcon
+                    <WorkspaceJourneyToken
                       feature={feature}
-                      compact
                       layoutId={
-                        shouldReduceMotion ? undefined : `home-workspace-icon-${feature.id}`
+                        shouldReduceMotion ? undefined : `home-workspace-token-${feature.id}`
                       }
-                      showLabel={false}
+                      phase="rail"
+                      reducedMotion={shouldReduceMotion}
                     />
                   </a>
-                </motion.div>
+                </div>
               ))}
             </nav>
           )}

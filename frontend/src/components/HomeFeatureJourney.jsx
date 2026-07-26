@@ -10,7 +10,6 @@ const ICON_PHASE = {
 };
 
 export default function HomeFeatureJourney() {
-  const toolboxRef = useRef(null);
   const overviewRef = useRef(null);
   const stackRef = useRef(null);
   const frameRef = useRef(null);
@@ -61,7 +60,6 @@ export default function HomeFeatureJourney() {
       <div className="home-feature-journey" data-icon-phase={iconPhase}>
         <HomeToolboxGrid
           iconPhase={iconPhase}
-          sectionRef={toolboxRef}
         />
         <WorkspaceStackShowcase
           iconPhase={iconPhase}
