@@ -63,14 +63,48 @@ describe('QR Code Creator page', () => {
     });
   });
 
-  it('requests a PNG artifact and downloads it with the advertised filename', async () => {
+  it('creates a downloadable PNG result card', async () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(screen.getByRole('button', { name: 'Download QR Code' }));
+    await user.click(screen.getByRole('button', { name: 'Export QR Code' }));
 
     await waitFor(() => expect(qrEngine.getRawData).toHaveBeenCalledWith('png'));
     expect(URL.createObjectURL).toHaveBeenCalled();
-    expect(HTMLAnchorElement.prototype.click).toHaveBeenCalled();
+    expect(await screen.findByText('QR code ready')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Download' }))
+      .toHaveAttribute('download', 'custom-qrcode.png');
+  });
+
+  it('uses the custom file name and selected format extension', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    const fileNameInput = screen.getByLabelText('File Name');
+    await user.clear(fileNameInput);
+    await user.type(fileNameInput, 'campaign-poster');
+    await user.selectOptions(screen.getByLabelText('Download Format'), 'JPEG');
+    await user.click(screen.getByRole('button', { name: 'Export QR Code' }));
+
+    await waitFor(() => expect(qrEngine.getRawData).toHaveBeenCalledWith('jpeg'));
+    expect(screen.getByRole('link', { name: 'Download' }))
+      .toHaveAttribute('download', 'campaign-poster.jpeg');
+  });
+
+  it('keeps multiple exports and packages them as a ZIP', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole('button', { name: 'Export QR Code' }));
+    expect(await screen.findByText('QR code ready')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Export QR Code' }));
+    expect(await screen.findByText('2 QR codes ready')).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Download' })).toHaveLength(2);
+
+    await user.click(screen.getByRole('button', { name: 'Download All (ZIP)' }));
+    await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalled());
+    const downloadLink = HTMLAnchorElement.prototype.click.mock.contexts.at(-1);
+    expect(downloadLink.download).toBe('archeio-qr-codes.zip');
   });
 });

@@ -6,8 +6,11 @@ test('generates a scannable QR code and downloads PNG bytes', async ({ page }) =
   await page.getByPlaceholder('https://example.com').fill('https://archeio.test/qr');
   await expect(page.getByText('High Scanability')).toBeVisible();
 
+  await page.getByRole('button', { name: 'Export QR Code' }).click();
+  await expect(page.getByText('QR code ready')).toBeVisible();
+
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download QR Code' }).click();
+  await page.getByRole('link', { name: 'Download' }).click();
   const download = await downloadPromise;
   const bytes = await fs.readFile(await download.path());
 
