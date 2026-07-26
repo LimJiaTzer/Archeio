@@ -2,7 +2,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { orderedWorkspaceFeatures } from '../data/workspaceFeatures';
-import WorkspaceJourneyIcon from './WorkspaceJourneyIcon';
+import WorkspaceJourneyToken from './WorkspaceJourneyToken';
 
 const toolboxCopy = {
   compress: {
@@ -118,8 +118,6 @@ const toolCardVariants = {
   },
 };
 
-const MotionLink = motion.create(Link);
-
 function TypedLine({ text, showCaret = false }) {
   return (
     <motion.span className="section-type-line" variants={typedLineVariants}>
@@ -169,44 +167,41 @@ function ToolCard({ feature, iconPhase, reducedMotion }) {
   const copy = toolboxCopy[feature.id];
 
   return (
-    <MotionLink
-      to={feature.href}
-      className="tool-card group"
-      variants={toolCardVariants}
-      whileHover={reducedMotion ? undefined : { y: -5 }}
-    >
-      <div className="tool-icon-slot" aria-hidden="true">
-        {iconPhase === 'toolbox' && (
-          <WorkspaceJourneyIcon
-            className="tool-icon"
-            feature={feature}
-            layoutId={
-              reducedMotion ? undefined : `home-workspace-icon-${feature.id}`
-            }
-          />
-        )}
-      </div>
-      <div className="min-w-0">
-        <h3>{feature.title}</h3>
-        <p>{copy.description}</p>
-      </div>
-      <div className="tool-card-footer">
-        <span>{copy.detail}</span>
-        <span className="tool-card-arrow" aria-hidden="true">
-          <ArrowRight className="h-4 w-4" />
-        </span>
-      </div>
-    </MotionLink>
+    <motion.div className="tool-card-motion" variants={toolCardVariants}>
+      <Link to={feature.href} className="tool-card group">
+        <div className="tool-token-slot" aria-hidden="true">
+          {iconPhase === 'toolbox' && (
+            <WorkspaceJourneyToken
+              feature={feature}
+              layoutId={
+                reducedMotion ? undefined : `home-workspace-token-${feature.id}`
+              }
+              phase="toolbox"
+              reducedMotion={reducedMotion}
+            />
+          )}
+        </div>
+        <div className="min-w-0">
+          <h3>{feature.title}</h3>
+          <p>{copy.description}</p>
+        </div>
+        <div className="tool-card-footer">
+          <span>{copy.detail}</span>
+          <span className="tool-card-arrow" aria-hidden="true">
+            <ArrowRight className="h-4 w-4" />
+          </span>
+        </div>
+      </Link>
+    </motion.div>
   );
 }
 
-export default function HomeToolboxGrid({ iconPhase, sectionRef }) {
+export default function HomeToolboxGrid({ iconPhase }) {
   const shouldReduceMotion = useReducedMotion();
 
   return (
     <section
       id="tools"
-      ref={sectionRef}
       className="scroll-mt-32 px-6 py-24 lg:px-10"
       aria-labelledby="home-toolbox-title"
     >
