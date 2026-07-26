@@ -3,13 +3,71 @@ import Layout from '../components/Layout';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft, Upload, Trash2, Download, AlertTriangle, ShieldCheck, X,
-  Link as LinkIcon, Type, Wifi, Phone, Mail
+  Link as LinkIcon, Type, Wifi, Phone, Mail, CheckCircle2, Archive
 } from 'lucide-react';
 import QRCodeStyling from 'qr-code-styling';
 import jsQR from 'jsqr';
+import JSZip from 'jszip';
 import { toPng, toJpeg, toSvg } from 'html-to-image';
 import { convertImage } from '../services/conversionService';
 import { buildQrPayload } from '../lib/qrCodePayload';
+import FilePreview from '../components/FilePreview';
+import { EditableFileName } from '../components/EditableFileName';
+
+const exportFormats = ["PNG", "JPEG", "SVG", "WEBP", "GIF", "ICO", "AVIF", "BMP", "HEIC"];
+
+const getQrExportFileName = (name, format) => {
+    const extension = format.toLowerCase();
+    const knownExtensionPattern = new RegExp(`\\.(${exportFormats.map(item => item.toLowerCase()).join('|')})$`, 'i');
+    const safeBaseName = name
+        .trim()
+        .replace(knownExtensionPattern, '')
+        .replace(/[\\/:*?"<>|]/g, '-')
+        .replace(/[.\s]+$/g, '');
+
+    return `${safeBaseName || 'custom-qrcode'}.${extension}`;
+};
+
+const getUniqueFileName = (fileName, results, excludedId = null) => {
+    const usedNames = new Set(
+        results
+            .filter((result) => result.id !== excludedId)
+            .map((result) => result.fileName.toLowerCase())
+    );
+
+    if (!usedNames.has(fileName.toLowerCase())) return fileName;
+
+    const extensionStart = fileName.lastIndexOf('.');
+    const baseName = extensionStart > 0 ? fileName.slice(0, extensionStart) : fileName;
+    const extension = extensionStart > 0 ? fileName.slice(extensionStart) : '';
+    let copyNumber = 2;
+    let candidate = `${baseName}-${copyNumber}${extension}`;
+
+    while (usedNames.has(candidate.toLowerCase())) {
+        copyNumber += 1;
+        candidate = `${baseName}-${copyNumber}${extension}`;
+    }
+
+    return candidate;
+};
+
+const getQrMimeType = (format) => ({
+    PNG: 'image/png',
+    JPEG: 'image/jpeg',
+    SVG: 'image/svg+xml',
+    WEBP: 'image/webp',
+    GIF: 'image/gif',
+    ICO: 'image/x-icon',
+    AVIF: 'image/avif',
+    BMP: 'image/bmp',
+    HEIC: 'image/heic',
+}[format] || 'application/octet-stream');
+
+const formatFileSize = (bytes) => (
+    bytes < 1024 * 1024
+        ? `${(bytes / 1024).toFixed(2)} KB`
+        : `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+);
 
 const downloadBlob = (blob, fileName) => {
     const objectUrl = URL.createObjectURL(blob);
@@ -69,13 +127,17 @@ const svgBlobToPngBlob = async (svgBlob) => {
 
 export default function QRCodeCreator() {
     const [fmt, setFmt] = useState("PNG");
+    const [exportName, setExportName] = useState("custom-qrcode");
+    const [exportResults, setExportResults] = useState([]);
+    const [isBundling, setIsBundling] = useState(false);
     const qrRef = useRef(null);
     const frameContainerRef = useRef(null);
     const qrCodeInstanceRef = useRef(null);
+    const exportResultsRef = useRef([]);
     
     // Expanded formats array using convertImage
     const extendedFormats = ["WEBP", "GIF", "ICO", "AVIF", "BMP", "HEIC"];
-    const formats = ["PNG", "JPEG", "SVG", ...extendedFormats];
+    const formats = exportFormats;
     
     const [isScannable, setIsScannable] = useState(true);
     const [isConverting, setIsConverting] = useState(false);
@@ -116,6 +178,16 @@ export default function QRCodeCreator() {
         frameTextColor: "#FFFFFF",
         frameText: "SCAN ME",
     });
+
+    useEffect(() => {
+        exportResultsRef.current = exportResults;
+    }, [exportResults]);
+
+    useEffect(() => () => {
+        exportResultsRef.current.forEach((result) => {
+            URL.revokeObjectURL(result.downloadUrl);
+        });
+    }, []);
 
     const patternOptions = [
         { label: 'Square', value: 'square', icon: <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h5v5H3zM10 3h5v5h-5zM17 3h5v5h-5zM3 10h5v5H3zM10 10h5v5h-5zM17 10h5v5h-5zM3 17h5v5H3zM10 17h5v5h-5zM17 17h5v5h-5z"/></svg> },
@@ -236,15 +308,16 @@ export default function QRCodeCreator() {
         setContentData(prev => ({ ...prev, [key]: value }));
     };
 
-    const handleDownload = async () => {
+    const handleExport = async () => {
         if (!qrCodeInstanceRef.current || isConverting) return;
         setIsConverting(true);
         
-        const fileName = `custom-qrcode.${fmt.toLowerCase()}`;
+        const requestedFileName = getQrExportFileName(exportName, fmt);
         const isExtendedFormat = extendedFormats.includes(fmt);
         const captureFmt = isExtendedFormat ? "PNG" : fmt;
         
         let rawBlob;
+        let finalBlob;
         
         try {
             if (options.frameStyle !== 'none') {
@@ -288,22 +361,82 @@ export default function QRCodeCreator() {
                 // Convert intermediate PNG to requested format
                 const file = new File([rawBlob], "base-qrcode.png", { type: "image/png" });
                 const converted = await convertImage(file, fmt);
-                
-                const link = document.createElement('a');
-                link.href = converted.downloadUrl;
-                link.download = fileName;
-                link.click();
-                setTimeout(() => URL.revokeObjectURL(converted.downloadUrl), 1000);
+                try {
+                    const response = await fetch(converted.downloadUrl);
+                    if (!response.ok) throw new Error('Failed to read converted QR code.');
+                    finalBlob = await response.blob();
+                } finally {
+                    URL.revokeObjectURL(converted.downloadUrl);
+                }
             } else {
-                // Natively supported format download
-                downloadBlob(rawBlob, fileName);
+                finalBlob = rawBlob;
             }
 
+            if (!finalBlob) throw new Error('Failed to prepare QR code output.');
+
+            const downloadUrl = URL.createObjectURL(finalBlob);
+            const resultId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+            setExportResults((currentResults) => {
+                const fileName = getUniqueFileName(requestedFileName, currentResults);
+
+                return [
+                    ...currentResults,
+                    {
+                        id: resultId,
+                        blob: finalBlob,
+                        downloadUrl,
+                        fileName,
+                        format: fmt,
+                        mimeType: finalBlob.type || getQrMimeType(fmt),
+                    },
+                ];
+            });
         } catch (e) {
             console.error("Failed to export QR code", e);
             alert(`Failed to export QR code as ${fmt}. Check console for details.`);
         } finally {
             setIsConverting(false);
+        }
+    };
+
+    const renameExportResult = (id, requestedName) => {
+        setExportResults((currentResults) => currentResults.map((result) => {
+            if (result.id !== id) return result;
+
+            const safeName = getQrExportFileName(requestedName, result.format);
+            return {
+                ...result,
+                fileName: getUniqueFileName(safeName, currentResults, id),
+            };
+        }));
+    };
+
+    const removeExportResult = (id) => {
+        setExportResults((currentResults) => {
+            const result = currentResults.find((item) => item.id === id);
+            if (result) URL.revokeObjectURL(result.downloadUrl);
+            return currentResults.filter((item) => item.id !== id);
+        });
+    };
+
+    const handleDownloadAll = async () => {
+        if (exportResults.length < 2 || isBundling) return;
+        setIsBundling(true);
+
+        try {
+            const zip = new JSZip();
+            exportResults.forEach((result) => {
+                zip.file(result.fileName, result.blob);
+            });
+
+            const zipBlob = await zip.generateAsync({ type: 'blob' });
+            downloadBlob(zipBlob, 'archeio-qr-codes.zip');
+        } catch (error) {
+            console.error('Failed to bundle QR codes', error);
+            alert('Failed to create the ZIP. You can still download each QR code individually.');
+        } finally {
+            setIsBundling(false);
         }
     };
 
@@ -876,10 +1009,14 @@ export default function QRCodeCreator() {
                                     </div>
 
                                     <div className="w-full space-y-1.5 mb-4">
-                                        <label className="text-[10px] font-bold text-stone-500 uppercase tracking-wider block">
+                                        <label
+                                            htmlFor="qr-export-format"
+                                            className="text-[10px] font-bold text-stone-500 uppercase tracking-wider block"
+                                        >
                                             Download Format
                                         </label>
                                         <select
+                                            id="qr-export-format"
                                             value={fmt}
                                             onChange={(e) => setFmt(e.target.value)}
                                             className="w-full px-3 py-2 border border-stone-200 rounded-xl text-sm text-stone-700 bg-white focus:outline-none focus:border-indigo-500"
@@ -890,17 +1027,133 @@ export default function QRCodeCreator() {
                                         </select>
                                     </div>
 
+                                    <div className="w-full space-y-1.5 mb-4">
+                                        <label
+                                            htmlFor="qr-export-name"
+                                            className="text-[10px] font-bold text-stone-500 uppercase tracking-wider block"
+                                        >
+                                            File Name
+                                        </label>
+                                        <div className="flex items-center overflow-hidden rounded-xl border border-stone-200 bg-white focus-within:border-orange-600 focus-within:ring-2 focus-within:ring-orange-600/15">
+                                            <input
+                                                id="qr-export-name"
+                                                type="text"
+                                                value={exportName}
+                                                onChange={(event) => setExportName(event.target.value)}
+                                                placeholder="custom-qrcode"
+                                                maxLength={120}
+                                                spellCheck={false}
+                                                className="min-w-0 flex-1 px-3 py-2 text-sm text-stone-700 outline-none"
+                                            />
+                                            <span className="border-l border-stone-200 bg-stone-50 px-3 py-2 text-sm font-semibold text-stone-500">
+                                                .{fmt.toLowerCase()}
+                                            </span>
+                                        </div>
+                                    </div>
+
                                     <button
-                                        onClick={handleDownload}
-                                        className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white rounded-xl p-3.5 text-sm font-semibold hover:bg-indigo-700 transition-colors shadow-sm"
+                                        onClick={handleExport}
+                                        disabled={isConverting}
+                                        className="w-full flex items-center justify-center gap-2 bg-orange-600 text-white rounded-xl p-3.5 text-sm font-semibold hover:bg-orange-700 transition-all shadow-sm active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                                     >
                                         <Download className="w-4 h-4" />
-                                        Download QR Code
+                                        {isConverting ? 'Preparing QR Code...' : 'Export QR Code'}
                                     </button>
                                 </div>
                             </div>
                         </div>      
                     </div>
+
+                    {exportResults.length > 0 && (
+                        <section
+                            aria-labelledby="qr-export-results-title"
+                            className="mt-8 rounded-2xl border border-green-200 bg-green-50 p-4 text-green-800 sm:p-6"
+                        >
+                            <div className="mb-6 flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+                                <div className="flex items-center gap-3">
+                                    <CheckCircle2 className="h-6 w-6 shrink-0 text-green-600" />
+                                    <div>
+                                        <h2
+                                            id="qr-export-results-title"
+                                            className="font-bold text-green-950"
+                                        >
+                                            {exportResults.length === 1
+                                                ? 'QR code ready'
+                                                : `${exportResults.length} QR codes ready`}
+                                        </h2>
+                                        <p className="mt-0.5 text-sm text-green-800/75">
+                                            Export another design to add it to this download collection.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {exportResults.length > 1 && (
+                                    <button
+                                        type="button"
+                                        onClick={handleDownloadAll}
+                                        disabled={isBundling}
+                                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-green-800 px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:scale-[1.02] hover:bg-green-900 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
+                                    >
+                                        <Archive className="h-4 w-4" />
+                                        {isBundling ? 'Creating ZIP...' : 'Download All (ZIP)'}
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="space-y-3">
+                                {exportResults.map((result) => (
+                                    <article
+                                        key={result.id}
+                                        className="flex flex-col gap-4 rounded-xl border border-green-200 bg-white p-4 md:flex-row md:items-center md:justify-between"
+                                    >
+                                        <div className="flex min-w-0 flex-1 items-center gap-4">
+                                            <FilePreview
+                                                file={{
+                                                    name: result.fileName,
+                                                    type: result.mimeType,
+                                                    size: result.blob.size,
+                                                }}
+                                                previewUrl={result.downloadUrl}
+                                                showInfo={false}
+                                            />
+
+                                            <div className="min-w-0 flex-1">
+                                                <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-green-700/70">
+                                                    File name
+                                                </span>
+                                                <EditableFileName
+                                                    fileName={result.fileName}
+                                                    onSave={(fileName) => renameExportResult(result.id, fileName)}
+                                                />
+                                                <p className="mt-1 text-xs font-semibold text-stone-500">
+                                                    {result.format} · {formatFileSize(result.blob.size)}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex w-full items-center gap-2 md:w-auto">
+                                            <a
+                                                href={result.downloadUrl}
+                                                download={result.fileName}
+                                                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-green-800 px-5 py-3 text-sm font-bold text-white transition-all hover:bg-green-900 active:scale-[0.98] md:flex-none"
+                                            >
+                                                <Download className="h-4 w-4" />
+                                                Download
+                                            </a>
+                                            <button
+                                                type="button"
+                                                onClick={() => removeExportResult(result.id)}
+                                                aria-label={`Remove ${result.fileName}`}
+                                                className="rounded-xl border border-green-200 p-3 text-green-800 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    </article>
+                                ))}
+                            </div>
+                        </section>
+                    )}
                 </div>
             </main>
         </Layout>
