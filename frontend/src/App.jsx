@@ -4,6 +4,7 @@ import {
   Routes,
   Route,
 } from 'react-router-dom';
+import { motion, useReducedMotion } from 'framer-motion';
 
 // Other html pages 
 import About from './pages/About';
@@ -41,11 +42,11 @@ import './index.css';
 
 const primaryActions = [
   {
-    label: 'Extract',
-    title: 'Unlock text from scans',
-    description: 'Turn images and scanned PDFs into editable documents.',
-    icon: ScanText,
-    link: '/ocr',
+    label: 'Compress',
+    title: 'Make files lighter',
+    description: 'Reduce file size while keeping the quality that matters.',
+    icon: Archive,
+    link: '/compress',
   },
   {
     label: 'Convert',
@@ -55,22 +56,22 @@ const primaryActions = [
     link: '/convert',
   },
   {
-    label: 'Compress',
-    title: 'Make files lighter',
-    description: 'Reduce file size while keeping the quality that matters.',
-    icon: Archive,
-    link: '/compress',
+    label: 'Extract',
+    title: 'Unlock text from scans',
+    description: 'Turn images and scanned PDFs into editable documents.',
+    icon: ScanText,
+    link: '/ocr',
   },
 ];
 
 const tools = [
   {
-    icon: ScanText,
-    label: 'OCR & Unlock',
-    description: 'Extract editable text from images and scanned PDFs, then export clean DOCX files.',
-    detail: 'Images · Scanned PDFs · DOCX',
-    link: '/ocr',
-    accent: 'orange',
+    icon: Archive,
+    label: 'Smart Compression',
+    description: 'Shrink large documents and media with controls that help preserve visible quality.',
+    detail: '30+ file formats',
+    link: '/compress',
+    accent: 'rose',
   },
   {
     icon: RefreshCw,
@@ -81,12 +82,12 @@ const tools = [
     accent: 'amber',
   },
   {
-    icon: Archive,
-    label: 'Smart Compression',
-    description: 'Shrink large documents and media with controls that help preserve visible quality.',
-    detail: 'Single files or batches',
-    link: '/compress',
-    accent: 'rose',
+    icon: ScanText,
+    label: 'OCR & Unlock',
+    description: 'Extract editable text from images and scanned PDFs, then export clean DOCX files.',
+    detail: 'Images · Scanned PDFs · DOCX',
+    link: '/ocr',
+    accent: 'orange',
   },
   {
     icon: FileText,
@@ -113,13 +114,149 @@ const formatGroups = [
   { icon: Layers3, label: 'Batch work', detail: 'Process and download together' },
 ];
 
-function ToolCard({ tool, featured = false }) {
+const headingSequenceVariants = {
+  hidden: {},
+  visible: {
+    transition: {
+      delayChildren: 0.08,
+      staggerChildren: 0.18,
+    },
+  },
+};
+
+const headingFadeVariants = {
+  hidden: { opacity: 0, y: 18 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] },
+  },
+};
+
+const typedHeadingVariants = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.14,
+    },
+  },
+};
+
+const typedLineVariants = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.075,
+    },
+  },
+};
+
+const typedWordVariants = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.028,
+    },
+  },
+};
+
+const typedCharacterVariants = {
+  hidden: {
+    opacity: 0,
+    y: '0.28em',
+    filter: 'blur(4px)',
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    filter: 'blur(0px)',
+    transition: {
+      duration: 0.18,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  },
+};
+
+const toolCardVariants = {
+  hidden: {
+    opacity: 0,
+    y: 76,
+  },
+  visible: (delay = 0) => ({
+    opacity: 1,
+    y: 0,
+    transition: {
+      delay,
+      duration: 0.72,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  }),
+};
+
+const MotionLink = motion.create(Link);
+
+function TypedLine({ text, showCaret = false }) {
+  return (
+    <motion.span className="section-type-line" variants={typedLineVariants}>
+      {text.split(' ').map((word, wordIndex, words) => (
+        <span key={`${word}-${wordIndex}`}>
+          <motion.span className="section-type-word" variants={typedWordVariants}>
+            {Array.from(word).map((character, characterIndex) => (
+              <motion.span
+                className="section-type-character"
+                variants={typedCharacterVariants}
+                key={`${character}-${characterIndex}`}
+              >
+                {character}
+              </motion.span>
+            ))}
+          </motion.span>
+          {wordIndex < words.length - 1 ? ' ' : ''}
+        </span>
+      ))}
+      {showCaret && (
+        <motion.span
+          className="section-type-caret"
+          variants={typedCharacterVariants}
+          aria-hidden="true"
+        />
+      )}
+    </motion.span>
+  );
+}
+
+function TypedToolboxHeading() {
+  return (
+    <motion.h2
+      aria-label="From “I have this” to “I need that.”"
+      variants={typedHeadingVariants}
+    >
+      <span aria-hidden="true">
+        <TypedLine text="From “I have this” to" />
+        <TypedLine text="“I need that.”" showCaret />
+      </span>
+    </motion.h2>
+  );
+}
+
+function ToolCard({
+  tool,
+  featured = false,
+  reducedMotion = false,
+  revealDelay = 0,
+}) {
   const Icon = tool.icon;
 
   return (
-    <Link
+    <MotionLink
       to={tool.link}
       className={`tool-card group ${featured ? 'tool-card-featured' : ''}`}
+      variants={toolCardVariants}
+      custom={revealDelay}
+      initial={reducedMotion ? false : 'hidden'}
+      whileInView="visible"
+      viewport={{ once: true, amount: 0.18 }}
+      whileHover={reducedMotion ? undefined : { y: -5 }}
     >
       <div className={`tool-icon tool-icon-${tool.accent}`}>
         <Icon className="h-5 w-5" strokeWidth={1.8} />
@@ -134,7 +271,7 @@ function ToolCard({ tool, featured = false }) {
           <ArrowRight className="h-4 w-4" />
         </span>
       </div>
-    </Link>
+    </MotionLink>
   );
 }
 
@@ -173,6 +310,8 @@ function resetWorkflowTilt(event) {
 }
 
 function Home() {
+  const shouldReduceMotion = useReducedMotion();
+
   return (
     <div className="home-shell min-h-screen text-stone-800 font-sans selection:bg-orange-200 selection:text-stone-950 relative overflow-hidden">
       <AnimatedGradientBackground className="fixed inset-0 z-0" />
@@ -193,7 +332,7 @@ function Home() {
             </h1>
 
             <p className="hero-description">
-              Extract text, change formats, shrink heavy files, organize PDFs,
+              Shrink heavy files, change formats, extract text, organize PDFs,
               and create QR codes—all in one site, without ads.
             </p>
 
@@ -266,20 +405,36 @@ function Home() {
 
         <section id="tools" className="scroll-mt-32 px-6 py-24 lg:px-10">
           <div className="mx-auto max-w-7xl">
-            <div className="section-heading">
+            <motion.div
+              className="section-heading"
+              variants={headingSequenceVariants}
+              initial={shouldReduceMotion ? false : 'hidden'}
+              whileInView="visible"
+              viewport={{ once: true, amount: 0.55 }}
+            >
               <div>
-                <span className="section-label">THE TOOLBOX</span>
-                <h2>From “I have this” to<br />“I need that.”</h2>
+                <motion.span className="section-label" variants={headingFadeVariants}>
+                  THE TOOLBOX
+                </motion.span>
+                <TypedToolboxHeading />
               </div>
-              <p>
+              <motion.p variants={headingFadeVariants}>
                 Pick the output you need. Archeío handles the formats,
                 previews, and exports in one consistent flow.
-              </p>
-            </div>
+              </motion.p>
+            </motion.div>
 
             <div className="tools-grid mt-12">
               {tools.map((tool, index) => (
-                <ToolCard key={tool.label} tool={tool} featured={index < 2} />
+                <ToolCard
+                  key={tool.label}
+                  tool={tool}
+                  featured={index < 2}
+                  reducedMotion={shouldReduceMotion}
+                  revealDelay={
+                    index < 2 ? index * 0.1 : (index - 2) * 0.1
+                  }
+                />
               ))}
             </div>
           </div>
