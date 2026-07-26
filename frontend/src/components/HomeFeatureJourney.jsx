@@ -14,7 +14,6 @@ export default function HomeFeatureJourney() {
   const stackRef = useRef(null);
   const frameRef = useRef(null);
   const [iconPhase, setIconPhase] = useState(ICON_PHASE.TOOLBOX);
-  const [orbitProgress, setOrbitProgress] = useState(0);
 
   useEffect(() => {
     const updateIconPhase = () => {
@@ -27,29 +26,14 @@ export default function HomeFeatureJourney() {
       const viewportHeight = window.innerHeight;
       const overviewStart = viewportHeight * 0.72;
       const stackStart = viewportHeight * 0.68;
-      const overviewBounds = overview.getBoundingClientRect();
-      const stackBounds = stack.getBoundingClientRect();
-      const scrollTop = window.scrollY;
-      const orbitStart = scrollTop + overviewBounds.top - overviewStart;
-      const orbitEnd = scrollTop + stackBounds.top - stackStart;
-      const orbitRange = Math.max(orbitEnd - orbitStart, 1);
-      const nextOrbitProgress = Math.min(
-        1,
-        Math.max(0, (scrollTop - orbitStart) / orbitRange),
-      );
-      const nextPhase = stackBounds.top <= stackStart
+      const nextPhase = stack.getBoundingClientRect().top <= stackStart
         ? ICON_PHASE.STACK
-        : overviewBounds.top <= overviewStart
+        : overview.getBoundingClientRect().top <= overviewStart
           ? ICON_PHASE.ORBIT
           : ICON_PHASE.TOOLBOX;
 
       setIconPhase((currentPhase) => (
         currentPhase === nextPhase ? currentPhase : nextPhase
-      ));
-      setOrbitProgress((currentProgress) => (
-        Math.abs(currentProgress - nextOrbitProgress) < 0.001
-          ? currentProgress
-          : nextOrbitProgress
       ));
     };
 
@@ -73,17 +57,12 @@ export default function HomeFeatureJourney() {
 
   return (
     <LayoutGroup id="home-workspace-icons">
-      <div
-        className="home-feature-journey"
-        data-icon-phase={iconPhase}
-        data-orbit-progress={orbitProgress.toFixed(3)}
-      >
+      <div className="home-feature-journey" data-icon-phase={iconPhase}>
         <HomeToolboxGrid
           iconPhase={iconPhase}
         />
         <WorkspaceStackShowcase
           iconPhase={iconPhase}
-          orbitProgress={orbitProgress}
           overviewRef={overviewRef}
           stackRef={stackRef}
         />

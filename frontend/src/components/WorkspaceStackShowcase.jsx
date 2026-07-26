@@ -6,31 +6,17 @@ import FeatureDetailGroup from './features/FeatureDetailGroup';
 import WorkspaceJourneyToken from './WorkspaceJourneyToken';
 import { orderedWorkspaceFeatures } from '../data/workspaceFeatures';
 
-const orbitStartingAngles = [
-  -140,
-  -40,
-  180,
-  0,
-  140,
-  40,
+const orbitPositions = [
+  { x: '5%', y: '12%' },
+  { x: '82%', y: '12%' },
+  { x: '1%', y: '45%' },
+  { x: '84%', y: '45%' },
+  { x: '7%', y: '78%' },
+  { x: '79%', y: '78%' },
 ];
-const ORBIT_ROTATION = 110;
-const ORBIT_RADIUS_X = 44;
-const ORBIT_RADIUS_Y = 50;
-
-function getOrbitPosition(index, progress) {
-  const angle = orbitStartingAngles[index] + (progress * ORBIT_ROTATION);
-  const angleInRadians = angle * (Math.PI / 180);
-
-  return {
-    x: 50 + (Math.cos(angleInRadians) * ORBIT_RADIUS_X),
-    y: 50 + (Math.sin(angleInRadians) * ORBIT_RADIUS_Y),
-  };
-}
 
 export default function WorkspaceStackShowcase({
   iconPhase,
-  orbitProgress,
   overviewRef,
   stackRef,
 }) {
@@ -137,41 +123,34 @@ export default function WorkspaceStackShowcase({
 
         {iconPhase === 'orbit' && (
           <nav className="home-feature-orbit" aria-label="Jump to a workspace">
-            {orderedWorkspaceFeatures.map((feature, index) => {
-              const position = getOrbitPosition(
-                index,
-                shouldReduceMotion ? 0 : orbitProgress,
-              );
-
-              return (
-                <div
-                  className="home-feature-orbit-motion"
-                  style={{
-                    '--orbit-x': `${position.x}%`,
-                    '--orbit-y': `${position.y}%`,
-                    '--orbit-delay': `${index * -1.15}s`,
-                  }}
-                  key={feature.id}
+            {orderedWorkspaceFeatures.map((feature, index) => (
+              <div
+                className="home-feature-orbit-motion"
+                style={{
+                  '--orbit-x': orbitPositions[index].x,
+                  '--orbit-y': orbitPositions[index].y,
+                  '--orbit-delay': `${index * -1.15}s`,
+                }}
+                key={feature.id}
+              >
+                <a
+                  href={`#home-${feature.id}`}
+                  className="home-feature-orbit-link"
+                  data-tone={feature.tone}
+                  aria-label={`Jump to ${feature.title}`}
+                  onClick={(event) => handleWorkspaceJump(event, index)}
                 >
-                  <a
-                    href={`#home-${feature.id}`}
-                    className="home-feature-orbit-link"
-                    data-tone={feature.tone}
-                    aria-label={`Jump to ${feature.title}`}
-                    onClick={(event) => handleWorkspaceJump(event, index)}
-                  >
-                    <WorkspaceJourneyToken
-                      feature={feature}
-                      layoutId={
-                        shouldReduceMotion ? undefined : `home-workspace-token-${feature.id}`
-                      }
-                      phase="orbit"
-                      reducedMotion={shouldReduceMotion}
-                    />
-                  </a>
-                </div>
-              );
-            })}
+                  <WorkspaceJourneyToken
+                    feature={feature}
+                    layoutId={
+                      shouldReduceMotion ? undefined : `home-workspace-token-${feature.id}`
+                    }
+                    phase="orbit"
+                    reducedMotion={shouldReduceMotion}
+                  />
+                </a>
+              </div>
+            ))}
           </nav>
         )}
       </section>
