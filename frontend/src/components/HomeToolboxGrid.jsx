@@ -1,48 +1,123 @@
 import { motion, useReducedMotion } from 'framer-motion';
-import { ArrowRight, Layers3 } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { orderedWorkspaceFeatures } from '../data/workspaceFeatures';
 
-const toolboxDetails = {
-  compress: '30+ file formats',
-  convert: '30+ file formats',
-  ocr: 'Images · Scanned PDFs · DOCX',
-  'image-editor': 'Crop · Draw · Filter · Export',
-  pdf: 'Organize · Mark up · Export',
-  qr: 'Custom · Scan-ready · Export',
+const toolboxCopy = {
+  compress: {
+    description: 'Shrink large documents and media with controls that help preserve visible quality.',
+    detail: '30+ file formats',
+    accent: 'rose',
+  },
+  convert: {
+    description: 'Convert documents, images, audio, and video without bouncing between different apps.',
+    detail: '30+ file formats',
+    accent: 'amber',
+  },
+  ocr: {
+    description: 'Extract editable text from images and scanned PDFs, then export clean DOCX files.',
+    detail: 'Images · Scanned PDFs · DOCX',
+    accent: 'orange',
+  },
+  'image-editor': {
+    description: 'Crop, draw, add text, apply filters, and export polished images in one workspace.',
+    detail: 'Crop · Draw · Filter · Export',
+    accent: 'violet',
+  },
+  pdf: {
+    description: 'Merge, split, reorder, rotate, annotate, and sign PDF pages in one focused editor.',
+    detail: 'Organize · Mark up · Export',
+    accent: 'indigo',
+  },
+  qr: {
+    description: 'Turn links and useful information into polished, scannable QR codes.',
+    detail: 'Custom and downloadable',
+    accent: 'sky',
+  },
 };
 
-const headingVariants = {
+const headingSequenceVariants = {
   hidden: {},
   visible: {
     transition: {
       delayChildren: 0.08,
-      staggerChildren: 0.16,
+      staggerChildren: 0.18,
     },
   },
 };
 
-const lineVariants = {
+const headingFadeVariants = {
+  hidden: { opacity: 0, y: 18 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] },
+  },
+};
+
+const typedHeadingVariants = {
   hidden: {},
   visible: {
     transition: {
-      staggerChildren: 0.025,
+      staggerChildren: 0.14,
     },
   },
 };
 
-const characterVariants = {
+const typedLineVariants = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.075,
+    },
+  },
+};
+
+const typedWordVariants = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.028,
+    },
+  },
+};
+
+const typedCharacterVariants = {
   hidden: {
     opacity: 0,
-    y: '0.24em',
-    filter: 'blur(3px)',
+    y: '0.28em',
+    filter: 'blur(4px)',
   },
   visible: {
     opacity: 1,
     y: 0,
     filter: 'blur(0px)',
     transition: {
-      duration: 0.16,
+      duration: 0.18,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  },
+};
+
+const toolGridVariants = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.1,
+    },
+  },
+};
+
+const toolCardVariants = {
+  hidden: {
+    opacity: 0,
+    y: 76,
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.72,
       ease: [0.22, 1, 0.36, 1],
     },
   },
@@ -50,20 +125,76 @@ const characterVariants = {
 
 const MotionLink = motion.create(Link);
 
-function TypedLine({ text, caret = false }) {
+function TypedLine({ text, showCaret = false }) {
   return (
-    <motion.span className="home-toolbox-heading-line" variants={lineVariants}>
-      {Array.from(text).map((character, index) => (
-        <motion.span
-          className="home-toolbox-heading-character"
-          variants={characterVariants}
-          key={`${character}-${index}`}
-        >
-          {character === ' ' ? '\u00a0' : character}
-        </motion.span>
+    <motion.span className="section-type-line" variants={typedLineVariants}>
+      {text.split(' ').map((word, wordIndex, words) => (
+        <span key={`${word}-${wordIndex}`}>
+          <motion.span className="section-type-word" variants={typedWordVariants}>
+            {Array.from(word).map((character, characterIndex) => (
+              <motion.span
+                className="section-type-character"
+                variants={typedCharacterVariants}
+                key={`${character}-${characterIndex}`}
+              >
+                {character}
+              </motion.span>
+            ))}
+          </motion.span>
+          {wordIndex < words.length - 1 ? ' ' : ''}
+        </span>
       ))}
-      {caret && <span className="home-toolbox-heading-caret" aria-hidden="true" />}
+      {showCaret && (
+        <motion.span
+          className="section-type-caret"
+          variants={typedCharacterVariants}
+          aria-hidden="true"
+        />
+      )}
     </motion.span>
+  );
+}
+
+function TypedToolboxHeading() {
+  return (
+    <motion.h2
+      id="home-toolbox-title"
+      aria-label="From “I have this” to “I need that.”"
+      variants={typedHeadingVariants}
+    >
+      <span aria-hidden="true">
+        <TypedLine text="From “I have this” to" />
+        <TypedLine text="“I need that.”" showCaret />
+      </span>
+    </motion.h2>
+  );
+}
+
+function ToolCard({ feature, reducedMotion }) {
+  const Icon = feature.icon;
+  const copy = toolboxCopy[feature.id];
+
+  return (
+    <MotionLink
+      to={feature.href}
+      className="tool-card group"
+      variants={toolCardVariants}
+      whileHover={reducedMotion ? undefined : { y: -5 }}
+    >
+      <div className={`tool-icon tool-icon-${copy.accent}`}>
+        <Icon className="h-5 w-5" strokeWidth={1.8} aria-hidden="true" />
+      </div>
+      <div className="min-w-0">
+        <h3>{feature.title}</h3>
+        <p>{copy.description}</p>
+      </div>
+      <div className="tool-card-footer">
+        <span>{copy.detail}</span>
+        <span className="tool-card-arrow" aria-hidden="true">
+          <ArrowRight className="h-4 w-4" />
+        </span>
+      </div>
+    </MotionLink>
   );
 }
 
@@ -73,72 +204,44 @@ export default function HomeToolboxGrid() {
   return (
     <section
       id="tools"
-      className="home-toolbox-section"
+      className="scroll-mt-32 px-6 py-24 lg:px-10"
       aria-labelledby="home-toolbox-title"
     >
-      <div className="home-toolbox-heading">
+      <div className="mx-auto max-w-7xl">
         <motion.div
-          variants={headingVariants}
+          className="section-heading"
+          variants={headingSequenceVariants}
           initial={shouldReduceMotion ? false : 'hidden'}
           whileInView="visible"
-          viewport={{ once: true, amount: 0.5 }}
+          viewport={{ once: true, amount: 0.55 }}
         >
-          <span className="section-label">THE TOOLBOX</span>
-          <motion.h2 id="home-toolbox-title" aria-label="From “I have this” to “I need that.”">
-            <span aria-hidden="true">
-              <TypedLine text="From “I have this” to" />
-              <TypedLine text="“I need that.”" caret />
-            </span>
-          </motion.h2>
+          <div>
+            <motion.span className="section-label" variants={headingFadeVariants}>
+              THE TOOLBOX
+            </motion.span>
+            <TypedToolboxHeading />
+          </div>
+          <motion.p variants={headingFadeVariants}>
+            Pick the output you need. Archeío handles the formats,
+            previews, and exports in one consistent flow.
+          </motion.p>
         </motion.div>
 
-        <p>
-          Pick the output you need. Archeío handles the formats, previews, and
-          exports in one consistent flow.
-        </p>
-      </div>
-
-      <div className="home-toolbox-grid">
-        {orderedWorkspaceFeatures.map((feature, index) => {
-          const Icon = feature.icon;
-
-          return (
-            <MotionLink
-              to={feature.href}
-              className="home-toolbox-card"
-              data-tone={feature.tone}
-              initial={shouldReduceMotion ? false : { opacity: 0, y: 64 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.16 }}
-              transition={{
-                delay: index * 0.07,
-                duration: 0.65,
-                ease: [0.22, 1, 0.36, 1],
-              }}
+        <motion.div
+          className="tools-grid mt-12"
+          variants={toolGridVariants}
+          initial={shouldReduceMotion ? false : 'hidden'}
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.12 }}
+        >
+          {orderedWorkspaceFeatures.map((feature) => (
+            <ToolCard
+              feature={feature}
+              reducedMotion={shouldReduceMotion}
               key={feature.id}
-            >
-              <span className="home-toolbox-card-icon">
-                <Icon className="h-5 w-5" strokeWidth={1.8} aria-hidden="true" />
-              </span>
-
-              <div>
-                <span className="home-toolbox-card-kicker">{feature.kicker}</span>
-                <h3>{feature.title}</h3>
-                <p>{feature.description}</p>
-              </div>
-
-              <div className="home-toolbox-card-footer">
-                <span>
-                  <Layers3 className="h-3.5 w-3.5" aria-hidden="true" />
-                  {toolboxDetails[feature.id]}
-                </span>
-                <span className="home-toolbox-card-arrow" aria-hidden="true">
-                  <ArrowRight className="h-4 w-4" />
-                </span>
-              </div>
-            </MotionLink>
-          );
-        })}
+            />
+          ))}
+        </motion.div>
       </div>
     </section>
   );

@@ -38,7 +38,7 @@ export default function WorkspaceStackShowcase() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [showOrbit, setShowOrbit] = useState(false);
 
-  const handleRailJump = (event, index) => {
+  const handleWorkspaceJump = (event, index) => {
     const sentinel = sentinelsRef.current[index];
     if (!sentinel) return;
 
@@ -141,7 +141,7 @@ export default function WorkspaceStackShowcase() {
                       data-tone={feature.tone}
                       aria-current={activeIndex === index ? 'step' : undefined}
                       aria-label={`Jump to ${feature.title}`}
-                      onClick={(event) => handleRailJump(event, index)}
+                      onClick={(event) => handleWorkspaceJump(event, index)}
                     >
                       <WorkspaceIcon feature={feature} compact showLabel={false} />
                     </a>
@@ -255,7 +255,7 @@ export default function WorkspaceStackShowcase() {
               </motion.div>
 
               {showOrbit && (
-                <nav className="home-feature-orbit" aria-label="Open a workspace">
+                <nav className="home-feature-orbit" aria-label="Jump to a workspace">
                   {orderedWorkspaceFeatures.map((feature, index) => (
                     <motion.div
                       className="home-feature-orbit-motion"
@@ -270,14 +270,15 @@ export default function WorkspaceStackShowcase() {
                       transition={{ type: 'spring', stiffness: 185, damping: 24 }}
                       key={feature.id}
                     >
-                      <Link
-                        to={feature.href}
+                      <a
+                        href={`#home-${feature.id}`}
                         className="home-feature-orbit-link"
                         data-tone={feature.tone}
-                        aria-label={`Open ${feature.title}`}
+                        aria-label={`Jump to ${feature.title}`}
+                        onClick={(event) => handleWorkspaceJump(event, index)}
                       >
                         <WorkspaceIcon feature={feature} />
-                      </Link>
+                      </a>
                     </motion.div>
                   ))}
                 </nav>
