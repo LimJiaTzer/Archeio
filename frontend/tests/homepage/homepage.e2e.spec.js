@@ -4,10 +4,10 @@ test('layers workspace cards and hands their links into the final orbit', async 
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
 
-  const toolboxCards = page.locator('.home-toolbox-card');
+  const toolboxCards = page.locator('.tool-card');
   await expect(toolboxCards).toHaveCount(6);
 
-  const toolboxColumns = await page.locator('.home-toolbox-grid').evaluate(
+  const toolboxColumns = await page.locator('.tools-grid').evaluate(
     (grid) => getComputedStyle(grid).gridTemplateColumns.split(' ').length,
   );
   expect(toolboxColumns).toBe(3);
@@ -15,7 +15,7 @@ test('layers workspace cards and hands their links into the final orbit', async 
     document.documentElement.style.scrollBehavior = 'auto';
     document.getElementById('tools')?.scrollIntoView({ block: 'start' });
   });
-  await expect(page.locator('.home-toolbox-card[href="/compress"]')).toHaveCSS('opacity', '1');
+  await expect(page.locator('.tool-card[href="/compress"]')).toHaveCSS('opacity', '1');
 
   const workspaceCards = page.locator('.home-workspace-card');
   await expect(workspaceCards).toHaveCount(6);
@@ -85,12 +85,33 @@ test('layers workspace cards and hands their links into the final orbit', async 
   await expect(page.locator('.home-workspace-rail-link .home-workspace-icon-label')).toHaveCount(0);
 
   await page.evaluate(() => {
+    document.getElementById('home-qr')?.scrollIntoView({ block: 'start' });
+  });
+
+  const finalCardGeometry = await page.evaluate(() => {
+    const pdf = document.getElementById('home-pdf').getBoundingClientRect();
+    const qr = document.getElementById('home-qr').getBoundingClientRect();
+
+    return {
+      pdfTop: Math.round(pdf.top),
+      qrTop: Math.round(qr.top),
+    };
+  });
+  expect(
+    Math.abs(finalCardGeometry.qrTop - finalCardGeometry.pdfTop),
+    'the final card should fully cover the previous card',
+  ).toBeLessThanOrEqual(10);
+
+  await page.evaluate(() => {
     document.getElementById('home-feature-map-title')?.scrollIntoView({ block: 'center' });
   });
 
-  const orbit = page.getByRole('navigation', { name: 'Open a workspace' });
+  const orbit = page.getByRole('navigation', { name: 'Jump to a workspace' });
   await expect(orbit).toBeVisible();
   await expect(orbit.getByRole('link')).toHaveCount(6);
+  await orbit.getByRole('link', { name: 'Jump to Smart Compression' }).click({ force: true });
+  await expect(page.locator('#home-compress')).toHaveAttribute('data-active', 'true');
+  expect(new URL(page.url()).pathname).toBe('/');
 });
 
 test('uses an expanded, overflow-safe workspace layout on mobile', async ({ page }) => {
