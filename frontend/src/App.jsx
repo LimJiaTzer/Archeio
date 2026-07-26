@@ -19,8 +19,7 @@ import QRCodeCreator from './pages/QRCodeCreator';
 
 // Grouped helpers
 import Header from './components/Header';
-import HomeToolboxGrid from './components/HomeToolboxGrid';
-import WorkspaceStackShowcase from './components/WorkspaceStackShowcase';
+import HomeFeatureJourney from './components/HomeFeatureJourney';
 import { AnimatedGradientBackground } from './components/ui/animated-gradient-background';
 import {
   ArrowRight,
@@ -186,8 +185,7 @@ function Home() {
           </div>
         </section>
 
-        <HomeToolboxGrid />
-        <WorkspaceStackShowcase />
+        <HomeFeatureJourney />
       </main>
 
       <footer className="relative z-10 px-6 pb-8 pt-4 text-sm text-stone-500 lg:px-10">

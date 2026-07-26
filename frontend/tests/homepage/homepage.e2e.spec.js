@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('layers workspace cards and hands their links into the final orbit', async ({ page }) => {
+test('moves workspace icons from the toolbox into the overview and stack', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.goto('/');
 
@@ -16,9 +16,60 @@ test('layers workspace cards and hands their links into the final orbit', async 
     document.getElementById('tools')?.scrollIntoView({ block: 'start' });
   });
   await expect(page.locator('.tool-card[href="/compress"]')).toHaveCSS('opacity', '1');
+  await expect(page.locator('.tool-icon')).toHaveCount(6);
+  const toolboxIconColors = await page.locator('.tool-icon').evaluateAll(
+    (icons) => icons.map((icon) => getComputedStyle(icon).color),
+  );
 
   const workspaceCards = page.locator('.home-workspace-card');
   await expect(workspaceCards).toHaveCount(6);
+
+  const sectionOrder = await page.evaluate(() => {
+    const toolbox = document.getElementById('tools');
+    const overview = document.getElementById('home-feature-map');
+    const stack = document.querySelector('.home-workspace-experience');
+
+    return {
+      toolboxBeforeOverview: Boolean(
+        toolbox.compareDocumentPosition(overview) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ),
+      overviewBeforeStack: Boolean(
+        overview.compareDocumentPosition(stack) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ),
+    };
+  });
+  expect(sectionOrder).toEqual({
+    toolboxBeforeOverview: true,
+    overviewBeforeStack: true,
+  });
+
+  await page.evaluate(() => {
+    document.getElementById('home-feature-map-title')?.scrollIntoView({ block: 'center' });
+  });
+
+  const orbit = page.getByRole('navigation', { name: 'Jump to a workspace' });
+  await expect(orbit).toBeVisible();
+  await expect(orbit.getByRole('link')).toHaveCount(6);
+  await expect(page.locator('.tool-icon')).toHaveCount(0);
+  const orbitIconColors = await page
+    .locator('.home-feature-orbit .workspace-journey-icon')
+    .evaluateAll((icons) => icons.map((icon) => getComputedStyle(icon).color));
+  expect(orbitIconColors).toEqual(toolboxIconColors);
+  await expect(
+    page.getByRole('navigation', { name: 'Workspace shortcuts' }),
+  ).toHaveCount(0);
+
+  await orbit.getByRole('link', { name: 'Jump to Smart Compression' }).click({ force: true });
+  await expect(page.locator('#home-compress')).toHaveAttribute('data-active', 'true');
+  expect(new URL(page.url()).pathname).toBe('/');
+  await page.waitForTimeout(750);
+  await expect(
+    page.getByRole('navigation', { name: 'Workspace shortcuts' }),
+  ).toBeVisible();
+  const railIconColors = await page
+    .locator('.home-workspace-rail .workspace-journey-icon')
+    .evaluateAll((icons) => icons.map((icon) => getComputedStyle(icon).color));
+  expect(railIconColors).toEqual(toolboxIconColors);
 
   await page.evaluate(() => {
     document.getElementById('home-convert')?.scrollIntoView({ block: 'start' });
@@ -102,16 +153,6 @@ test('layers workspace cards and hands their links into the final orbit', async 
     'the final card should fully cover the previous card',
   ).toBeLessThanOrEqual(10);
 
-  await page.evaluate(() => {
-    document.getElementById('home-feature-map-title')?.scrollIntoView({ block: 'center' });
-  });
-
-  const orbit = page.getByRole('navigation', { name: 'Jump to a workspace' });
-  await expect(orbit).toBeVisible();
-  await expect(orbit.getByRole('link')).toHaveCount(6);
-  await orbit.getByRole('link', { name: 'Jump to Smart Compression' }).click({ force: true });
-  await expect(page.locator('#home-compress')).toHaveAttribute('data-active', 'true');
-  expect(new URL(page.url()).pathname).toBe('/');
 });
 
 test('uses an expanded, overflow-safe workspace layout on mobile', async ({ page }) => {
@@ -119,7 +160,7 @@ test('uses an expanded, overflow-safe workspace layout on mobile', async ({ page
   await page.goto('/');
   await page.evaluate(() => {
     document.documentElement.style.scrollBehavior = 'auto';
-    document.getElementById('workspace-tour')?.scrollIntoView({ block: 'start' });
+    document.querySelector('.home-workspace-experience')?.scrollIntoView({ block: 'start' });
   });
 
   const mobileLayout = await page.evaluate(() => {

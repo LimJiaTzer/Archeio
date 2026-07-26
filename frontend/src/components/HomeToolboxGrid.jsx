@@ -2,37 +2,32 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { orderedWorkspaceFeatures } from '../data/workspaceFeatures';
+import WorkspaceJourneyIcon from './WorkspaceJourneyIcon';
 
 const toolboxCopy = {
   compress: {
     description: 'Shrink large documents and media with controls that help preserve visible quality.',
     detail: '30+ file formats',
-    accent: 'rose',
   },
   convert: {
     description: 'Convert documents, images, audio, and video without bouncing between different apps.',
     detail: '30+ file formats',
-    accent: 'amber',
   },
   ocr: {
     description: 'Extract editable text from images and scanned PDFs, then export clean DOCX files.',
     detail: 'Images · Scanned PDFs · DOCX',
-    accent: 'orange',
   },
   'image-editor': {
     description: 'Crop, draw, add text, apply filters, and export polished images in one workspace.',
     detail: 'Crop · Draw · Filter · Export',
-    accent: 'violet',
   },
   pdf: {
     description: 'Merge, split, reorder, rotate, annotate, and sign PDF pages in one focused editor.',
     detail: 'Organize · Mark up · Export',
-    accent: 'indigo',
   },
   qr: {
     description: 'Turn links and useful information into polished, scannable QR codes.',
     detail: 'Custom and downloadable',
-    accent: 'sky',
   },
 };
 
@@ -170,8 +165,7 @@ function TypedToolboxHeading() {
   );
 }
 
-function ToolCard({ feature, reducedMotion }) {
-  const Icon = feature.icon;
+function ToolCard({ feature, iconPhase, reducedMotion }) {
   const copy = toolboxCopy[feature.id];
 
   return (
@@ -181,8 +175,16 @@ function ToolCard({ feature, reducedMotion }) {
       variants={toolCardVariants}
       whileHover={reducedMotion ? undefined : { y: -5 }}
     >
-      <div className={`tool-icon tool-icon-${copy.accent}`}>
-        <Icon className="h-5 w-5" strokeWidth={1.8} aria-hidden="true" />
+      <div className="tool-icon-slot" aria-hidden="true">
+        {iconPhase === 'toolbox' && (
+          <WorkspaceJourneyIcon
+            className="tool-icon"
+            feature={feature}
+            layoutId={
+              reducedMotion ? undefined : `home-workspace-icon-${feature.id}`
+            }
+          />
+        )}
       </div>
       <div className="min-w-0">
         <h3>{feature.title}</h3>
@@ -198,12 +200,13 @@ function ToolCard({ feature, reducedMotion }) {
   );
 }
 
-export default function HomeToolboxGrid() {
+export default function HomeToolboxGrid({ iconPhase, sectionRef }) {
   const shouldReduceMotion = useReducedMotion();
 
   return (
     <section
       id="tools"
+      ref={sectionRef}
       className="scroll-mt-32 px-6 py-24 lg:px-10"
       aria-labelledby="home-toolbox-title"
     >
@@ -237,6 +240,7 @@ export default function HomeToolboxGrid() {
           {orderedWorkspaceFeatures.map((feature) => (
             <ToolCard
               feature={feature}
+              iconPhase={iconPhase}
               reducedMotion={shouldReduceMotion}
               key={feature.id}
             />

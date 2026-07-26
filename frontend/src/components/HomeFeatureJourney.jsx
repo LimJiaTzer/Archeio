@@ -1,0 +1,74 @@
+import { useEffect, useRef, useState } from 'react';
+import { LayoutGroup } from 'framer-motion';
+import HomeToolboxGrid from './HomeToolboxGrid';
+import WorkspaceStackShowcase from './WorkspaceStackShowcase';
+
+const ICON_PHASE = {
+  TOOLBOX: 'toolbox',
+  ORBIT: 'orbit',
+  STACK: 'stack',
+};
+
+export default function HomeFeatureJourney() {
+  const toolboxRef = useRef(null);
+  const overviewRef = useRef(null);
+  const stackRef = useRef(null);
+  const frameRef = useRef(null);
+  const [iconPhase, setIconPhase] = useState(ICON_PHASE.TOOLBOX);
+
+  useEffect(() => {
+    const updateIconPhase = () => {
+      frameRef.current = null;
+
+      const overview = overviewRef.current;
+      const stack = stackRef.current;
+      if (!overview || !stack) return;
+
+      const viewportHeight = window.innerHeight;
+      const overviewStart = viewportHeight * 0.72;
+      const stackStart = viewportHeight * 0.68;
+      const nextPhase = stack.getBoundingClientRect().top <= stackStart
+        ? ICON_PHASE.STACK
+        : overview.getBoundingClientRect().top <= overviewStart
+          ? ICON_PHASE.ORBIT
+          : ICON_PHASE.TOOLBOX;
+
+      setIconPhase((currentPhase) => (
+        currentPhase === nextPhase ? currentPhase : nextPhase
+      ));
+    };
+
+    const requestPhaseUpdate = () => {
+      if (frameRef.current !== null) return;
+      frameRef.current = window.requestAnimationFrame(updateIconPhase);
+    };
+
+    updateIconPhase();
+    window.addEventListener('scroll', requestPhaseUpdate, { passive: true });
+    window.addEventListener('resize', requestPhaseUpdate);
+
+    return () => {
+      window.removeEventListener('scroll', requestPhaseUpdate);
+      window.removeEventListener('resize', requestPhaseUpdate);
+      if (frameRef.current !== null) {
+        window.cancelAnimationFrame(frameRef.current);
+      }
+    };
+  }, []);
+
+  return (
+    <LayoutGroup id="home-workspace-icons">
+      <div className="home-feature-journey" data-icon-phase={iconPhase}>
+        <HomeToolboxGrid
+          iconPhase={iconPhase}
+          sectionRef={toolboxRef}
+        />
+        <WorkspaceStackShowcase
+          iconPhase={iconPhase}
+          overviewRef={overviewRef}
+          stackRef={stackRef}
+        />
+      </div>
+    </LayoutGroup>
+  );
+}
