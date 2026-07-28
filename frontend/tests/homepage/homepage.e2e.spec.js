@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 test('moves workspace icons from the toolbox into the overview and stack', async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('/');
 
   const toolboxCards = page.locator('.tool-card');
@@ -99,6 +99,17 @@ test('moves workspace icons from the toolbox into the overview and stack', async
   await expect(
     page.getByRole('navigation', { name: 'Workspace shortcuts' }),
   ).toBeVisible();
+  const workspaceHeadingLines = page.locator('#workspace-showcase-title > span');
+  await expect(workspaceHeadingLines).toHaveCount(2);
+  await expect(workspaceHeadingLines).toHaveText([
+    'Six workspaces.',
+    'One Tool',
+  ]);
+  const headingLineTops = await workspaceHeadingLines.evaluateAll(
+    (lines) => lines.map((line) => Math.round(line.getBoundingClientRect().top)),
+  );
+  expect(headingLineTops[1]).toBeGreaterThan(headingLineTops[0]);
+
   const railIconColors = await page
     .locator('.home-workspace-rail .workspace-journey-token')
     .evaluateAll((icons) => icons.map((icon) => getComputedStyle(icon).color));
@@ -109,6 +120,26 @@ test('moves workspace icons from the toolbox into the overview and stack', async
   railTokenWidths.forEach((width, index) => {
     expect(width).toBeLessThan(orbitTokenWidths[index]);
   });
+
+  await page.evaluate(() => {
+    const firstSentinel = document.querySelector('.home-workspace-sentinel');
+    const firstCard = document.getElementById('home-compress');
+    const stickyTop = Number.parseFloat(getComputedStyle(firstCard).top);
+    const sentinelTop = window.scrollY + firstSentinel.getBoundingClientRect().top;
+
+    window.scrollTo(0, sentinelTop - stickyTop - 20);
+  });
+  await expect(page.locator('.home-workspace-rail-link[data-reached="true"]')).toHaveCount(0);
+
+  await page.evaluate(() => {
+    const firstSentinel = document.querySelector('.home-workspace-sentinel');
+    const firstCard = document.getElementById('home-compress');
+    const stickyTop = Number.parseFloat(getComputedStyle(firstCard).top);
+    const sentinelTop = window.scrollY + firstSentinel.getBoundingClientRect().top;
+
+    window.scrollTo(0, sentinelTop - stickyTop + 1);
+  });
+  await expect(page.locator('.home-workspace-rail-link[data-reached="true"]')).toHaveCount(1);
 
   await page.evaluate(() => {
     document.getElementById('home-convert')?.scrollIntoView({ block: 'start' });
@@ -129,11 +160,16 @@ test('moves workspace icons from the toolbox into the overview and stack', async
   });
 
   expect(
-    Math.abs(cardGeometry.convertTop - cardGeometry.compressTop),
-    'the incoming card should fully cover the previous card',
-  ).toBeLessThanOrEqual(10);
+    cardGeometry.convertTop - cardGeometry.compressTop,
+    'the previous card should retain its original header area',
+  ).toBeGreaterThanOrEqual(48);
+  expect(
+    cardGeometry.convertTop - cardGeometry.compressTop,
+  ).toBeLessThanOrEqual(72);
   expect(cardGeometry.convertZ).toBeGreaterThan(cardGeometry.compressZ);
   await expect(page.locator('#home-convert')).toHaveAttribute('data-active', 'true');
+  await expect(page.locator('.home-workspace-rail-link[data-reached="true"]')).toHaveCount(2);
+  await expect(page.locator('#home-compress')).toHaveAttribute('data-passed', 'true');
 
   const shadowHandoff = await page.evaluate(() => ({
     previous: getComputedStyle(document.getElementById('home-compress')).boxShadow,
@@ -176,23 +212,45 @@ test('moves workspace icons from the toolbox into the overview and stack', async
     page.locator('.home-workspace-rail-link .workspace-journey-token-label'),
   ).toHaveCount(0);
 
-  await page.evaluate(() => {
-    document.getElementById('home-qr')?.scrollIntoView({ block: 'start' });
-  });
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await expect(page.locator('#home-qr')).toHaveAttribute('data-active', 'true');
 
   const finalCardGeometry = await page.evaluate(() => {
-    const pdf = document.getElementById('home-pdf').getBoundingClientRect();
-    const qr = document.getElementById('home-qr').getBoundingClientRect();
+    const cards = Array.from(document.querySelectorAll('.home-workspace-card'));
+    return cards.map((card) => {
+      const cardBounds = card.getBoundingClientRect();
+      const headerBounds = card.querySelector('.feature-card-header').getBoundingClientRect();
+      const titleBounds = card.querySelector('.feature-card-heading h2').getBoundingClientRect();
 
-    return {
-      pdfTop: Math.round(pdf.top),
-      qrTop: Math.round(qr.top),
-    };
+      return {
+        active: card.dataset.active,
+        bottom: Math.round(cardBounds.bottom),
+        headerBottom: Math.round(headerBounds.bottom),
+        headerTop: Math.round(headerBounds.top),
+        id: card.id,
+        passed: card.dataset.passed,
+        titleBottom: Math.round(titleBounds.bottom),
+        titleTop: Math.round(titleBounds.top),
+        top: Math.round(cardBounds.top),
+      };
+    });
   });
-  expect(
-    Math.abs(finalCardGeometry.qrTop - finalCardGeometry.pdfTop),
-    'the final card should fully cover the previous card',
-  ).toBeLessThanOrEqual(10);
+  finalCardGeometry.slice(0, -1).forEach((card, index) => {
+    expect(card.passed).toBe('true');
+    expect(
+      finalCardGeometry[index + 1].top - card.top,
+      `${card.id} should leave its real header visible`,
+    ).toBeGreaterThanOrEqual(48);
+    expect(finalCardGeometry[index + 1].top - card.top).toBeLessThanOrEqual(72);
+    expect(card.titleTop).toBeGreaterThanOrEqual(card.top);
+    expect(card.titleBottom).toBeLessThanOrEqual(finalCardGeometry[index + 1].top);
+  });
+  expect(finalCardGeometry.at(-1).active).toBe('true');
+  expect(finalCardGeometry.at(-1).top).toBeGreaterThan(finalCardGeometry.at(-2).top);
+  expect(finalCardGeometry.at(-1).bottom).toBeLessThanOrEqual(
+    await page.evaluate(() => window.innerHeight),
+  );
+  await expect(page.locator('.home-workspace-rail-link[data-reached="true"]')).toHaveCount(6);
 
   await page.evaluate(() => {
     document.getElementById('tools')?.scrollIntoView({ block: 'start' });

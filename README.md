@@ -40,9 +40,9 @@ sudo apt-get install -y libreoffice calibre ghostscript
 
 ## ⚙️ Setup Instructions
 
-Install Node.js 20.19+ (or 22.12+) and Python 3.10+ first. The setup command
-creates one Python environment at `./venv`; do not create a second PaddleOCR
-environment.
+Install Node.js 20.19+ (or 22.12+) and Python 3.10–3.13 first. PaddleOCR does
+not currently support Python 3.14. The setup command creates one Python
+environment at `./venv`; do not create a second PaddleOCR environment.
 
 ### 1. Clone the repository
 ```bash
@@ -79,6 +79,11 @@ FastAPI, OpenCV, and the DOCX libraries), verifies the installation, and
 downloads the PP-StructureV3 model weights. The initial model download is
 large and may take several minutes. Paddle stores the weights in its user cache
 and reuses them on later runs.
+
+The launchers select the newest installed compatible interpreter, preferring
+Python 3.13 and falling back through Python 3.10. They reject Python 3.14. If
+`./venv` was previously created with Python 3.14, remove only that generated
+virtual-environment folder and rerun the launcher so it can be recreated.
 
 The launcher also checks for LibreOffice, Calibre, and Ghostscript. These are
 system applications and cannot be installed portably by npm.

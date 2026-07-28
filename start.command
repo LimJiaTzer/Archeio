@@ -103,11 +103,16 @@ show_manual_install_steps() {
   say "Continuing without those optional conversion features."
 }
 
+python_is_supported() {
+  "$1" -c 'import sys; raise SystemExit(sys.version_info[:2] not in ((3, 10), (3, 11), (3, 12), (3, 13)))' \
+    >/dev/null 2>&1
+}
+
 find_python() {
   local candidate
-  for candidate in python3 python; do
+  for candidate in python3.13 python3.12 python3.11 python3.10 python3 python; do
     if command -v "$candidate" >/dev/null 2>&1 \
-      && "$candidate" -c 'import sys; raise SystemExit(sys.version_info < (3, 10))' >/dev/null 2>&1; then
+      && python_is_supported "$candidate"; then
       command -v "$candidate"
       return
     fi
@@ -130,11 +135,15 @@ setup_application() {
   fi
 
   local python
-  python="$(find_python)" || fail "Python 3.10+ is required. Install it, then run this launcher again."
+  python="$(find_python)" || fail "Python 3.10–3.13 is required by PaddleOCR. Python 3.14 is not supported."
   local venv_python="$ROOT_DIR/venv/bin/python3"
   if [[ ! -x "$venv_python" ]]; then
     say "Creating Python environment..."
     quiet "$python" -m venv "$ROOT_DIR/venv" || fail "Could not create the Python environment."
+  elif ! python_is_supported "$venv_python"; then
+    local venv_version
+    venv_version="$("$venv_python" -c 'import platform; print(platform.python_version())' 2>/dev/null || printf 'an unknown version')"
+    fail "The existing ./venv uses Python $venv_version. Remove that generated environment and rerun this launcher with Python 3.10–3.13 installed."
   fi
 
   say "Installing Python packages..."
