@@ -15,6 +15,12 @@ const orbitPositions = [
   { x: '79%', y: '78%' },
 ];
 
+const getStackOffset = (index) => {
+  if (index === 0) return '0rem';
+
+  return `clamp(${index * 3}rem, calc(${index * 20}dvh - ${index * 9}rem), ${index * 4.5}rem)`;
+};
+
 export default function WorkspaceStackShowcase({
   iconPhase,
   overviewRef,
@@ -22,14 +28,14 @@ export default function WorkspaceStackShowcase({
 }) {
   const shouldReduceMotion = useReducedMotion();
   const sentinelsRef = useRef([]);
-  const [activeIndex, setActiveIndex] = useState(0);
+  const activeFrameRef = useRef(null);
+  const [activeIndex, setActiveIndex] = useState(-1);
 
   const handleWorkspaceJump = (event, index) => {
     const sentinel = sentinelsRef.current[index];
     if (!sentinel) return;
 
     event.preventDefault();
-    setActiveIndex(index);
     const card = document.getElementById(`home-${orderedWorkspaceFeatures[index].id}`);
     const stickyTop = card ? Number.parseFloat(getComputedStyle(card).top) || 0 : 0;
     const targetTop = window.scrollY + sentinel.getBoundingClientRect().top - stickyTop;
@@ -46,33 +52,53 @@ export default function WorkspaceStackShowcase({
   };
 
   useEffect(() => {
-    if (typeof IntersectionObserver === 'undefined') return undefined;
+    const updateActiveIndex = () => {
+      activeFrameRef.current = null;
+      let nextActiveIndex = -1;
 
-    const cardObserver = new IntersectionObserver(
-      (entries) => {
-        entries
-          .filter((entry) => entry.isIntersecting)
-          .sort(
-            (first, second) => (
-              Number(first.target.dataset.index) - Number(second.target.dataset.index)
-            ),
-          )
-          .forEach((entry) => {
-            setActiveIndex(Number(entry.target.dataset.index));
-          });
-      },
-      {
-        rootMargin: '-10% 0px -80% 0px',
-        threshold: 0,
-      },
-    );
+      sentinelsRef.current.forEach((sentinel, index) => {
+        if (!sentinel) return;
 
-    sentinelsRef.current.forEach((sentinel) => {
-      if (sentinel) cardObserver.observe(sentinel);
-    });
+        const card = document.getElementById(
+          `home-${orderedWorkspaceFeatures[index].id}`,
+        );
+        if (!card) return;
+
+        const cardStyles = getComputedStyle(card);
+        const stickyTop = Number.parseFloat(cardStyles.top);
+        const rail = document.querySelector('.home-workspace-rail');
+        const mobileActivationTop = rail
+          ? rail.getBoundingClientRect().bottom + 12
+          : Math.min(window.innerHeight * 0.3, 180);
+        const activationTop = cardStyles.position === 'sticky'
+          ? stickyTop
+          : mobileActivationTop;
+
+        if (sentinel.getBoundingClientRect().top <= activationTop + 1) {
+          nextActiveIndex = index;
+        }
+      });
+
+      setActiveIndex((currentIndex) => (
+        currentIndex === nextActiveIndex ? currentIndex : nextActiveIndex
+      ));
+    };
+
+    const requestActiveIndexUpdate = () => {
+      if (activeFrameRef.current !== null) return;
+      activeFrameRef.current = window.requestAnimationFrame(updateActiveIndex);
+    };
+
+    updateActiveIndex();
+    window.addEventListener('scroll', requestActiveIndexUpdate, { passive: true });
+    window.addEventListener('resize', requestActiveIndexUpdate);
 
     return () => {
-      cardObserver.disconnect();
+      window.removeEventListener('scroll', requestActiveIndexUpdate);
+      window.removeEventListener('resize', requestActiveIndexUpdate);
+      if (activeFrameRef.current !== null) {
+        window.cancelAnimationFrame(activeFrameRef.current);
+      }
     };
   }, []);
 
@@ -158,7 +184,13 @@ export default function WorkspaceStackShowcase({
       <div className="home-workspace-intro">
         <span className="section-label">A CLOSER LOOK</span>
         <div>
-          <h2 id="workspace-showcase-title">Six workspaces. One tool.</h2>
+          <h2
+            id="workspace-showcase-title"
+            aria-label="Six workspaces. One Tool"
+          >
+            <span>Six workspaces.</span>
+            <span>One Tool</span>
+          </h2>
           <p>
             Scroll through every Archeío workspace, then open the one that fits
             what you need to do next.
@@ -219,10 +251,14 @@ export default function WorkspaceStackShowcase({
                   <article
                     className="home-workspace-card"
                     data-active={activeIndex === index}
+                    data-passed={index < activeIndex}
                     data-tone={feature.tone}
                     data-workspace={feature.id}
                     id={`home-${feature.id}`}
-                    style={{ '--workspace-stack-index': index + 1 }}
+                    style={{
+                      '--workspace-stack-index': index + 1,
+                      '--workspace-stack-offset': getStackOffset(index),
+                    }}
                   >
                     <header className="feature-card-header">
                       <div className="feature-card-heading">

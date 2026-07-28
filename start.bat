@@ -27,17 +27,13 @@ where node >nul 2>&1 || goto :node_error
 where npm >nul 2>&1 || goto :node_error
 node -e "const [major, minor] = process.versions.node.split('.').map(Number); process.exit((major === 20 && minor >= 19) || (major >= 22 && !(major === 22 && minor < 12)) ? 0 : 1)" >nul 2>&1 || goto :node_error
 
-where py >nul 2>&1
-if not errorlevel 1 (
-  set "PYTHON=py -3"
-) else (
-  set "PYTHON=python"
-)
-%PYTHON% -c "import sys; raise SystemExit(sys.version_info ^< (3, 10))" >nul 2>&1 || goto :python_error
+call :find_python || goto :python_error
 
 if not exist "venv\Scripts\python.exe" (
   echo Creating Python environment...
   %PYTHON% -m venv venv >> "%LOG_FILE%" 2>&1 || goto :venv_error
+) else (
+  venv\Scripts\python.exe -c "import sys; raise SystemExit(sys.version_info[:2] not in ((3, 10), (3, 11), (3, 12), (3, 13)))" >nul 2>&1 || goto :venv_python_error
 )
 
 echo Installing Python packages...
@@ -77,6 +73,25 @@ if %ATTEMPT% GEQ 30 goto :frontend_error
 timeout /t 1 /nobreak >nul
 goto :wait_for_frontend
 
+:find_python
+set "PYTHON="
+where py >nul 2>&1
+if not errorlevel 1 (
+  py -3.13 -c "import sys; raise SystemExit(sys.version_info[:2] != (3, 13))" >nul 2>&1 && set "PYTHON=py -3.13" && exit /b 0
+  py -3.12 -c "import sys; raise SystemExit(sys.version_info[:2] != (3, 12))" >nul 2>&1 && set "PYTHON=py -3.12" && exit /b 0
+  py -3.11 -c "import sys; raise SystemExit(sys.version_info[:2] != (3, 11))" >nul 2>&1 && set "PYTHON=py -3.11" && exit /b 0
+  py -3.10 -c "import sys; raise SystemExit(sys.version_info[:2] != (3, 10))" >nul 2>&1 && set "PYTHON=py -3.10" && exit /b 0
+)
+where python3 >nul 2>&1
+if not errorlevel 1 (
+  python3 -c "import sys; raise SystemExit(sys.version_info[:2] not in ((3, 10), (3, 11), (3, 12), (3, 13)))" >nul 2>&1 && set "PYTHON=python3" && exit /b 0
+)
+where python >nul 2>&1
+if not errorlevel 1 (
+  python -c "import sys; raise SystemExit(sys.version_info[:2] not in ((3, 10), (3, 11), (3, 12), (3, 13)))" >nul 2>&1 && set "PYTHON=python" && exit /b 0
+)
+exit /b 1
+
 :release_port
 for /f "tokens=5" %%P in ('netstat -ano ^| findstr /R /C:":%~1 .*LISTENING"') do taskkill /PID %%P /F >nul 2>&1
 exit /b 0
@@ -88,7 +103,13 @@ goto :end
 echo Node.js 20.19+ or 22.12+ is required. Install it, then run this launcher again.
 goto :end
 :python_error
-echo Python 3.10+ is required. Install it, then run this launcher again.
+echo Python 3.10 through 3.13 is required by PaddleOCR.
+echo Python 3.14 is not supported. Install a supported version, then run this launcher again.
+goto :end
+:venv_python_error
+for /f "delims=" %%V in ('venv\Scripts\python.exe -c "import platform; print(platform.python_version())" 2^>nul') do set "VENV_VERSION=%%V"
+echo The existing venv uses Python %VENV_VERSION%, which PaddleOCR does not support.
+echo Remove the generated venv folder and run this launcher again with Python 3.10 through 3.13.
 goto :end
 :venv_error
 echo Could not create the Python environment. Details: %LOG_FILE%
