@@ -142,8 +142,17 @@ test('moves workspace icons from the toolbox into the overview and stack', async
   await expect(page.locator('.home-workspace-rail-link[data-reached="true"]')).toHaveCount(1);
 
   await page.evaluate(() => {
-    document.getElementById('home-convert')?.scrollIntoView({ block: 'start' });
+    const sentinel = document.querySelector('.home-workspace-sentinel[data-index="1"]');
+    const card = document.getElementById('home-convert');
+    const stickyTop = Number.parseFloat(getComputedStyle(card).top);
+    const sentinelTop = window.scrollY + sentinel.getBoundingClientRect().top;
+
+    window.scrollTo({
+      top: sentinelTop - stickyTop,
+      behavior: 'instant',
+    });
   });
+  await expect(page.locator('#home-convert')).toHaveAttribute('data-active', 'true');
 
   const cardGeometry = await page.evaluate(() => {
     const compress = document.getElementById('home-compress');
@@ -161,11 +170,9 @@ test('moves workspace icons from the toolbox into the overview and stack', async
 
   expect(
     cardGeometry.convertTop - cardGeometry.compressTop,
-    'the previous card should retain its original header area',
-  ).toBeGreaterThanOrEqual(50);
-  expect(
-    cardGeometry.convertTop - cardGeometry.compressTop,
-  ).toBeLessThanOrEqual(72);
+    'the incoming card should completely cover the previous card',
+  ).toBeLessThanOrEqual(1);
+  expect(cardGeometry.convertTop - cardGeometry.compressTop).toBeGreaterThanOrEqual(-1);
   expect(cardGeometry.convertZ).toBeGreaterThan(cardGeometry.compressZ);
   await expect(page.locator('#home-convert')).toHaveAttribute('data-active', 'true');
   await expect(page.locator('.home-workspace-rail-link[data-reached="true"]')).toHaveCount(2);
@@ -225,10 +232,10 @@ test('moves workspace icons from the toolbox into the overview and stack', async
       const tops = cards.map((card) => Math.round(card.getBoundingClientRect().top));
 
       return tops.every((top, index) => (
-        index === 0 || top - tops[index - 1] >= 50
+        index === 0 || Math.abs(top - tops[index - 1]) <= 1
       ));
     }),
-    { message: 'workspace cards should settle into six distinct stack slots' },
+    { message: 'workspace cards should settle into one fully overlapping stack' },
   ).toBe(true);
 
   const finalCardGeometry = await page.evaluate(() => {
@@ -255,17 +262,26 @@ test('moves workspace icons from the toolbox into the overview and stack', async
     expect(card.passed).toBe('true');
     expect(
       finalCardGeometry[index + 1].top - card.top,
-      `${card.id} should leave its real header visible`,
-    ).toBeGreaterThanOrEqual(50);
-    expect(finalCardGeometry[index + 1].top - card.top).toBeLessThanOrEqual(72);
-    expect(card.titleTop).toBeGreaterThanOrEqual(card.top);
-    expect(card.titleBottom).toBeLessThanOrEqual(finalCardGeometry[index + 1].top);
+      `${card.id} should be completely covered by the next card`,
+    ).toBeLessThanOrEqual(1);
+    expect(finalCardGeometry[index + 1].top - card.top).toBeGreaterThanOrEqual(-1);
   });
   expect(finalCardGeometry.at(-1).active).toBe('true');
-  expect(finalCardGeometry.at(-1).top).toBeGreaterThan(finalCardGeometry.at(-2).top);
+  expect(
+    Math.abs(finalCardGeometry.at(-1).top - finalCardGeometry.at(-2).top),
+  ).toBeLessThanOrEqual(1);
   expect(finalCardGeometry.at(-1).bottom).toBeLessThanOrEqual(
     await page.evaluate(() => window.innerHeight),
   );
+  const headerGap = await page.evaluate(() => {
+    const headerBottom = document.querySelector('.header-glass').getBoundingClientRect().bottom;
+    const activeCardTop = document.querySelector(
+      '.home-workspace-card[data-active="true"]',
+    ).getBoundingClientRect().top;
+
+    return Math.round(activeCardTop - headerBottom);
+  });
+  expect(headerGap, 'the active workspace card should clear the fixed header').toBeGreaterThanOrEqual(16);
   await expect(page.locator('.home-workspace-rail-link[data-reached="true"]')).toHaveCount(6);
 
   await page.evaluate(() => {

@@ -15,12 +15,6 @@ const orbitPositions = [
   { x: '79%', y: '78%' },
 ];
 
-const getStackOffset = (index) => {
-  if (index === 0) return '0rem';
-
-  return `clamp(${index * 3.125}rem, calc(${index * 20}dvh - ${index * 9}rem), ${index * 4.5}rem)`;
-};
-
 export default function WorkspaceStackShowcase({
   iconPhase,
   overviewRef,
@@ -257,7 +251,6 @@ export default function WorkspaceStackShowcase({
                     id={`home-${feature.id}`}
                     style={{
                       '--workspace-stack-index': index + 1,
-                      '--workspace-stack-offset': getStackOffset(index),
                     }}
                   >
                     <header className="feature-card-header">

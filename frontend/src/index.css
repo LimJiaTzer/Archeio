@@ -1599,6 +1599,7 @@ a {
 }
 
 .home-workspace-experience {
+  --workspace-sticky-top: clamp(6.75rem, 9vh, 7.5rem);
   display: grid;
   width: min(100%, 80rem);
   grid-template-columns: 4.6rem minmax(0, 1fr);
@@ -1609,7 +1610,7 @@ a {
 .home-workspace-rail {
   position: sticky;
   z-index: 40;
-  top: 7.25rem;
+  top: var(--workspace-sticky-top);
   height: max-content;
   align-self: start;
 }
@@ -1779,7 +1780,7 @@ a {
 
 .home-workspace-list::after {
   display: block;
-  height: calc(clamp(12rem, 24vh, 18rem) + 8.125rem);
+  height: calc(clamp(12rem, 24vh, 18rem) + 16rem);
   content: "";
 }
 
@@ -1805,8 +1806,7 @@ a {
 .home-workspace-card {
   --feature-accent: #c65f19;
   --feature-soft: #fff7ed;
-  --workspace-card-top:
-    calc(clamp(5rem, 8vh, 6.5rem) + var(--workspace-stack-offset));
+  --workspace-card-top: var(--workspace-sticky-top);
   --workspace-card-surface:
     radial-gradient(circle at 8% 8%, #fff3d9 0, transparent 31%),
     linear-gradient(135deg, #fffdf9 0%, #fff2e7 100%);
@@ -2012,6 +2012,11 @@ a {
 }
 
 @media (min-width: 1024px) and (max-height: 1100px) {
+  .home-workspace-card {
+    height: min(34rem, calc(100dvh - var(--workspace-card-top) - 4rem));
+    min-height: min(32rem, calc(100dvh - var(--workspace-card-top) - 4rem));
+  }
+
   .home-workspace-card[data-passed="true"] {
     padding-top: 0.45rem;
   }
@@ -2027,27 +2032,10 @@ a {
 
   .home-workspace-card[data-passed="true"] .feature-card-number {
     padding-top: 0;
-    font-size: 0.5rem;
-  }
-
-  .home-workspace-card[data-passed="true"] .feature-card-icon {
-    width: 2rem;
-    height: 2rem;
-    border-radius: 0.65rem;
-  }
-
-  .home-workspace-card[data-passed="true"] .feature-card-icon svg {
-    width: 1rem;
-    height: 1rem;
-  }
-
-  .home-workspace-card[data-passed="true"] .feature-card-kicker {
-    font-size: 0.48rem;
   }
 
   .home-workspace-card[data-passed="true"] .feature-card-heading h2 {
     margin-top: 0.04rem;
-    font-size: 1rem;
     line-height: 1;
   }
 
@@ -2055,11 +2043,6 @@ a {
     display: none;
   }
 
-  .home-workspace-card[data-passed="true"] .feature-card-action {
-    min-height: 1.9rem;
-    padding: 0.32rem 0.62rem;
-    font-size: 0.56rem;
-  }
 }
 
 .home-feature-map-stage {
