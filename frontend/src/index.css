@@ -1793,6 +1793,15 @@ a {
   height: 1px;
 }
 
+.home-workspace-card-gap {
+  display: block;
+  height: clamp(5rem, 16vh, 9rem);
+}
+
+.home-workspace-stack-entry:last-of-type .home-workspace-card-gap {
+  height: 0;
+}
+
 .home-workspace-card {
   --feature-accent: #c65f19;
   --feature-soft: #fff7ed;
@@ -1809,7 +1818,7 @@ a {
   min-height: min(32rem, calc(100dvh - var(--workspace-card-top) - 10rem));
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
-  margin-bottom: clamp(5rem, 16vh, 9rem);
+  margin-bottom: 0;
   border: 1px solid rgb(255 255 255 / 96%);
   border-radius: 2rem;
   background: var(--workspace-card-surface);
@@ -2246,6 +2255,10 @@ a {
     height: auto;
     min-height: 0;
     margin-bottom: 1.25rem;
+  }
+
+  .home-workspace-card-gap {
+    display: none;
   }
 
   .home-workspace-card-scroll {

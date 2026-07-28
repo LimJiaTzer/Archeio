@@ -162,7 +162,7 @@ test('moves workspace icons from the toolbox into the overview and stack', async
   expect(
     cardGeometry.convertTop - cardGeometry.compressTop,
     'the previous card should retain its original header area',
-  ).toBeGreaterThanOrEqual(48);
+  ).toBeGreaterThanOrEqual(50);
   expect(
     cardGeometry.convertTop - cardGeometry.compressTop,
   ).toBeLessThanOrEqual(72);
@@ -212,8 +212,24 @@ test('moves workspace icons from the toolbox into the overview and stack', async
     page.locator('.home-workspace-rail-link .workspace-journey-token-label'),
   ).toHaveCount(0);
 
-  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await page.evaluate(() => {
+    window.scrollTo({
+      top: document.documentElement.scrollHeight,
+      behavior: 'instant',
+    });
+  });
   await expect(page.locator('#home-qr')).toHaveAttribute('data-active', 'true');
+  await expect.poll(
+    () => page.evaluate(() => {
+      const cards = Array.from(document.querySelectorAll('.home-workspace-card'));
+      const tops = cards.map((card) => Math.round(card.getBoundingClientRect().top));
+
+      return tops.every((top, index) => (
+        index === 0 || top - tops[index - 1] >= 50
+      ));
+    }),
+    { message: 'workspace cards should settle into six distinct stack slots' },
+  ).toBe(true);
 
   const finalCardGeometry = await page.evaluate(() => {
     const cards = Array.from(document.querySelectorAll('.home-workspace-card'));
@@ -240,7 +256,7 @@ test('moves workspace icons from the toolbox into the overview and stack', async
     expect(
       finalCardGeometry[index + 1].top - card.top,
       `${card.id} should leave its real header visible`,
-    ).toBeGreaterThanOrEqual(48);
+    ).toBeGreaterThanOrEqual(50);
     expect(finalCardGeometry[index + 1].top - card.top).toBeLessThanOrEqual(72);
     expect(card.titleTop).toBeGreaterThanOrEqual(card.top);
     expect(card.titleBottom).toBeLessThanOrEqual(finalCardGeometry[index + 1].top);

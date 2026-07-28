@@ -18,7 +18,7 @@ const orbitPositions = [
 const getStackOffset = (index) => {
   if (index === 0) return '0rem';
 
-  return `clamp(${index * 3}rem, calc(${index * 20}dvh - ${index * 9}rem), ${index * 4.5}rem)`;
+  return `clamp(${index * 3.125}rem, calc(${index * 20}dvh - ${index * 9}rem), ${index * 4.5}rem)`;
 };
 
 export default function WorkspaceStackShowcase({
@@ -296,6 +296,7 @@ export default function WorkspaceStackShowcase({
                       </div>
                     </div>
                   </article>
+                  <span className="home-workspace-card-gap" aria-hidden="true" />
                 </div>
               );
             })}
